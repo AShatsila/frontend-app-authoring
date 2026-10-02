@@ -160,6 +160,21 @@ const twoCoursesResponse: CompetencyCriteriaGroupsResponse = {
   criteria: [],
 };
 
+/** Like `twoCoursesResponse`, but group 20 has a criterion, so focusing it yields a real rule key. */
+const courseExpansionResponse: CompetencyCriteriaGroupsResponse = {
+  ...twoCoursesResponse,
+  criteria: [
+    {
+      id: 950,
+      objectId: 'course-b-sub',
+      groupId: 20,
+      ruleProfileId: 1,
+      ruleTypeOverride: null,
+      rulePayloadOverride: null,
+    },
+  ],
+};
+
 const outlineFixture = buildOutlineIndex();
 
 /** Exposes every context value/action as plain, clickable test hooks. */
@@ -168,6 +183,8 @@ const TestConsumer = () => {
   return (
     <div>
       <div data-testid="focus">{JSON.stringify(ctx.focus)}</div>
+      <div data-testid="placeholder">{JSON.stringify(ctx.placeholder)}</div>
+      <div data-testid="has-placeholder">{String(ctx.hasPlaceholder)}</div>
       <div data-testid="groups-status">{ctx.groupsQuery.isSuccess ? 'groups-success' : 'groups-pending'}</div>
       <div data-testid="profile-status">{ctx.profileQuery.isSuccess ? 'profile-success' : 'profile-pending'}</div>
       <div data-testid="accessible-course-group-ids">
@@ -175,7 +192,17 @@ const TestConsumer = () => {
       </div>
       <button type="button" onClick={() => ctx.focusGroup(999)}>focus-999</button>
       <button type="button" onClick={() => ctx.focusGroup(10)}>focus-group-10</button>
+      <button type="button" onClick={() => ctx.focusGroup(11)}>focus-group-11</button>
+      <button type="button" onClick={() => ctx.focusGroup(20)}>focus-group-20</button>
       <button type="button" onClick={() => ctx.focusRuleBox(10, 'grade:gte:0.7:percent')}>focus-rulebox-10</button>
+      <button type="button" onClick={() => ctx.addPlaceholderRuleBox(10)}>add-placeholder-rule-10</button>
+      <button type="button" onClick={() => ctx.addPlaceholderGroup(1)}>add-placeholder-group-1</button>
+      <button
+        type="button"
+        onClick={() => ctx.setPlaceholderRulePayload({ op: 'gte', value: 0.85, scale: 'percent' })}
+      >
+        set-placeholder-rule-payload
+      </button>
       <button type="button" onClick={() => ctx.notifyCourseExpanded(courseB)}>expand-course-b</button>
       <button type="button" onClick={() => ctx.associateSubsection('new-sub', courseA)}>associate-course-a</button>
       <button
@@ -369,6 +396,106 @@ describe('CompetencyAssociationsProvider', () => {
     },
   );
 
+  describe('placeholder lifecycle (#671)', () => {
+    it('"+ Rule" starts a placeholder rule box in the given group, focusing it with ruleKey: null', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+
+      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":null');
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
+    });
+
+    it('"+ Rule Group" replaces an existing placeholder rule box, since focus has only one slot', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+
+      fireEvent.click(screen.getByText('add-placeholder-group-1'));
+
+      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":null');
+      expect(screen.getByTestId('placeholder')).toHaveTextContent('"parentRuleGroupId":1');
+      expect(screen.getByTestId('placeholder')).toHaveTextContent('"logicOperator":"OR"');
+    });
+
+    it('focusing a different real group clears an existing placeholder', async () => {
+      // `courseExpansionResponse`'s group 20 has a real criterion of its
+      // own (unlike `twoGroupsResponse`'s groups, which have none at all) -
+      // focusing it resolves a real rule key, not another `null` that would
+      // be indistinguishable from a placeholder.
+      axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
+
+      fireEvent.click(screen.getByText('focus-group-20'));
+
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":20');
+      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+    });
+
+    it(
+      'resolves a placeholder onto an expanded course\'s own last bottom-tier group, when one already exists',
+      async () => {
+        axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
+        axiosMock.onGet(profileUrl).reply(200, profileResponse);
+        axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+        axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+        renderProvider();
+        await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+        fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":null');
+
+        fireEvent.click(screen.getByText('expand-course-b'));
+
+        // CourseB's own bottom-tier group (20) has a real criterion of its
+        // own in `courseExpansionResponse` - focus lands on its real rule
+        // key, not another `null`.
+        await waitFor(() => {
+          expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":20');
+        });
+        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+      },
+    );
+
+    it('course expansion leaves focus unchanged when no placeholder exists', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      renderProvider();
+
+      // Auto-focuses the sole bottom-tier group (10) via the existing
+      // mechanism - a normal, non-placeholder focus.
+      await waitFor(() => {
+        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+      });
+
+      fireEvent.click(screen.getByText('expand-course-b'));
+
+      // No placeholder exists, so `notifyCourseExpanded`'s own
+      // placeholder-repair branch never writes anything - focus is untouched.
+      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+    });
+  });
+
   describe('associateSubsection', () => {
     it('sends the focused group\'s id and rule when the focus is a group belonging to the clicked subsection\'s course', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
@@ -514,6 +641,139 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => {
         expect(mockShowToast).toHaveBeenCalledWith('There was a problem creating this association. Please try again.');
       });
+    });
+
+    it('sends only group_id for a placeholder rule box whose score the author has not changed', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onPost(createUrl).reply(201, {
+        id: 905,
+        group_id: 10,
+        rule_profile_id: 1,
+        rule_type_override: null,
+        rule_payload_override: null,
+        object_tag_id: tagId,
+      });
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+      fireEvent.click(screen.getByText('associate-course-a'));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      // ADR 0002: an override is complete or absent - since the author
+      // never set a score, neither override field is sent, only `group_id`.
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub', group_id: 10 });
+    });
+
+    it('sends group_id and both rule fields for a placeholder rule box whose score the author has changed', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onPost(createUrl).reply(201, {
+        id: 906,
+        group_id: 10,
+        rule_profile_id: null,
+        rule_type_override: 'grade',
+        rule_payload_override: { op: 'gte', value: 0.85, scale: 'percent' },
+        object_tag_id: tagId,
+      });
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+      fireEvent.click(screen.getByText('set-placeholder-rule-payload'));
+      fireEvent.click(screen.getByText('associate-course-a'));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({
+        object_id: 'new-sub',
+        group_id: 10,
+        rule_type_override: 'grade',
+        rule_payload_override: { op: 'gte', value: 0.85, scale: 'percent' },
+      });
+    });
+
+    it('sends logic_operator (uppercased) but no group_id for a placeholder group belonging to the clicked course', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onPost(createUrl).reply(201, {
+        id: 907,
+        group_id: 11,
+        rule_profile_id: 1,
+        rule_type_override: null,
+        rule_payload_override: null,
+        object_tag_id: tagId,
+      });
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      // `add-placeholder-group-1` targets course-level group 1 (courseA) -
+      // the same course `associate-course-a` clicks a subsection from.
+      fireEvent.click(screen.getByText('add-placeholder-group-1'));
+      fireEvent.click(screen.getByText('associate-course-a'));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      // `logic_operator` is always sent for a placeholder group (the new
+      // group needs one either way) - unlike the rule override pair, which
+      // is complete-or-absent and is absent here since the author never set
+      // a score.
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub', logic_operator: 'OR' });
+    });
+
+    it('sends logic_operator and both rule fields together for a placeholder group whose score the author set', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onPost(createUrl).reply(201, {
+        id: 908,
+        group_id: 11,
+        rule_profile_id: null,
+        rule_type_override: 'grade',
+        rule_payload_override: { op: 'gte', value: 0.85, scale: 'percent' },
+        object_tag_id: tagId,
+      });
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-group-1'));
+      fireEvent.click(screen.getByText('set-placeholder-rule-payload'));
+      fireEvent.click(screen.getByText('associate-course-a'));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({
+        object_id: 'new-sub',
+        logic_operator: 'OR',
+        rule_type_override: 'grade',
+        rule_payload_override: { op: 'gte', value: 0.85, scale: 'percent' },
+      });
+    });
+
+    it('omits every optional field for a placeholder group when the subsection is from a different course', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onPost(createUrl).reply(201, {
+        id: 909,
+        group_id: 20,
+        rule_profile_id: 1,
+        rule_type_override: null,
+        rule_payload_override: null,
+        object_tag_id: tagId,
+      });
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      // `add-placeholder-group-1` targets course-level group 1 (courseA);
+      // the subsection is clicked from `courseOther` instead - same
+      // fallthrough as a placeholder-free, unrelated-course click.
+      fireEvent.click(screen.getByText('add-placeholder-group-1'));
+      fireEvent.click(screen.getByText('associate-other-course'));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub' });
     });
   });
 

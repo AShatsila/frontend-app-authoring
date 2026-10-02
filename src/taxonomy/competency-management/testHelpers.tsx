@@ -15,6 +15,12 @@ export const buildMockCompetencyAssociationsContextValue = (
   overrides: Partial<CompetencyAssociationsContextValue> = {},
 ): CompetencyAssociationsContextValue => ({
   focus: null,
+  placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null },
+  addPlaceholderRuleBox: jest.fn(),
+  addPlaceholderGroup: jest.fn(),
+  setPlaceholderLogicOperator: jest.fn(),
+  setPlaceholderRulePayload: jest.fn(),
+  hasPlaceholder: false,
   focusGroup: jest.fn(),
   focusRuleBox: jest.fn(),
   notifyCourseExpanded: jest.fn(),

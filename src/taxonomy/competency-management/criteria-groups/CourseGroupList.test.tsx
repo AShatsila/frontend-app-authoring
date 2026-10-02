@@ -88,6 +88,15 @@ describe('<CourseGroupList />', () => {
       .toBeInTheDocument();
   });
 
+  it('renders no "+ Rule"/"+ Rule Group" add control on a failed load', () => {
+    renderList({ groupsQuery: erroredGroupsQuery, profileQuery: loadedProfileQuery });
+    // No `CourseGroupSection` (let alone a `CriteriaGroupBox`) is mounted at
+    // all on a failed load, so neither add control's own gating logic needs
+    // separate coverage here - there's nothing to render it in the first
+    // place.
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('renders a failed state when the default-rule-profile query errors, even if groups already loaded', () => {
     renderList({
       groupsQuery: loadedEmptyGroupsQuery,

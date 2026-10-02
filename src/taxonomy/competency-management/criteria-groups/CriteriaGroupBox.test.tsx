@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event';
 import {
   fireEvent,
   initializeMocks,
@@ -163,20 +164,28 @@ describe('<CriteriaGroupBox />', () => {
     const focusRuleBox = jest.fn();
     renderBox({ focusGroup, focusRuleBox });
 
-    // With the default `canEdit: true`, three `role="button"` elements
-    // exist: the header band, the any/all `Dropdown` trigger, and the rule
-    // box itself - the rule box is the third, not the second.
-    expect(screen.getAllByRole('button')).toHaveLength(3);
+    // The header band, the any/all `Dropdown` trigger, the rule box itself,
+    // and the "+ Rule" control - the rule box is the third.
+    expect(screen.getAllByRole('button')).toHaveLength(4);
     fireEvent.click(screen.getAllByRole('button')[2]);
 
     expect(focusRuleBox).toHaveBeenCalledTimes(1);
     expect(focusGroup).not.toHaveBeenCalled();
   });
 
-  it('scrolls the group container into view when it is focused with no rule box focused', () => {
-    renderBox({ focus: { groupId: 10, ruleKey: null } });
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
-  });
+  it(
+    'scrolls its own placeholder rule box into view when focused with no rule box selected, not the group '
+      + 'container itself',
+    () => {
+      renderBox({ focus: { groupId: 10, ruleKey: null } });
+      // The group container no longer owns this scroll - its own
+      // placeholder `RuleBox` (always rendered whenever this group is
+      // focused with `ruleKey: null`) scrolls itself in instead, the more
+      // specific/innermost target, the same convention a real focused rule
+      // box already follows.
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('does not scroll the group container when a rule box within it is the focused one', () => {
     renderBox({ focus: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
@@ -184,5 +193,58 @@ describe('<CriteriaGroupBox />', () => {
     // The rule box itself still scrolls (it's the innermost focused
     // element), but the group container must not also call it a second time.
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it('"+ Rule" on a non-focused card starts a placeholder rule box in that card\'s own group', () => {
+    const addPlaceholderRuleBox = jest.fn();
+    renderBox({ addPlaceholderRuleBox });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rule' }));
+
+    expect(addPlaceholderRuleBox).toHaveBeenCalledWith(10);
+  });
+
+  it('disables "+ Rule" with a tooltip while a placeholder already exists elsewhere', async () => {
+    const user = userEvent.setup();
+    renderBox({ hasPlaceholder: true });
+
+    const addRuleButton = screen.getByRole('button', { name: 'Rule' });
+    expect(addRuleButton).toBeDisabled();
+
+    // A disabled `Button` itself fires no hover/focus events, so the
+    // tooltip is reached via its focusable wrapper `<span>` instead (see
+    // `AddControl.tsx`).
+    await user.hover(addRuleButton.closest('.add-control__button-wrapper')!);
+    expect(await screen.findByText('Fill in the empty box before adding another.')).toBeInTheDocument();
+  });
+
+  it('hides "+ Rule" entirely when canEdit is false', () => {
+    renderBox({}, {}, false);
+    expect(screen.queryByRole('button', { name: 'Rule' })).not.toBeInTheDocument();
+  });
+
+  it('a placeholder card\'s own operator is editable via setPlaceholderLogicOperator, not updateGroupOperator', () => {
+    const setPlaceholderLogicOperator = jest.fn();
+    const updateGroupOperator = jest.fn();
+    render(
+      <MockCompetencyAssociationsProvider
+        value={{
+          index,
+          systemDefaultProfile,
+          focus: { groupId: null, ruleKey: null },
+          placeholder: { parentRuleGroupId: 1, logicOperator: 'AND', rulePayload: null },
+          setPlaceholderLogicOperator,
+          updateGroupOperator,
+        }}
+      >
+        <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'all' }));
+    fireEvent.click(screen.getByText('any'));
+
+    expect(setPlaceholderLogicOperator).toHaveBeenCalledWith('OR');
+    expect(updateGroupOperator).not.toHaveBeenCalled();
   });
 });
