@@ -1,12 +1,17 @@
 import { useIntl } from '@edx/frontend-platform/i18n';
+import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriteriaGroupsIndex } from '../utils';
 import { ruleBoxesForGroup } from '../utils';
-import type { CompetencyRuleProfile, RuleBox as RuleBoxData } from '../data/types';
+import type { CompetencyRuleProfile, EffectiveRule, RuleBox as RuleBoxData } from '../data/types';
 import RuleBox from './RuleBox';
 import messages from './messages';
 
 export interface RuleBoxListProps {
-  groupId: number;
+  /** `null` for the not-yet-saved placeholder bottom-tier group (`#671`),
+   * which has no real rule boxes of its own yet - only its own placeholder
+   * rule box renders in that case.
+   */
+  groupId: number | null;
   index: CompetencyCriteriaGroupsIndex;
   systemDefaultProfile: CompetencyRuleProfile;
   subsectionNamesByUsageKey: Record<string, string>;
@@ -18,6 +23,9 @@ export interface RuleBoxListProps {
  * from `CompetencyAssociationsContext` directly (given `groupId` and its
  * own box key to compare against), so no focus state is threaded through
  * here.
+ *
+ * Appends one not-yet-saved placeholder `RuleBox` last whenever this group is
+ * the one currently focused with no real rule box selected.
  */
 const RuleBoxList = ({
   groupId,
@@ -27,7 +35,10 @@ const RuleBoxList = ({
   canEdit = false,
 }: RuleBoxListProps) => {
   const intl = useIntl();
-  const boxes = ruleBoxesForGroup(groupId, index, systemDefaultProfile);
+  const { focus, placeholder } = useCompetencyAssociations();
+  // The placeholder group (`groupId === null`) has no real rule boxes of
+  // its own yet.
+  const boxes = groupId !== null ? ruleBoxesForGroup(groupId, index, systemDefaultProfile) : [];
 
   // Compares rounded percent + rule type + op (not `ruleKeyOf`'s raw key, which risks a
   // formatting-mismatch false negative); excludes the box being edited by its own `key`.
@@ -41,6 +52,19 @@ const RuleBoxList = ({
     ));
     return isDuplicate ? intl.formatMessage(messages.duplicateScoreValidationMessage) : '';
   };
+
+  // This group's own not-yet-saved placeholder rule box, shown last when
+  // this group is the one currently focused with no real rule box selected
+  // (`focus.ruleKey === null`). For the placeholder group itself
+  // (`groupId === null`), this is always true once rendered at all -
+  // `CourseGroupSection` only renders that card while `focus.groupId` is
+  // already `null`.
+  const showPlaceholder = focus?.groupId === groupId && focus?.ruleKey === null;
+  const placeholderRule: EffectiveRule = {
+    ruleType: systemDefaultProfile.ruleType,
+    rulePayload: placeholder.rulePayload ?? systemDefaultProfile.rulePayload,
+  };
+  const placeholderBox: RuleBoxData = { key: '__placeholder__', rule: placeholderRule, criteria: [] };
 
   return (
     <div className="rule-box-list">
@@ -56,6 +80,18 @@ const RuleBoxList = ({
           getInlineValidationMessage={getInlineValidationMessage(box)}
         />
       ))}
+      {showPlaceholder && (
+        <RuleBox
+          key="placeholder"
+          groupId={groupId}
+          ruleKey={null}
+          rule={placeholderRule}
+          criteria={[]}
+          subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+          canEdit={canEdit}
+          getInlineValidationMessage={getInlineValidationMessage(placeholderBox)}
+        />
+      )}
     </div>
   );
 };
