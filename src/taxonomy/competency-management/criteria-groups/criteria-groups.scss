@@ -130,6 +130,10 @@
       .rule-box-list > * + * {
         margin-top: var(--pgn-spacing-spacer-2);
       }
+
+      .add-control {
+        margin-top: var(--pgn-spacing-spacer-2);
+      }
     }
   }
 
@@ -160,6 +164,15 @@
         outline: 2px solid var(--pgn-color-info-400);
         outline-offset: -2px;
       }
+    }
+
+    // Stands in for `CriterionChipList` on the not-yet-saved placeholder
+    // box, which has no content associated with it yet.
+    &__placeholder-hint {
+      border: 1px dashed $connector-line-color;
+      border-radius: var(--pgn-size-card-border-radius);
+      padding: 8px;
+      font-size: var(--pgn-typography-font-size-sm);
     }
   }
 
@@ -232,6 +245,21 @@
       font-size: var(--pgn-typography-font-size-sm);
       font-weight: 700;
       white-space: nowrap;
+    }
+  }
+
+  // The "+ Rule"/"+ Rule Group" control (see `AddControl.tsx`): its own
+  // button, centered between two connector-style lines - the same line
+  // treatment as `.group-connector` above, just without a label between them.
+  .add-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__line {
+      flex: 1;
+      height: 1px;
+      background-color: $connector-line-color;
     }
   }
 }
