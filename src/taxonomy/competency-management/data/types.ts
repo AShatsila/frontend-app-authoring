@@ -158,6 +158,10 @@ export interface CreateCompetencyCriterionPayload {
   group_id?: number;
   rule_type_override?: string;
   rule_payload_override?: GradeRulePayload;
+  /** Set only when this request also creates the bottom-tier group itself
+   * (no `group_id`) - the new group's own any/all combining logic (`#671`).
+   */
+  logic_operator?: CompetencyGroupLogicOperator;
 }
 
 /** `createCompetencyCriterion`'s 201 response: no `objectId` (write-only on
