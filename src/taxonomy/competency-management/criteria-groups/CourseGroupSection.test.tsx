@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event';
 import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { getCourseOutlineIndexApiUrl } from '@src/course-outline/data';
 import {
@@ -198,8 +199,6 @@ describe('<CourseGroupSection />', () => {
       });
 
       await screen.findByText('Demo Course');
-      // Two real bottom-tier groups (10, 11) plus the placeholder - three
-      // cards, N-1 (two) connectors, same rule as the all-real case above.
       expect(container.querySelectorAll('.criteria-group-box')).toHaveLength(3);
       expect(screen.getAllByTestId('group-connector')).toHaveLength(2);
     },
@@ -209,8 +208,6 @@ describe('<CourseGroupSection />', () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const { container } = renderSection({
       focus: { groupId: null, ruleKey: null },
-      // Not `courseGroup.id` (1) - simulates a placeholder started under a
-      // sibling course's own card instead.
       placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null },
     });
 
@@ -219,24 +216,72 @@ describe('<CourseGroupSection />', () => {
     expect(screen.getAllByTestId('group-connector')).toHaveLength(1);
   });
 
-  it('renders exactly one "+ Rule Group" control, which starts a placeholder under this course-level group', async () => {
+  it('renders exactly one "Add Rule Group" control, which starts a placeholder under this course-level group', async () => {
+    const user = userEvent.setup();
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const addPlaceholderGroup = jest.fn();
     renderSection({ addPlaceholderGroup });
 
     await screen.findByText('Demo Course');
-    const addRuleGroupButtons = screen.getAllByRole('button', { name: 'Rule Group' });
+    const addRuleGroupButtons = screen.getAllByRole('button', { name: 'Add Rule Group' });
     expect(addRuleGroupButtons).toHaveLength(1);
 
-    fireEvent.click(addRuleGroupButtons[0]);
+    await user.click(addRuleGroupButtons[0]);
     expect(addPlaceholderGroup).toHaveBeenCalledWith(courseGroup.id);
   });
 
-  it('hides "+ Rule Group" when the author cannot edit this course', async () => {
+  it('hides "Add Rule Group" when the author cannot edit this course', async () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     renderSection({ canEditCourse: () => false });
 
     await screen.findByText('Demo Course');
-    expect(screen.queryByRole('button', { name: 'Rule Group' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add Rule Group' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['a placeholder group under it', {
+      focus: { groupId: null, ruleKey: null },
+      placeholder: { parentRuleGroupId: courseGroup.id, logicOperator: 'OR' as const, rulePayload: null },
+    }],
+    ['a placeholder rule box in one of its groups', { focus: { groupId: 10, ruleKey: null } }],
+  ])('discards the placeholder when collapsing a section holding %s', async (_label, overrides) => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+    const discardPlaceholder = jest.fn();
+    renderSection({ ...overrides, discardPlaceholder });
+
+    await screen.findByText('Demo Course');
+    await user.click(screen.getByRole('button', { name: 'Collapse' }));
+
+    expect(discardPlaceholder).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not discard the placeholder when collapsing a section that does not hold it', async () => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+    const discardPlaceholder = jest.fn();
+    renderSection({
+      focus: { groupId: null, ruleKey: null },
+      placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null },
+      discardPlaceholder,
+    });
+
+    await screen.findByText('Demo Course');
+    await user.click(screen.getByRole('button', { name: 'Collapse' }));
+
+    expect(discardPlaceholder).not.toHaveBeenCalled();
+  });
+
+  it('does not discard the placeholder when expanding the section again', async () => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+    const discardPlaceholder = jest.fn();
+    renderSection({ focus: { groupId: 10, ruleKey: null }, discardPlaceholder });
+
+    await screen.findByText('Demo Course');
+    await user.click(screen.getByRole('button', { name: 'Collapse' }));
+    await user.click(screen.getByRole('button', { name: 'Expand' }));
+
+    expect(discardPlaceholder).toHaveBeenCalledTimes(1);
   });
 });
