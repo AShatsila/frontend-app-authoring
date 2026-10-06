@@ -135,9 +135,7 @@ describe('<RuleBoxList />', () => {
   });
 
   describe('placeholder rule box (#671)', () => {
-    // One real box (gte 75%) - distinct from the placeholder's own initial
-    // display (the system default profile's gte 70%), so typing a new value
-    // that doesn't match it is a genuine change, not a same-value no-op.
+    // The real box's 75% differs from the placeholder's default 70%, so typing 75 is a real change.
     const placeholderGroupResponse: CompetencyCriteriaGroupsResponse = {
       groups: [
         {
@@ -181,8 +179,7 @@ describe('<RuleBoxList />', () => {
     };
 
     it('renders last, showing the system default\'s own rule when the author has not set a score yet', () => {
-      // Read-only (`canEdit` omitted) so the percent renders as plain text,
-      // not an input whose value doesn't contribute to `textContent`.
+      // Read-only, so the percent is plain text rather than an input value.
       const index = buildCompetencyCriteriaGroupsIndex(placeholderGroupResponse);
       render(
         <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: null } }}>

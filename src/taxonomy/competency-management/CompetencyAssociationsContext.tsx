@@ -51,7 +51,6 @@ import {
 
 /** A rule box only means anything inside its own group, so `groupId` and
  * `ruleKey` are always written together (see `focusGroup`/`focusRuleBox`).
- * `ruleKey` is `null` when the focused group has no rule box yet.
  *
  * `groupId === null` means the focused group is a not-yet-saved placeholder
  * group. `ruleKey === null` means a placeholder rule box is focused, inside
@@ -68,44 +67,32 @@ export interface CompetencyAssociationsContextValue {
    * is always written together.
    */
   focus: CriteriaFocus | null;
-  /** The not-yet-saved ("placeholder") bottom-tier group's or rule box's own
-   * author-editable choices - carried here instead of on `focus` itself
-   * since `focus` is also written by the non-placeholder flows
-   * (`focusGroup`/`focusRuleBox`). `parentRuleGroupId`/`logicOperator` are
-   * only meaningful while `focus.groupId === null` (a placeholder group);
-   * `rulePayload` is shared by both placeholder shapes, since only one
-   * placeholder rule box can ever exist at a time (inside a real group or
-   * inside the placeholder group).
+  /** The author's choices on the placeholder, kept apart from `focus`
+   * because the non-placeholder flows also write `focus`. `parentRuleGroupId`
+   * and `logicOperator` only matter while `focus.groupId === null`.
    */
   placeholder: {
     parentRuleGroupId: number | null;
     logicOperator: CompetencyGroupLogicOperator;
     rulePayload: GradeRulePayload | null;
   };
-  /** Starts a placeholder rule box inside the given real bottom-tier group:
-   * focuses it (`groupId`, `ruleKey: null`) and clears any previous
-   * placeholder rule payload. Replaces a placeholder group automatically,
-   * since `focus` has only one slot.
+  /** Starts a placeholder rule box in the given real group, replacing any
+   * existing placeholder.
    */
   addPlaceholderRuleBox: (groupId: number) => void;
-  /** Starts a placeholder bottom-tier group under the given course-level
-   * group: focuses it (`groupId: null`, `ruleKey: null`), resets its logic
-   * operator to `'OR'`, and clears any previous placeholder rule payload.
-   * Replaces a placeholder rule box automatically, since `focus` has only
-   * one slot.
+  /** Starts a placeholder group under the given course-level group,
+   * replacing any existing placeholder.
    */
   addPlaceholderGroup: (parentRuleGroupId: number) => void;
   /** Sets the placeholder group's own any/all combining logic. */
   setPlaceholderLogicOperator: (logicOperator: CompetencyGroupLogicOperator) => void;
-  /** Sets the placeholder rule box's own rule payload, read by its
-   * `ScoreThresholdField` instead of persisting anything.
+  /** Sets the placeholder rule box's score, which is only persisted once
+   * content is associated.
    */
   setPlaceholderRulePayload: (rulePayload: GradeRulePayload) => void;
-  /** Whether a placeholder (a rule box or a whole group) currently exists,
-   * i.e. `focus` is set and its `ruleKey` is `null`. Both add controls
-   * disable themselves while this is true, since only one placeholder can
-   * exist at a time.
-   */
+  /** Drops the placeholder by clearing `focus`. */
+  discardPlaceholder: () => void;
+  /** Whether a placeholder exists, which disables both add controls. */
   hasPlaceholder: boolean;
   /** Focuses a group and its last real rule box (`lastRealRuleKeyIn`). A
    * no-op when `groupId` is already focused, so re-clicking the group
@@ -245,23 +232,22 @@ export const CompetencyAssociationsProvider = ({
 
   const notifyCourseExpanded = useCallback((courseId: string) => {
     setExpandedCourseIds((prev) => (prev.has(courseId) ? prev : new Set(prev).add(courseId)));
-    // A placeholder (a rule box or a whole group) must not keep focus
-    // pointing at nothing once the course it would belong to turns out to
-    // already have a real bottom-tier group of its own - jump focus to that
-    // group's own last rule box instead, the same target a fresh
-    // `focusGroup` click on it would resolve. Left unchanged if the
-    // expanded course has no bottom-tier group yet, or no placeholder
-    // exists. `focus`/`index`/`systemDefaultProfile` are read directly from
-    // this render's own closure (not a functional `setFocus` updater) -
-    // safe here since this is the provider's own state, not another
-    // component's.
     if (focus !== null && focus.ruleKey === null && index && systemDefaultProfile) {
+      // The course holding the placeholder keeps it. Any other course that
+      // already has groups takes focus, so the placeholder does not linger.
+      const placeholderGroupId = focus.groupId !== null
+        ? index.groupsById.get(focus.groupId)?.parentId
+        : placeholder.parentRuleGroupId;
+      const placeholderCourse = placeholderGroupId != null ? index.groupsById.get(placeholderGroupId) : undefined;
+      if (placeholderCourse?.courseKey === courseId) {
+        return;
+      }
       const lastGroup = lastBottomTierGroupForCourse(index, courseId);
       if (lastGroup) {
         setFocus({ groupId: lastGroup.id, ruleKey: lastRealRuleKeyIn(lastGroup.id, index, systemDefaultProfile) });
       }
     }
-  }, [focus, index, systemDefaultProfile]);
+  }, [focus, placeholder.parentRuleGroupId, index, systemDefaultProfile]);
 
   // Every course-level group's course key, unfiltered - each must be
   // fetched to determine accessibility (see `accessibleCourseIds` below).
@@ -332,6 +318,10 @@ export const CompetencyAssociationsProvider = ({
 
   const setPlaceholderRulePayload = useCallback((rulePayload: GradeRulePayload) => {
     setPlaceholder((prev) => ({ ...prev, rulePayload }));
+  }, []);
+
+  const discardPlaceholder = useCallback(() => {
+    setFocus(null);
   }, []);
 
   const hasPlaceholder = focus !== null && focus.ruleKey === null;
@@ -428,18 +418,11 @@ export const CompetencyAssociationsProvider = ({
         }
       }
     } else if (focus && focus.groupId === null) {
-      // Placeholder bottom-tier group: only meaningful if it belongs to the
-      // clicked subsection's own course - a placeholder started under one
-      // course's card, with a subsection picked from a different course,
-      // falls through below with no optional fields at all, same as
-      // clicking an unrelated course with no focus set.
+      // A placeholder group only applies to content from its own course.
       const parentGroup = placeholder.parentRuleGroupId !== null
         ? index.groupsById.get(placeholder.parentRuleGroupId)
         : undefined;
       if (parentGroup?.courseKey === courseId) {
-        // No `group_id`: this request creates the bottom-tier group itself.
-        // `logic_operator` is always sent (the new group needs one either
-        // way), unlike the rule override pair, which is complete-or-absent.
         logicOperator = placeholder.logicOperator;
         if (placeholder.rulePayload !== null) {
           ruleTypeOverride = systemDefaultProfile.ruleType;
@@ -537,6 +520,7 @@ export const CompetencyAssociationsProvider = ({
     addPlaceholderGroup,
     setPlaceholderLogicOperator,
     setPlaceholderRulePayload,
+    discardPlaceholder,
     hasPlaceholder,
     focusGroup,
     focusRuleBox,
@@ -559,6 +543,7 @@ export const CompetencyAssociationsProvider = ({
     addPlaceholderGroup,
     setPlaceholderLogicOperator,
     setPlaceholderRulePayload,
+    discardPlaceholder,
     hasPlaceholder,
     focusGroup,
     focusRuleBox,

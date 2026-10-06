@@ -7,10 +7,7 @@ import RuleBox from './RuleBox';
 import messages from './messages';
 
 export interface RuleBoxListProps {
-  /** `null` for the not-yet-saved placeholder bottom-tier group (`#671`),
-   * which has no real rule boxes of its own yet - only its own placeholder
-   * rule box renders in that case.
-   */
+  /** `null` for the placeholder group, which renders only its placeholder rule box. */
   groupId: number | null;
   index: CompetencyCriteriaGroupsIndex;
   systemDefaultProfile: CompetencyRuleProfile;
@@ -47,8 +44,7 @@ const RuleBoxList = ({
 }: RuleBoxListProps) => {
   const intl = useIntl();
   const { focus, placeholder } = useCompetencyAssociations();
-  // The placeholder group (`groupId === null`) has no real rule boxes of
-  // its own yet.
+  // The placeholder group has no real rule boxes.
   const boxes = groupId !== null ? ruleBoxesForGroup(groupId, index, systemDefaultProfile) : [];
 
   // Compares rounded percent + rule type + op, not `ruleKeyOf`'s raw string
@@ -65,12 +61,7 @@ const RuleBoxList = ({
     return isDuplicate ? intl.formatMessage(messages.duplicateScoreValidationMessage) : '';
   };
 
-  // This group's own not-yet-saved placeholder rule box, shown last when
-  // this group is the one currently focused with no real rule box selected
-  // (`focus.ruleKey === null`). For the placeholder group itself
-  // (`groupId === null`), this is always true once rendered at all -
-  // `CourseGroupSection` only renders that card while `focus.groupId` is
-  // already `null`.
+  // For the placeholder group (`groupId === null`) this holds whenever its card renders.
   const showPlaceholder = focus?.groupId === groupId && focus?.ruleKey === null;
   const placeholderRule: EffectiveRule = {
     ruleType: systemDefaultProfile.ruleType,

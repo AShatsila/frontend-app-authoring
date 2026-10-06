@@ -70,8 +70,7 @@
 
     &__rules {
       // `Card.Body`'s own default padding already insets these from the
-      // card's edges; only the gap between adjacent rule boxes, and between
-      // the rule-box list and the "+ Rule" control below it, is added here.
+      // card's edges; only the gaps between rule boxes and above the "+ Rule" control are added here.
       .rule-box-list > * + * {
         margin-top: 10px;
       }
@@ -94,8 +93,7 @@
       margin-top: 8px;
     }
 
-    // Stands in for `CriterionChipList` on the not-yet-saved placeholder
-    // box, which has no content associated with it yet.
+    // Stands in for the chips on a placeholder box.
     &__placeholder-hint {
       border: 1px dashed $connector-line-color;
       border-radius: var(--pgn-size-card-border-radius);
@@ -149,9 +147,7 @@
     }
   }
 
-  // The "+ Rule"/"+ Rule Group" control (see `AddControl.tsx`): its own
-  // button, centered between two connector-style lines - the same line
-  // treatment as `.group-connector` above, just without a label between them.
+  // The add control's button, centered between lines styled like `.group-connector`.
   .add-control {
     display: flex;
     align-items: center;

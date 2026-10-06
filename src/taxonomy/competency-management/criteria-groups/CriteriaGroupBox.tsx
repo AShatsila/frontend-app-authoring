@@ -88,9 +88,8 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   };
 
   return (
-    // Focus state lives on this wrapping `<div>`, not `Card` itself. It is
-    // not itself interactive, since the rule boxes it contains are; the
-    // group's own control is the header band.
+    // This wrapper is not itself interactive, since the rule boxes it
+    // contains are; the group's own control is the header band.
     <div
       className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
     >

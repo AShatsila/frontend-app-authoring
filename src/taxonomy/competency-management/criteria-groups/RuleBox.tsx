@@ -21,9 +21,8 @@ export interface RuleBoxProps {
    * `ScoreThresholdField` writes to the placeholder instead of persisting.
    */
   ruleKey: string | null;
-  /** The rule this box displays, given as a prop rather than read from a
-   * criterion - so this same component can later serve a not-yet-saved box
-   * that has no criterion of its own yet.
+  /** The rule this box displays, given as a prop so a placeholder box with
+   * no criterion of its own can use the same component.
    */
   rule: EffectiveRule;
   criteria: CompetencyCriterion[];
@@ -72,7 +71,7 @@ const RuleBox = ({
   }, [isFocused]);
 
   const handleClick: React.MouseEventHandler = () => {
-    // The placeholder box is already focused by the control that created it.
+    // The placeholder is already focused by the control that created it.
     if (!isPlaceholder) {
       focusRuleBox(groupId!, ruleKey);
     }
@@ -94,9 +93,7 @@ const RuleBox = ({
   };
 
   const handleScoreChange = (rulePayload: GradeRulePayload): Promise<void> => {
-    // The placeholder box has no criteria yet, so there's nothing to
-    // persist - its score lives on the placeholder state until the first
-    // content pick saves it for real.
+    // With no criteria yet, the score stays in placeholder state until content is picked.
     if (isPlaceholder) {
       setPlaceholderRulePayload(rulePayload);
       return Promise.resolve();

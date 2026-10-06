@@ -204,6 +204,8 @@ const TestConsumer = () => {
         set-placeholder-rule-payload
       </button>
       <button type="button" onClick={() => ctx.notifyCourseExpanded(courseB)}>expand-course-b</button>
+      <button type="button" onClick={() => ctx.notifyCourseExpanded(courseA)}>expand-course-a</button>
+      <button type="button" onClick={() => ctx.discardPlaceholder()}>discard-placeholder</button>
       <button type="button" onClick={() => ctx.associateSubsection('new-sub', courseA)}>associate-course-a</button>
       <button
         type="button"
@@ -429,10 +431,6 @@ describe('CompetencyAssociationsProvider', () => {
     });
 
     it('focusing a different real group clears an existing placeholder', async () => {
-      // `courseExpansionResponse`'s group 20 has a real criterion of its
-      // own (unlike `twoGroupsResponse`'s groups, which have none at all) -
-      // focusing it resolves a real rule key, not another `null` that would
-      // be indistinguishable from a placeholder.
       axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -465,9 +463,6 @@ describe('CompetencyAssociationsProvider', () => {
 
         fireEvent.click(screen.getByText('expand-course-b'));
 
-        // CourseB's own bottom-tier group (20) has a real criterion of its
-        // own in `courseExpansionResponse` - focus lands on its real rule
-        // key, not another `null`.
         await waitFor(() => {
           expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":20');
         });
@@ -475,22 +470,52 @@ describe('CompetencyAssociationsProvider', () => {
       },
     );
 
+    it.each([
+      ['rule box in a real group', 'add-placeholder-rule-10'],
+      ['group', 'add-placeholder-group-1'],
+    ])('keeps a placeholder %s when its own course is expanded', async (_label, addButton) => {
+      axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText(addButton));
+      const focusBefore = screen.getByTestId('focus').textContent;
+      fireEvent.click(screen.getByText('expand-course-a'));
+
+      expect(screen.getByTestId('focus').textContent).toBe(focusBefore);
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
+    });
+
+    it('discardPlaceholder clears focus, and with it the placeholder', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-group-1'));
+      fireEvent.click(screen.getByText('discard-placeholder'));
+
+      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+    });
+
     it('course expansion leaves focus unchanged when no placeholder exists', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       renderProvider();
 
-      // Auto-focuses the sole bottom-tier group (10) via the existing
-      // mechanism - a normal, non-placeholder focus.
       await waitFor(() => {
         expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
       });
 
       fireEvent.click(screen.getByText('expand-course-b'));
 
-      // No placeholder exists, so `notifyCourseExpanded`'s own
-      // placeholder-repair branch never writes anything - focus is untouched.
       expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
       expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
     });
@@ -662,8 +687,6 @@ describe('CompetencyAssociationsProvider', () => {
       fireEvent.click(screen.getByText('associate-course-a'));
 
       await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
-      // ADR 0002: an override is complete or absent - since the author
-      // never set a score, neither override field is sent, only `group_id`.
       expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub', group_id: 10 });
     });
 
@@ -710,16 +733,10 @@ describe('CompetencyAssociationsProvider', () => {
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
-      // `add-placeholder-group-1` targets course-level group 1 (courseA) -
-      // the same course `associate-course-a` clicks a subsection from.
       fireEvent.click(screen.getByText('add-placeholder-group-1'));
       fireEvent.click(screen.getByText('associate-course-a'));
 
       await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
-      // `logic_operator` is always sent for a placeholder group (the new
-      // group needs one either way) - unlike the rule override pair, which
-      // is complete-or-absent and is absent here since the author never set
-      // a score.
       expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub', logic_operator: 'OR' });
     });
 
@@ -766,9 +783,6 @@ describe('CompetencyAssociationsProvider', () => {
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
-      // `add-placeholder-group-1` targets course-level group 1 (courseA);
-      // the subsection is clicked from `courseOther` instead - same
-      // fallthrough as a placeholder-free, unrelated-course click.
       fireEvent.click(screen.getByText('add-placeholder-group-1'));
       fireEvent.click(screen.getByText('associate-other-course'));
 
