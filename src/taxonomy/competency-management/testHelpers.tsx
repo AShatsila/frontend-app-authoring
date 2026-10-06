@@ -20,6 +20,7 @@ export const buildMockCompetencyAssociationsContextValue = (
   addPlaceholderGroup: jest.fn(),
   setPlaceholderLogicOperator: jest.fn(),
   setPlaceholderRulePayload: jest.fn(),
+  discardPlaceholder: jest.fn(),
   hasPlaceholder: false,
   focusGroup: jest.fn(),
   focusRuleBox: jest.fn(),

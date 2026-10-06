@@ -19,10 +19,8 @@ export interface CourseGroupSectionProps {
 
 /** One accessible course-level group: its own header ("From within
  * **{course name}** ...") and its bottom-tier group cards, connected
- * pairwise by `GroupConnector`, plus its own "+ Rule Group" control
- * (`#671`) for starting a not-yet-saved placeholder bottom-tier group -
- * rendered as one more card, after the real ones, counted the same as a
- * real card for connector purposes.
+ * pairwise by `GroupConnector`, plus its "+ Rule Group" control and, while
+ * one exists, the placeholder group as a last card.
  *
  * `CourseGroupList` only mounts this for a course already confirmed
  * accessible, so `useCourseOutlineIndex` below is normally reading an
@@ -39,6 +37,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     focus,
     placeholder,
     addPlaceholderGroup,
+    discardPlaceholder,
     hasPlaceholder,
   } = useCompetencyAssociations();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -67,14 +66,23 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const bottomTierGroups = index ? bottomTierGroupsForCourse(index, courseGroup.courseKey) : [];
 
   const canEdit = canEditCourse(courseGroup.courseKey);
-  // The not-yet-saved placeholder group (`#671`) belongs to this
-  // course-level group - shown as one more card, after the real ones.
   const showPlaceholderGroup = focus?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
   const containsFocus = !!focus && (
     focus.groupId === null
       ? showPlaceholderGroup
       : index?.groupsById.get(focus.groupId)?.parentId === courseGroup.id
   );
+  const holdsPlaceholderRuleBox = focus?.ruleKey === null
+    && focus.groupId !== null
+    && bottomTierGroups.some((group) => group.id === focus.groupId);
+
+  const handleToggleCollapsed = () => {
+    // A collapsed section hides its placeholder, so it is dropped instead of lingering unseen.
+    if (!isCollapsed && (showPlaceholderGroup || holdsPlaceholderRuleBox)) {
+      discardPlaceholder();
+    }
+    setIsCollapsed((prev) => !prev);
+  };
 
   const handleAddRuleGroupClick: React.MouseEventHandler = (event) => {
     event.stopPropagation();
@@ -97,7 +105,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
               aria-label={toggleLabel}
               aria-expanded={!isCollapsed}
               size="inline"
-              onClick={() => setIsCollapsed((prev) => !prev)}
+              onClick={handleToggleCollapsed}
             />
             <span>
               {intl.formatMessage(messages.fromWithinCourseLabel, {
