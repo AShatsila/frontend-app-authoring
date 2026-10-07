@@ -22,6 +22,7 @@ export const buildMockCompetencyAssociationsContextValue = (
   setPlaceholderRulePayload: jest.fn(),
   discardPlaceholder: jest.fn(),
   hasPlaceholder: false,
+  placeholderDuplicateRejected: false,
   focusGroup: jest.fn(),
   focusRuleBox: jest.fn(),
   notifyCourseExpanded: jest.fn(),

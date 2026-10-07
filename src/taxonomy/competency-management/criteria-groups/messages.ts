@@ -92,6 +92,18 @@ const messages = defineMessages({
       + 'value would exactly duplicate another rule box\'s own score, rule type, and comparison in the same '
       + 'group.',
   },
+  defaultScoreTakenHint: {
+    id: 'course-authoring.competency-management.criteria-groups.default-score-taken-hint',
+    defaultMessage: 'Another rule in this group already uses {score}. Choose a different score.',
+    description: 'Guidance under a new, empty rule box whose score is already used by another rule in the same '
+      + 'group. "{score}" is the score as shown in the field, such as "75% or higher".',
+  },
+  useSuggestedScoreLink: {
+    id: 'course-authoring.competency-management.criteria-groups.use-suggested-score-link',
+    defaultMessage: 'Use {score}',
+    description: 'Link under the "score already used" guidance that applies the nearest unused score. '
+      + '"{score}" is that score as shown in the field, such as "80% or higher".',
+  },
   addRuleButtonLabel: {
     id: 'course-authoring.competency-management.criteria-groups.add-rule-button-label',
     defaultMessage: 'Rule',

@@ -1,5 +1,7 @@
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { initializeMocks, render, screen } from '@src/testUtils';
+import type { GradeRulePayload } from '../data/types';
 import { MockCompetencyAssociationsProvider } from '../testHelpers';
 import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from '../data/types';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
@@ -227,6 +229,130 @@ describe('<RuleBoxList />', () => {
 
       expect(screen.getByText('Another rule box in this group already uses this score.')).toBeInTheDocument();
       expect(setPlaceholderRulePayload).not.toHaveBeenCalled();
+    });
+
+    describe('when the displayed score is already used in the group', () => {
+      const hintText = 'Another rule in this group already uses 70% or higher. Choose a different score.';
+
+      // `response`'s group 10 already holds the 70% default (gte) and 90% (lte).
+      const renderDuplicate = (
+        contextOverrides: Parameters<typeof MockCompetencyAssociationsProvider>['0']['value'] = {},
+        groupsResponse: CompetencyCriteriaGroupsResponse = response,
+      ) => (
+        render(
+          <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: null }, ...contextOverrides }}>
+            <RuleBoxList
+              groupId={10}
+              index={buildCompetencyCriteriaGroupsIndex(groupsResponse)}
+              systemDefaultProfile={systemDefaultProfile}
+              subsectionNamesByUsageKey={{}}
+              canEdit
+            />
+          </MockCompetencyAssociationsProvider>,
+        )
+      );
+
+      // Every 5% step from 70 up to 100 is taken, so no stricter score is free.
+      const fullGroupResponse: CompetencyCriteriaGroupsResponse = {
+        ...response,
+        criteria: [70, 75, 80, 85, 90, 95, 100].map((percent, i) => ({
+          id: 300 + i,
+          objectId: `block-${percent}`,
+          groupId: 10,
+          ruleProfileId: null,
+          ruleTypeOverride: 'grade',
+          rulePayloadOverride: { op: 'gte' as const, value: percent / 100, scale: 'percent' as const },
+        })),
+      };
+
+      it('does not pull focus back into the score input when a typed score is committed by tabbing out', async () => {
+        const user = userEvent.setup();
+        const Harness = () => {
+          const [rulePayload, setRulePayload] = useState<GradeRulePayload | null>(null);
+          return (
+            <MockCompetencyAssociationsProvider
+              value={{
+                focus: { groupId: 10, ruleKey: null },
+                placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload },
+                setPlaceholderRulePayload: setRulePayload,
+              }}
+            >
+              <RuleBoxList
+                groupId={10}
+                index={buildCompetencyCriteriaGroupsIndex(response)}
+                systemDefaultProfile={systemDefaultProfile}
+                subsectionNamesByUsageKey={{}}
+                canEdit
+              />
+            </MockCompetencyAssociationsProvider>
+          );
+        };
+        render(<Harness />);
+
+        const inputs = screen.getAllByLabelText('Score threshold percentage');
+        await user.clear(inputs[inputs.length - 1]);
+        await user.type(inputs[inputs.length - 1], '80');
+        await user.tab();
+
+        const updatedInputs = screen.getAllByLabelText('Score threshold percentage');
+        expect(updatedInputs[updatedInputs.length - 1]).toHaveValue('80');
+        expect(updatedInputs[updatedInputs.length - 1]).not.toHaveFocus();
+      });
+
+      it('focuses and selects the placeholder score input', () => {
+        renderDuplicate();
+
+        const inputs = screen.getAllByLabelText('Score threshold percentage') as HTMLInputElement[];
+        const placeholderInput = inputs[inputs.length - 1];
+        expect(placeholderInput).toHaveFocus();
+        expect(placeholderInput.selectionEnd).toBe(placeholderInput.value.length);
+      });
+
+      it('shows the hint, tied to the input, with a link to the nearest unused score', () => {
+        renderDuplicate();
+
+        const inputs = screen.getAllByLabelText('Score threshold percentage');
+        expect(inputs[inputs.length - 1]).toHaveAccessibleDescription(expect.stringContaining(hintText));
+        expect(screen.getByRole('button', { name: 'Use 75% or higher' })).toBeInTheDocument();
+      });
+
+      it('shows no hint when the displayed score is unique', () => {
+        renderWithPlaceholder();
+        expect(screen.queryByText(/already uses/)).not.toBeInTheDocument();
+      });
+
+      it('applies the suggested score through the link', async () => {
+        const user = userEvent.setup();
+        const setPlaceholderRulePayload = jest.fn();
+        renderDuplicate({ setPlaceholderRulePayload });
+
+        await user.click(screen.getByRole('button', { name: 'Use 75% or higher' }));
+
+        expect(setPlaceholderRulePayload).toHaveBeenCalledWith({ op: 'gte', value: 0.75, scale: 'percent' });
+      });
+
+      it('offers no link when no stricter score is free', () => {
+        renderDuplicate({}, fullGroupResponse);
+
+        expect(screen.getByText(/already uses 70% or higher/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Use / })).not.toBeInTheDocument();
+      });
+
+      it('turns the hint into an error and focuses the link after a rejected content selection', () => {
+        renderDuplicate({ placeholderDuplicateRejected: true });
+
+        const inputs = screen.getAllByLabelText('Score threshold percentage');
+        expect(inputs[inputs.length - 1]).toBeInvalid();
+        expect(screen.getByRole('button', { name: 'Use 75% or higher' })).toHaveFocus();
+      });
+
+      it('focuses the input after a rejected content selection when there is no link', () => {
+        renderDuplicate({ placeholderDuplicateRejected: true }, fullGroupResponse);
+
+        const inputs = screen.getAllByLabelText('Score threshold percentage');
+        expect(inputs[inputs.length - 1]).toBeInvalid();
+        expect(inputs[inputs.length - 1]).toHaveFocus();
+      });
     });
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Card } from '@openedx/paragon';
 import classNames from 'classnames';
@@ -38,6 +39,10 @@ export interface RuleBoxProps {
    * meaningful when `canEdit` is true.
    */
   getInlineValidationMessage?: (value: string) => string;
+  /** Placeholder only: guidance under the score, such as "this score is taken". */
+  hint?: ReactNode;
+  /** Placeholder only: focus the score input on mount. */
+  autoFocusSelect?: boolean;
 }
 
 /** One rule box: the rule it's given, its chips, and focus/click behavior.
@@ -57,9 +62,17 @@ const RuleBox = ({
   subsectionNamesByUsageKey,
   canEdit = false,
   getInlineValidationMessage,
+  hint,
+  autoFocusSelect = false,
 }: RuleBoxProps) => {
   const intl = useIntl();
-  const { focus, focusRuleBox, updateRuleScore, setPlaceholderRulePayload } = useCompetencyAssociations();
+  const {
+    focus,
+    focusRuleBox,
+    updateRuleScore,
+    setPlaceholderRulePayload,
+    placeholderDuplicateRejected,
+  } = useCompetencyAssociations();
   const isFocused = focus?.groupId === groupId && focus?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
@@ -69,6 +82,15 @@ const RuleBox = ({
       ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [isFocused]);
+
+  const isRejected = isPlaceholder && !!hint && placeholderDuplicateRejected;
+
+  useEffect(() => {
+    if (isRejected) {
+      const root = ref.current;
+      (root?.querySelector<HTMLElement>('.rule-box__use-suggestion') ?? root?.querySelector('input'))?.focus();
+    }
+  }, [isRejected]);
 
   const handleClick: React.MouseEventHandler = () => {
     // The placeholder is already focused by the control that created it.
@@ -120,6 +142,9 @@ const RuleBox = ({
             rulePayload={rule.rulePayload}
             onChange={canEdit ? handleScoreChange : undefined}
             getInlineValidationMessage={canEdit ? getInlineValidationMessage : undefined}
+            autoFocusSelect={autoFocusSelect}
+            hint={hint}
+            hintIsError={isRejected}
           />
           {isPlaceholder ?
             (
