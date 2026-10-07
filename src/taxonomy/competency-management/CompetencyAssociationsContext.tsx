@@ -43,6 +43,7 @@ import {
   bottomTierGroupsForCourse,
   buildCompetencyCriteriaGroupsIndex,
   effectiveRuleOf,
+  isRuleTakenInGroup,
   lastBottomTierGroupForCourse,
   lastRealRuleKeyIn,
   ruleBoxesForGroup,
@@ -88,6 +89,10 @@ export interface CompetencyAssociationsContextValue {
    * content is associated.
    */
   setPlaceholderRulePayload: (rulePayload: GradeRulePayload) => void;
+  /** True after content was selected while the placeholder's score duplicated
+   * a box in its group; the request is not sent.
+   */
+  placeholderDuplicateRejected: boolean;
   /** Drops the placeholder by clearing `focus`. */
   discardPlaceholder: () => void;
   /** Whether a placeholder exists, which disables both add controls. */
@@ -225,6 +230,7 @@ export const CompetencyAssociationsProvider = ({
     logicOperator: 'OR',
     rulePayload: null,
   });
+  const [duplicateRejected, setDuplicateRejected] = useState(false);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   // A course expanded before its group tree and default profile loaded.
   const [pendingExpandedCourseId, setPendingExpandedCourseId] = useState<string | null>(null);
@@ -241,6 +247,7 @@ export const CompetencyAssociationsProvider = ({
     setFocus(null);
     setPendingExpandedCourseId(null);
     setPlaceholder({ parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null });
+    setDuplicateRejected(false);
     hasRunInitialFocusRef.current = false;
   }
 
@@ -273,6 +280,7 @@ export const CompetencyAssociationsProvider = ({
     );
     setPendingExpandedCourseId(null);
     if (next) {
+      setDuplicateRejected(false);
       setFocus(next);
     }
   }
@@ -285,6 +293,7 @@ export const CompetencyAssociationsProvider = ({
     }
     const next = courseExpansionFocus(courseId, focus, placeholder.parentRuleGroupId, index, systemDefaultProfile);
     if (next) {
+      setDuplicateRejected(false);
       setFocus(next);
     }
   }, [focus, placeholder.parentRuleGroupId, index, systemDefaultProfile]);
@@ -337,21 +346,25 @@ export const CompetencyAssociationsProvider = ({
       const ruleKey = (index && systemDefaultProfile) ? lastRealRuleKeyIn(groupId, index, systemDefaultProfile) : null;
       return { groupId, ruleKey };
     });
+    setDuplicateRejected(false);
   }, [index, systemDefaultProfile]);
 
   const focusRuleBox = useCallback((groupId: number, ruleKey: string) => {
     setPendingExpandedCourseId(null);
     setFocus({ groupId, ruleKey });
+    setDuplicateRejected(false);
   }, []);
 
   const addPlaceholderRuleBox = useCallback((groupId: number) => {
     setFocus({ groupId, ruleKey: null });
     setPlaceholder((prev) => ({ ...prev, rulePayload: null }));
+    setDuplicateRejected(false);
   }, []);
 
   const addPlaceholderGroup = useCallback((parentRuleGroupId: number) => {
     setFocus({ groupId: null, ruleKey: null });
     setPlaceholder({ parentRuleGroupId, logicOperator: 'OR', rulePayload: null });
+    setDuplicateRejected(false);
   }, []);
 
   const setPlaceholderLogicOperator = useCallback((logicOperator: CompetencyGroupLogicOperator) => {
@@ -360,10 +373,12 @@ export const CompetencyAssociationsProvider = ({
 
   const setPlaceholderRulePayload = useCallback((rulePayload: GradeRulePayload) => {
     setPlaceholder((prev) => ({ ...prev, rulePayload }));
+    setDuplicateRejected(false);
   }, []);
 
   const discardPlaceholder = useCallback(() => {
     setFocus(null);
+    setDuplicateRejected(false);
   }, []);
 
   const hasPlaceholder = focus !== null && focus.ruleKey === null;
@@ -450,6 +465,15 @@ export const CompetencyAssociationsProvider = ({
           } else {
             // ADR 0002: an override is complete or absent, so the pair is
             // only sent once the author has set a score.
+            const placeholderRule = {
+              ruleType: systemDefaultProfile.ruleType,
+              rulePayload: placeholder.rulePayload ?? systemDefaultProfile.rulePayload,
+            };
+            // Sending an untouched duplicate would silently merge into the existing box.
+            if (isRuleTakenInGroup(placeholderRule, ruleBoxesForGroup(focus.groupId, index, systemDefaultProfile))) {
+              setDuplicateRejected(true);
+              return;
+            }
             groupId = focus.groupId;
             if (placeholder.rulePayload !== null) {
               ruleTypeOverride = systemDefaultProfile.ruleType;
@@ -489,6 +513,7 @@ export const CompetencyAssociationsProvider = ({
         // local tree: the groups query hasn't refetched yet, so the local
         // tree still doesn't know about this brand-new criterion (or
         // group) and would resolve a stale/`null` rule key.
+        setDuplicateRejected(false);
         setFocus({
           groupId: criterion.groupId,
           ruleKey: ruleKeyOf(criterion, systemDefaultProfile),
@@ -584,6 +609,7 @@ export const CompetencyAssociationsProvider = ({
     setPlaceholderRulePayload,
     discardPlaceholder,
     hasPlaceholder,
+    placeholderDuplicateRejected: duplicateRejected,
     focusGroup,
     focusRuleBox,
     notifyCourseExpanded,
@@ -608,6 +634,7 @@ export const CompetencyAssociationsProvider = ({
     setPlaceholderRulePayload,
     discardPlaceholder,
     hasPlaceholder,
+    duplicateRejected,
     focusGroup,
     focusRuleBox,
     notifyCourseExpanded,

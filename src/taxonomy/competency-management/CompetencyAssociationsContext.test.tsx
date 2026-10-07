@@ -119,6 +119,21 @@ const twoGroupsResponse: CompetencyCriteriaGroupsResponse = {
   criteria: [],
 };
 
+/** Like `singleGroupResponse`, but its only box is gte 75%, so the 70% default is free. */
+const uniqueDefaultResponse: CompetencyCriteriaGroupsResponse = {
+  ...singleGroupResponse,
+  criteria: [
+    {
+      id: 901,
+      objectId: 'existing-sub',
+      groupId: 10,
+      ruleProfileId: null,
+      ruleTypeOverride: 'grade',
+      rulePayloadOverride: { op: 'gte', value: 0.75, scale: 'percent' },
+    },
+  ],
+};
+
 const noGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [] };
 
 /** Two course-level groups under the same root: courseA (id 1, leaf group
@@ -213,6 +228,7 @@ const TestConsumer = () => {
       <div data-testid="focus">{JSON.stringify(ctx.focus)}</div>
       <div data-testid="placeholder">{JSON.stringify(ctx.placeholder)}</div>
       <div data-testid="has-placeholder">{String(ctx.hasPlaceholder)}</div>
+      <div data-testid="duplicate-rejected">{String(ctx.placeholderDuplicateRejected)}</div>
       <div data-testid="groups-status">{ctx.groupsQuery.isSuccess ? 'groups-success' : 'groups-pending'}</div>
       <div data-testid="profile-status">{ctx.profileQuery.isSuccess ? 'profile-success' : 'profile-pending'}</div>
       <div data-testid="accessible-course-group-ids">
@@ -222,7 +238,6 @@ const TestConsumer = () => {
       <button type="button" onClick={() => ctx.focusGroup(10)}>focus-group-10</button>
       <button type="button" onClick={() => ctx.focusGroup(20)}>focus-group-20</button>
       <button type="button" onClick={() => ctx.focusRuleBox(10, 'grade:gte:0.7:percent')}>focus-rulebox-10</button>
-      <button type="button" onClick={() => ctx.notifyCourseExpanded(courseA)}>expand-course-a</button>
       <button type="button" onClick={() => ctx.addPlaceholderRuleBox(10)}>add-placeholder-rule-10</button>
       <button type="button" onClick={() => ctx.addPlaceholderGroup(1)}>add-placeholder-group-1</button>
       <button
@@ -1038,7 +1053,7 @@ describe('CompetencyAssociationsProvider', () => {
     });
 
     it('sends only group_id for a placeholder rule box whose score the author has not changed', async () => {
-      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(groupsUrl).reply(200, uniqueDefaultResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       axiosMock.onPost(createUrl).reply(201, {
@@ -1057,6 +1072,46 @@ describe('CompetencyAssociationsProvider', () => {
 
       await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
       expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub', group_id: 10 });
+    });
+
+    it('sends no request and flags a rejection for an untouched placeholder whose default score is taken', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+      fireEvent.click(screen.getByText('associate-course-a'));
+
+      expect(axiosMock.history.post).toHaveLength(0);
+      expect(screen.getByTestId('duplicate-rejected')).toHaveTextContent('true');
+    });
+
+    it('clears the rejection once the placeholder score changes, and then posts', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onPost(createUrl).reply(201, {
+        id: 910,
+        group_id: 10,
+        rule_profile_id: null,
+        rule_type_override: 'grade',
+        rule_payload_override: { op: 'gte', value: 0.85, scale: 'percent' },
+        object_tag_id: tagId,
+      });
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+
+      fireEvent.click(screen.getByText('add-placeholder-rule-10'));
+      fireEvent.click(screen.getByText('associate-course-a'));
+      expect(screen.getByTestId('duplicate-rejected')).toHaveTextContent('true');
+
+      fireEvent.click(screen.getByText('set-placeholder-rule-payload'));
+      expect(screen.getByTestId('duplicate-rejected')).toHaveTextContent('false');
+
+      fireEvent.click(screen.getByText('associate-course-a'));
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
     });
 
     it('sends group_id and both rule fields for a placeholder rule box whose score the author has changed', async () => {
