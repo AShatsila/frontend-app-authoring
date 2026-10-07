@@ -1,9 +1,9 @@
-import { useId, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Form, Icon } from '@openedx/paragon';
 import { ExpandMore } from '@openedx/paragon/icons';
-import type { MessageDescriptor } from 'react-intl';
+import type { IntlShape, MessageDescriptor } from 'react-intl';
 import type { GradeRulePayload } from '../data/types';
 import messages from './messages';
 
@@ -17,6 +17,12 @@ export interface ScoreThresholdFieldProps {
    * commit and shows the message inline instead.
    */
   getInlineValidationMessage?: (value: string) => string;
+  /** Focuses and selects the input on mount. */
+  autoFocusSelect?: boolean;
+  /** Guidance under the field, tied to the input by `aria-describedby`. */
+  hint?: ReactNode;
+  /** Renders `hint` as an error and marks the input invalid. */
+  hintIsError?: boolean;
 }
 
 /** Which suffix follows the percentage for each comparison operator -
@@ -28,12 +34,28 @@ const SUFFIX_MESSAGE_BY_OP: Record<GradeRulePayload['op'], MessageDescriptor | n
   eq: null,
 };
 
+/** A score as text, such as "75% or higher", for messages that name a score. */
+export const formatScoreSummary = (intl: IntlShape, rulePayload: GradeRulePayload): string => {
+  const suffixMessage = SUFFIX_MESSAGE_BY_OP[rulePayload.op];
+  const percentText = intl.formatMessage(messages.scoreThresholdValue, {
+    percent: Math.round(rulePayload.value * 100),
+  });
+  return suffixMessage ? `${percentText} ${intl.formatMessage(suffixMessage)}` : percentText;
+};
+
 /** `rulePayload.value` is a 0.0-1.0 fraction, not a 0-100 percentage. */
 const percentOf = (rulePayload: GradeRulePayload): string => String(Math.round(rulePayload.value * 100));
 
 /** Closed-state label for a rule's score threshold: "With a score of X% or higher"/"or lower"/
  * (no suffix, for an exact match). Read-only unless `onChange` is given. */
-const ScoreThresholdField = ({ rulePayload, onChange, getInlineValidationMessage }: ScoreThresholdFieldProps) => {
+const ScoreThresholdField = ({
+  rulePayload,
+  onChange,
+  getInlineValidationMessage,
+  autoFocusSelect = false,
+  hint,
+  hintIsError = false,
+}: ScoreThresholdFieldProps) => {
   const intl = useIntl();
   const inputId = useId();
   const percent = Math.round(rulePayload.value * 100);
@@ -47,6 +69,14 @@ const ScoreThresholdField = ({ rulePayload, onChange, getInlineValidationMessage
   // mutation resolves, which could otherwise let two out-of-order responses land in the wrong order.
   const saveInFlight = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocusSelect) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [autoFocusSelect]);
 
   if (!onChange) {
     return (
@@ -114,20 +144,24 @@ const ScoreThresholdField = ({ rulePayload, onChange, getInlineValidationMessage
     }
   };
 
+  // The commit-time message wins over the hint when both would show.
+  const showAsInvalid = !!validationMessage || (!!hint && hintIsError);
+
   return (
     <Form.Group as="span" controlId={inputId} className="score-threshold-field score-threshold-field--editable">
       {intl.formatMessage(messages.scoreThresholdLabel, {
         threshold: (
           <span key="threshold" className="score-threshold-field__value score-threshold-field__value--editable">
             <Form.Control
+              ref={inputRef}
               type="text"
               inputMode="numeric"
               size="sm"
               className="score-threshold-field__input"
               value={inputValue}
               aria-label={intl.formatMessage(messages.scoreThresholdInputAccessibleLabel)}
-              aria-invalid={!!validationMessage}
-              isInvalid={!!validationMessage}
+              aria-invalid={showAsInvalid}
+              isInvalid={showAsInvalid}
               disabled={isSaving}
               onChange={(event) =>
                 setInputValue(event.target.value)}
@@ -144,6 +178,11 @@ const ScoreThresholdField = ({ rulePayload, onChange, getInlineValidationMessage
       {validationMessage && (
         <Form.Control.Feedback type="invalid" hasIcon={false}>
           {validationMessage}
+        </Form.Control.Feedback>
+      )}
+      {!validationMessage && hint && (
+        <Form.Control.Feedback type={hintIsError ? 'invalid' : 'default'} hasIcon={false}>
+          {hint}
         </Form.Control.Feedback>
       )}
     </Form.Group>
