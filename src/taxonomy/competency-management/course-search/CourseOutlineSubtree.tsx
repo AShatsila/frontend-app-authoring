@@ -48,6 +48,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     competencyExternalId,
     index,
     systemDefaultProfile,
+    isDeletingGroup,
   } = useCompetencyAssociations();
   // The real `course_index` response populates `.id`, never `.usageKey`
   // (declared on the shared `XBlockBase` type but always `undefined` here).
@@ -102,6 +103,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
       block
       className={rowClassName}
       data-associated={isAssociated}
+      disabled={isDeletingGroup}
       onClick={() => associateSubsection(subsection.id, courseId)}
     >
       {rowContent}

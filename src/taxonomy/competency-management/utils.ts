@@ -234,3 +234,145 @@ export function visibleCourseGroups(
 export function associatedObjectIds(response: CompetencyCriteriaGroupsResponse): Set<string> {
   return new Set(response.criteria.map((criterion) => criterion.objectId));
 }
+
+/** One course-level group and its bottom-tier groups, as rendered. */
+export interface PageOrderEntry {
+  courseGroupId: number;
+  ruleGroupIds: number[];
+}
+
+/** The rendered order of course-level groups and their bottom-tier groups,
+ * captured before a delete so the group that held focus can still be located
+ * once it is gone from the refetched data.
+ */
+export interface PageOrderSnapshot {
+  /** What was rendered: the accessible course-level groups only. */
+  entries: PageOrderEntry[];
+  /** Every course-level group that existed, rendered or not. One absent from
+   * `entries` is known to be inaccessible to the author; one absent from
+   * here is new.
+   */
+  knownCourseGroupIds: number[];
+}
+
+/** Captures the order `CourseGroupList` renders: `accessibleCourseGroups`
+ * order, then `bottomTierGroupsForCourse` order within each.
+ */
+export function snapshotPageOrder(
+  index: CompetencyCriteriaGroupsIndex,
+  accessibleCourseGroups: CourseCompetencyCriteriaGroup[],
+): PageOrderSnapshot {
+  return {
+    entries: accessibleCourseGroups.map((courseGroup) => ({
+      courseGroupId: courseGroup.id,
+      ruleGroupIds: bottomTierGroupsForCourse(index, courseGroup.courseKey).map((group) => group.id),
+    })),
+    knownCourseGroupIds: index.courseGroups.map((courseGroup) => courseGroup.id),
+  };
+}
+
+const isRenderedOrNew = (snapshot: PageOrderSnapshot, courseGroupId: number) => (
+  !snapshot.knownCourseGroupIds.includes(courseGroupId)
+  || snapshot.entries.some((entry) => entry.courseGroupId === courseGroupId)
+);
+
+/** Whether `freshIndex` holds a course-level group the author can see, or
+ * may be able to once its course outline loads: one that was rendered before
+ * the delete, or that is new since. When none, the panel shows its empty
+ * state.
+ */
+export function hasVisibleOrNewCourseGroup(
+  snapshot: PageOrderSnapshot,
+  freshIndex: CompetencyCriteriaGroupsIndex,
+): boolean {
+  return freshIndex.courseGroups.some((courseGroup) => isRenderedOrNew(snapshot, courseGroup.id));
+}
+
+/** Where focus goes after a delete, given the page order from before it and
+ * the refetched data. Returns the id of the bottom-tier group to focus,
+ * `'unchanged'` when focus needs no move, or `null` when nothing is left to
+ * focus. In order:
+ *
+ * 1. The focused group still exists (for the placeholder group, its
+ *    course-level group still exists): `'unchanged'`.
+ * 2. Its course-level group survives: the nearest surviving group above it
+ *    in the snapshot, else the nearest below.
+ * 3. Otherwise the last group of the nearest surviving course-level group
+ *    above, else the first group of the nearest one below.
+ * 4. Otherwise the first group of the first course-level group in
+ *    `freshIndex` that has one and did not exist at the snapshot (another
+ *    author may have added it). This reads `freshIndex` unfiltered, since a
+ *    new course's outline may still be loading.
+ * 5. Otherwise `null`.
+ *
+ * Nothing focused before the delete is `'unchanged'`. A placeholder rule box
+ * (`ruleKey === null` with a real `groupId`) is treated as focus on that
+ * group.
+ */
+export function focusTargetAfterRemoval(
+  snapshot: PageOrderSnapshot,
+  freshIndex: CompetencyCriteriaGroupsIndex,
+  focus: { groupId: number | null; ruleKey: string | null; } | null,
+  placeholderParentId: number | null,
+): number | 'unchanged' | null {
+  if (focus === null) {
+    return 'unchanged';
+  }
+  const survives = (id: number) => freshIndex.groupsById.has(id);
+  const focusedGroupId = focus.groupId;
+
+  let courseEntryPosition: number;
+  if (focusedGroupId === null) {
+    if (placeholderParentId === null || survives(placeholderParentId)) {
+      return 'unchanged';
+    }
+    courseEntryPosition = snapshot.entries.findIndex((entry) => entry.courseGroupId === placeholderParentId);
+  } else {
+    if (survives(focusedGroupId)) {
+      return 'unchanged';
+    }
+    courseEntryPosition = snapshot.entries.findIndex((entry) => entry.ruleGroupIds.includes(focusedGroupId));
+  }
+
+  if (courseEntryPosition !== -1) {
+    const entry = snapshot.entries[courseEntryPosition];
+    if (focusedGroupId !== null && survives(entry.courseGroupId)) {
+      const position = entry.ruleGroupIds.indexOf(focusedGroupId);
+      const above = entry.ruleGroupIds.slice(0, position).filter(survives).pop();
+      const below = entry.ruleGroupIds.slice(position + 1).find(survives);
+      const sibling = above ?? below;
+      if (sibling !== undefined) {
+        return sibling;
+      }
+    }
+
+    const survivingRuleGroups = (candidate: PageOrderEntry) => (
+      survives(candidate.courseGroupId) ? candidate.ruleGroupIds.filter(survives) : []
+    );
+    for (let i = courseEntryPosition - 1; i >= 0; i -= 1) {
+      const last = survivingRuleGroups(snapshot.entries[i]).pop();
+      if (last !== undefined) {
+        return last;
+      }
+    }
+    for (let i = courseEntryPosition + 1; i < snapshot.entries.length; i += 1) {
+      const [first] = survivingRuleGroups(snapshot.entries[i]);
+      if (first !== undefined) {
+        return first;
+      }
+    }
+  }
+
+  for (const courseGroup of freshIndex.courseGroups) {
+    // One that existed before was either handled by rules 2 and 3 or is
+    // inaccessible to the author, so focusing it would target nothing visible.
+    if (snapshot.knownCourseGroupIds.includes(courseGroup.id)) {
+      continue;
+    }
+    const [first] = bottomTierGroupsForCourse(freshIndex, courseGroup.courseKey);
+    if (first) {
+      return first.id;
+    }
+  }
+  return null;
+}
