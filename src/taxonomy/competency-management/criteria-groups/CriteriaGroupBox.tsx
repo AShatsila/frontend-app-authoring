@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
+import { IconButton } from '@openedx/paragon';
+import { Delete } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
@@ -41,6 +43,11 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     setPlaceholderLogicOperator,
     hasPlaceholder,
     isAssociating,
+    deleteGroup,
+    isDeletingGroup,
+    removePlaceholderGroup,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -58,6 +65,20 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
       ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [isFocused, hasFocusedBox]);
+
+  const selectButtonRef = useRef<HTMLButtonElement>(null);
+  const takesKeyboardFocus = group !== undefined
+    && keyboardFocusRequest?.kind === 'group'
+    && keyboardFocusRequest.groupId === group.id;
+  useEffect(() => {
+    if (takesKeyboardFocus && selectButtonRef.current) {
+      // `preventScroll`: the focused rule box scrolls itself into view.
+      selectButtonRef.current.focus({ preventScroll: true });
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
+
+  const deleteLabel = intl.formatMessage(messages.deleteRuleGroupButtonLabel);
 
   const sentenceLabel = intl.formatMessage(messages.criteriaGroupBoxLabel, {
     operator: logicOperator === 'AND'
@@ -98,18 +119,29 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
       {canEdit
         ? (
           // The operator dropdown is a button, so the select control is a sibling laid over the band.
-          <div className="criteria-group-box__header">
-            {group && (
-              <button
-                type="button"
-                className="criteria-group-box__select-button"
-                aria-current={isFocused}
-                onClick={() => focusGroup(group.id)}
-              >
-                <span className="sr-only">{sentenceLabel}</span>
-              </button>
-            )}
-            {sentence}
+          <div className="criteria-group-box__header-row d-flex align-items-center">
+            <div className="criteria-group-box__header flex-grow-1">
+              {group && (
+                <button
+                  ref={selectButtonRef}
+                  type="button"
+                  className="criteria-group-box__select-button"
+                  aria-current={isFocused}
+                  onClick={() => focusGroup(group.id)}
+                >
+                  <span className="sr-only">{sentenceLabel}</span>
+                </button>
+              )}
+              {sentence}
+            </div>
+            <IconButton
+              src={Delete}
+              alt={deleteLabel}
+              aria-label={deleteLabel}
+              size="sm"
+              disabled={isDeletingGroup}
+              onClick={() => (group ? deleteGroup(group.id) : removePlaceholderGroup())}
+            />
           </div>
         )
         : (

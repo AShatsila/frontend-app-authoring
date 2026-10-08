@@ -391,4 +391,97 @@ describe('<CourseGroupSection />', () => {
     await screen.findByText('Demo Course');
     expect(other.querySelector('.course-group-section')).not.toHaveClass('course-group-section--focused');
   });
+
+  describe('delete control', () => {
+    it('calls deleteGroup with the course group id when its trash button is clicked', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const deleteGroup = jest.fn();
+      renderSection({ deleteGroup, canEditCourse: () => true });
+
+      await user.click(await screen.findByRole('button', { name: 'Delete course group for Demo Course' }));
+
+      expect(deleteGroup).toHaveBeenCalledWith(courseGroup.id);
+    });
+
+    it('renders no course group trash button when the author cannot edit this course', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      renderSection();
+
+      await screen.findByText('Demo Course');
+      expect(screen.queryByRole('button', { name: /Delete course group/ })).not.toBeInTheDocument();
+    });
+
+    it('disables the course group trash button while a delete is in flight', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      renderSection({ isDeletingGroup: true, canEditCourse: () => true });
+
+      expect(await screen.findByRole('button', { name: 'Delete course group for Demo Course' })).toBeDisabled();
+    });
+
+    it('expands itself when a keyboard focus request names one of its rule groups while collapsed', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const { rerender } = renderSection();
+      await user.click(await screen.findByRole('button', { name: 'Collapse Demo Course' }));
+      expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{
+            groupsIndex: index,
+            canEditCourse: () => false,
+            keyboardFocusRequest: { kind: 'group', groupId: 11, expand: true },
+          }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(await screen.findByText('Subsection 1A')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Collapse Demo Course' })).toBeInTheDocument();
+    });
+
+    it('stays collapsed and drops a request that does not ask to expand it', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { rerender } = renderSection({ consumeKeyboardFocusRequest });
+      await user.click(await screen.findByRole('button', { name: 'Collapse Demo Course' }));
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{
+            groupsIndex: index,
+            canEditCourse: () => false,
+            consumeKeyboardFocusRequest,
+            keyboardFocusRequest: { kind: 'group', groupId: 11, expand: false },
+          }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Expand Demo Course' })).toBeInTheDocument();
+      expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays collapsed for a keyboard focus request that names a group of another course group', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const { rerender } = renderSection();
+      await user.click(await screen.findByRole('button', { name: 'Collapse Demo Course' }));
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{
+            groupsIndex: index,
+            canEditCourse: () => false,
+            keyboardFocusRequest: { kind: 'group', groupId: 999, expand: true },
+          }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Expand Demo Course' })).toBeInTheDocument();
+    });
+  });
 });
