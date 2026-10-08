@@ -1,7 +1,12 @@
-import { Fragment, useMemo, useState } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Card, IconButton } from '@openedx/paragon';
-import { ExpandLess, ExpandMore } from '@openedx/paragon/icons';
+import { Delete, ExpandLess, ExpandMore } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
@@ -40,6 +45,10 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     addPlaceholderGroup,
     discardPlaceholder,
     hasPlaceholder,
+    deleteGroup,
+    isDeletingGroup,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   const [isCollapsed, setIsCollapsed] = useState(false);
   // `refetchOnMount: false`: mirrors `CourseOutlineSubtree` - avoids a
@@ -73,6 +82,26 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     && focus.groupId !== null
     && bottomTierGroups.some((group) => group.id === focus.groupId);
 
+  // A collapsed section has not mounted its cards, so one named by a pending
+  // keyboard focus request is either opened for it or, when the author's
+  // collapse is to be kept, the request is dropped rather than left to linger.
+  const request = keyboardFocusRequest?.kind === 'group'
+      && bottomTierGroups.some((group) => group.id === keyboardFocusRequest.groupId)
+    ? keyboardFocusRequest
+    : null;
+  const holdsFocusRequestTarget = request !== null;
+  const requestExpandsSection = request?.expand === true;
+  useEffect(() => {
+    if (!holdsFocusRequestTarget || !isCollapsed) {
+      return;
+    }
+    if (requestExpandsSection) {
+      setIsCollapsed(false);
+    } else {
+      consumeKeyboardFocusRequest();
+    }
+  }, [holdsFocusRequestTarget, requestExpandsSection, isCollapsed, consumeKeyboardFocusRequest]);
+
   const handleToggleCollapsed = () => {
     // A collapsed section hides its placeholder, so it is dropped instead of lingering unseen.
     if (!isCollapsed && (showPlaceholderGroup || holdsPlaceholderRuleBox)) {
@@ -89,6 +118,8 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const toggleLabel = isCollapsed
     ? intl.formatMessage(messages.expandCourseGroupButtonLabel)
     : intl.formatMessage(messages.collapseCourseGroupButtonLabel);
+
+  const deleteLabel = intl.formatMessage(messages.deleteCourseGroupButtonLabel, { courseName: courseDisplayName });
 
   return (
     <Card className={classNames('course-group-section', { 'course-group-section--focused': containsFocus })}>
@@ -111,6 +142,16 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
             </span>
           </div>
         }
+        actions={canEdit && (
+          <IconButton
+            src={Delete}
+            alt={deleteLabel}
+            aria-label={deleteLabel}
+            size="sm"
+            disabled={isDeletingGroup}
+            onClick={() => deleteGroup(courseGroup.id)}
+          />
+        )}
       />
       {!isCollapsed && (
         <Card.Body className="course-group-section__body">
