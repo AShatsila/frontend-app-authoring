@@ -49,6 +49,24 @@ const groupsUrl = apiUrls.competencyCriteriaGroups(tagId);
 const otherGroupsUrl = apiUrls.competencyCriteriaGroups(otherTagId);
 const profileUrl = apiUrls.defaultCompetencyRuleProfile();
 const createUrl = apiUrls.createCompetencyCriterion(tagId);
+/** `twoGroupsResponse`'s two leaf groups, each holding one default-rule criterion. */
+const twoGroupsWithCriteriaResponse = {
+  ...twoGroupsResponse,
+  criteria: [criterion(901, 'sub-a', 10), criterion(902, 'sub-b', 11)],
+};
+
+/** `twoGroupsWithCriteriaResponse` after group 10 was deleted. */
+const afterDeletingGroup10Response = {
+  groups: twoGroupsWithCriteriaResponse.groups.filter((group) => group.id !== 10),
+  criteria: twoGroupsWithCriteriaResponse.criteria.filter((item) => item.groupId !== 10),
+};
+
+/** Course A (group 10) and course B (group 20), each leaf holding one default-rule criterion. */
+const twoCoursesWithCriteriaResponse = {
+  ...twoCoursesResponse,
+  criteria: [criterion(901, 'sub-a', 10), criterion(902, 'sub-b', 20)],
+};
+
 const courseAOutlineUrl = getCourseOutlineIndexApiUrl(courseA);
 const courseBOutlineUrl = getCourseOutlineIndexApiUrl(courseB);
 const updateGroupOperatorUrl = apiUrls.updateCompetencyCriteriaGroup(tagId, 10);
@@ -96,6 +114,17 @@ const TestConsumer = () => {
     ['Associate in another course', () => ctx.associateSubsection('new-sub', courseOther)],
     ['Associate duplicate', () => ctx.associateSubsection('existing-sub', courseA)],
     ['Discard placeholder', () => ctx.discardPlaceholder()],
+    ['Focus group 11', () => ctx.focusGroup(11)],
+    ['Delete group 10', () => ctx.deleteGroup(10)],
+    ['Delete group 20', () => ctx.deleteGroup(20)],
+    [
+      'Delete group 10 twice',
+      () => {
+        ctx.deleteGroup(10);
+        ctx.deleteGroup(10);
+      },
+    ],
+    ['Remove placeholder group', () => ctx.removePlaceholderGroup()],
     ['Add placeholder rule box in group 10', () => ctx.addPlaceholderRuleBox(10)],
     ['Add placeholder group under course A', () => ctx.addPlaceholderGroup(1)],
     ['Set placeholder logic operator to AND', () => ctx.setPlaceholderLogicOperator('AND')],
@@ -121,6 +150,8 @@ const TestConsumer = () => {
       <p>Focus: {ctx.focus ? `group ${ctx.focus.groupId}, rule ${ctx.focus.ruleKey ?? 'none'}` : 'none'}</p>
       <p>Status: {ctx.status}</p>
       <p>Has placeholder: {String(ctx.hasPlaceholder)}</p>
+      <p>Deleting: {String(ctx.isDeletingGroup)}</p>
+      <p>Keyboard request: {JSON.stringify(ctx.keyboardFocusRequest)}</p>
       <p>Duplicate rejected: {String(ctx.placeholderDuplicateRejected)}</p>
       <p>Duplicate rejection count: {ctx.placeholderDuplicateRejectionCount}</p>
       <p>Placeholder: {JSON.stringify(ctx.placeholder)}</p>
@@ -1059,6 +1090,222 @@ describe('CompetencyAssociationsProvider', () => {
       await click('Associate in another course');
 
       await expectSinglePost({ object_id: 'new-sub' });
+    });
+  });
+
+  describe('deleteGroup', () => {
+    const deleteUrl = apiUrls.updateCompetencyCriteriaGroup(tagId, 10);
+    const groupsReads = () => axiosMock.history.get.filter((request) => request.url === groupsUrl);
+    const keyboardRequest = (request: object | null) => `Keyboard request: ${JSON.stringify(request)}`;
+
+    /** Serves `initial` once, then `refetched` (held until `release` is called) for every later GET. */
+    const mockGroupsReads = (initial: object, refetched: object) => {
+      const control = { release: () => {} };
+      axiosMock.onGet(groupsUrl).replyOnce(200, initial);
+      axiosMock.onGet(groupsUrl).reply(() => (
+        new Promise((resolve) => {
+          control.release = () => resolve([200, refetched]);
+        })
+      ));
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      axiosMock.onGet(courseBOutlineUrl).reply(200, outlineFixture);
+      return control;
+    };
+
+    const renderWithFocusOnGroup10 = async () => {
+      renderProvider();
+      await waitForSuccess();
+      await click('Focus group 10');
+      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+    };
+
+    const deleteAndRefetch = async (action: string, reads: { release: () => void; }) => {
+      await click(action);
+      await waitFor(() => expect(groupsReads()).toHaveLength(2));
+      await act(async () => {
+        reads.release();
+      });
+    };
+
+    it('stays pending until the refetch lands, then focuses the neighbor and requests keyboard focus for it', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      await renderWithFocusOnGroup10();
+
+      await click('Delete group 10');
+
+      await waitFor(() => expect(groupsReads()).toHaveLength(2));
+      // The delete itself has resolved, but the refetch has not.
+      expect(screen.getByText('Deleting: true')).toBeInTheDocument();
+      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+
+      await act(async () => {
+        reads.release();
+      });
+
+      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
+      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 11, expand: true }))).toBeInTheDocument();
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+
+    it('treats a 404 as success: no toast, and focus still moves off the vanished group', async () => {
+      axiosMock.onDelete(deleteUrl).reply(404);
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      await renderWithFocusOnGroup10();
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText(focusOnGroup(11))).toBeInTheDocument();
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+
+    it('toasts on a failure, keeps focus when the group is still there, and requests no keyboard focus', async () => {
+      axiosMock.onDelete(deleteUrl).reply(500);
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, twoGroupsWithCriteriaResponse);
+      await renderWithFocusOnGroup10();
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
+      expectToast('Couldn\'t delete the group. The panel was refreshed.', ErrorIcon);
+      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
+    });
+
+    it('drops a second call made before the first settles, so one request is sent', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      await renderWithFocusOnGroup10();
+
+      await deleteAndRefetch('Delete group 10 twice', reads);
+
+      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
+      expect(axiosMock.history.delete).toHaveLength(1);
+    });
+
+    it('requests the empty state when the delete leaves no course group', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
+      renderProvider();
+      expect(await screen.findByText(focusOnGroup(10))).toBeInTheDocument();
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
+      expect(noFocus()).toBeInTheDocument();
+    });
+
+    it('clears the keyboard focus request when focus is written some other way', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      await renderWithFocusOnGroup10();
+      await deleteAndRefetch('Delete group 10', reads);
+      expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, expand: true })))
+        .toBeInTheDocument();
+
+      await click('Focus group 11');
+
+      expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
+    });
+
+    it('focuses the course group above when deleting the only rule group removes its course group', async () => {
+      axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 20)).reply(200, {});
+      const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
+        groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 2 && group.id !== 20),
+        criteria: twoCoursesWithCriteriaResponse.criteria.filter((item) => item.groupId === 10),
+      });
+      renderProvider();
+      await waitForSuccess();
+      await click('Focus group 20');
+
+      await deleteAndRefetch('Delete group 20', reads);
+
+      expect(await screen.findByText(focusOn(10, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 10, expand: true }))).toBeInTheDocument();
+    });
+
+    it('keeps focus, and asks to keep sections as they are, when the deleted group did not hold focus', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      renderProvider();
+      await waitForSuccess();
+      await click('Focus group 11');
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
+      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 11, expand: false }))).toBeInTheDocument();
+    });
+
+    it('respects a click made on another group while the delete is pending', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      await renderWithFocusOnGroup10();
+
+      await click('Delete group 10');
+      await waitFor(() => expect(groupsReads()).toHaveLength(2));
+      await click('Focus group 11');
+      await act(async () => {
+        reads.release();
+      });
+
+      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
+      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+    });
+
+    it('requests the empty state when only a course group the author cannot see is left', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
+        groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 1 && group.id !== 10),
+        criteria: twoCoursesWithCriteriaResponse.criteria.filter((item) => item.groupId === 20),
+      });
+      axiosMock.onGet(courseBOutlineUrl).reply(403);
+      await renderWithFocusOnGroup10();
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
+      expect(noFocus()).toBeInTheDocument();
+    });
+  });
+
+  describe('removePlaceholderGroup', () => {
+    it('sends no request, and focuses the last saved group of the placeholder\'s course with a keyboard request', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, twoGroupsWithCriteriaResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      renderProvider();
+      await waitForSuccess();
+      await click('Add placeholder group under course A');
+      expect(screen.getByText('Focus: group null, rule none')).toBeInTheDocument();
+
+      await click('Remove placeholder group');
+
+      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText('Keyboard request: {"kind":"group","groupId":11,"expand":true}')).toBeInTheDocument();
+      expect(axiosMock.history.delete).toHaveLength(0);
+      expect(axiosMock.history.patch).toHaveLength(0);
+      expect(axiosMock.history.post).toHaveLength(0);
+    });
+
+    it('clears focus, with no keyboard request, when the placeholder\'s course group has no saved group', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, {
+        groups: singleGroupResponse.groups.filter((group) => group.id !== 10),
+        criteria: [],
+      });
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      renderProvider();
+      await waitForSuccess();
+      await click('Add placeholder group under course A');
+
+      await click('Remove placeholder group');
+
+      expect(noFocus()).toBeInTheDocument();
+      expect(screen.getByText('Keyboard request: null')).toBeInTheDocument();
     });
   });
 

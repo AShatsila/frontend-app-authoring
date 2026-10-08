@@ -5,12 +5,13 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
 import { Error as ErrorIcon, InfoOutline } from '@openedx/paragon/icons';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { AxiosError } from 'axios';
@@ -20,14 +21,17 @@ import { courseOutlineQueryKeys } from '@src/course-outline/data/queryKeys';
 import { useToastContext } from '@src/generic/toast-context';
 
 import {
+  competencyQueryKeys,
   useCompetencyCriteriaGroups,
   useCourseTaggingPermissions,
   useCreateCompetencyCriterion,
   useDefaultCompetencyRuleProfile,
+  useDeleteCompetencyCriteriaGroup,
   useUpdateCompetencyCriteriaGroupOperator,
   useUpdateCompetencyCriteriaRule,
 } from './data/apiHooks';
 import type {
+  CompetencyCriteriaGroupsResponse,
   CompetencyGroupLogicOperator,
   CompetencyRuleProfile,
   CourseCompetencyCriteriaGroup,
@@ -45,16 +49,19 @@ import {
   usePlaceholderActions,
 } from './placeholderState';
 import type { CriteriaPlaceholder, PlaceholderAction } from './placeholderState';
-import type { CompetencyCriteriaGroupsIndex } from './utils';
+import type { CompetencyCriteriaGroupsIndex, PageOrderSnapshot } from './utils';
 import {
   associatedObjectIds,
   bottomTierGroupsForCourse,
   buildCompetencyCriteriaGroupsIndex,
   effectiveRuleOf,
+  focusTargetAfterRemoval,
+  hasVisibleOrNewCourseGroup,
   lastBottomTierGroupForCourse,
   lastRuleKeyIn,
   ruleBoxesForGroup,
   ruleKeyOf,
+  snapshotPageOrder,
   visibleCourseGroups,
 } from './utils';
 
@@ -70,6 +77,13 @@ export interface CriteriaFocus {
   groupId: number | null;
   ruleKey: string | null;
 }
+
+/** A one-shot request for the browser's keyboard focus, left by a delete because the trash button that had it is
+ * gone. Kept here because the cards can unmount (or be collapsed) before the new target renders. `group` names the
+ * bottom-tier group card that takes it, and `expand` whether a collapsed course-level group holding that card opens
+ * for it. `empty` is the "no associations" message.
+ */
+export type KeyboardFocusRequest = { kind: 'group'; groupId: number; expand: boolean; } | { kind: 'empty'; };
 
 export interface CompetencyAssociationsContextBase {
   /** The groups or profile failure, or the first course-outline failure other
@@ -98,6 +112,19 @@ export interface CompetencyAssociationsContextBase {
   placeholderDuplicateRejectionCount: number;
   /** Drops the placeholder by clearing `focus`. */
   discardPlaceholder: () => void;
+  /** Deletes a bottom-tier or course-level group, then moves focus per `focusTargetAfterRemoval` once the refetch
+   * lands. Dropped while another delete is in flight. A 404 counts as success; any other failure shows a toast.
+   */
+  deleteGroup: (groupId: number) => void;
+  /** True while a delete request or its refetch is in flight, which disables every delete control and the content
+   * panel's subsection pills.
+   */
+  isDeletingGroup: boolean;
+  /** Discards the placeholder group without a request and focuses the last saved group in its course group. */
+  removePlaceholderGroup: () => void;
+  keyboardFocusRequest: KeyboardFocusRequest | null;
+  /** Clears `keyboardFocusRequest` once the component it names has taken it. */
+  consumeKeyboardFocusRequest: () => void;
   /** Focuses a group and its last rule box. A no-op when `groupId` is already
    * focused, so re-clicking the group heading keeps the rule box the author
    * selected inside it.
@@ -244,6 +271,7 @@ export interface ProviderState {
   placeholder: CriteriaPlaceholder;
   placeholderDuplicateRejected: boolean;
   placeholderDuplicateRejectionCount: number;
+  keyboardFocusRequest: KeyboardFocusRequest | null;
   /** A course expanded before the groups and default profile loaded. */
   pendingCourseId: string | null;
   initialFocusDone: boolean;
@@ -258,6 +286,8 @@ export type ProviderAction =
   | { type: 'setFocus'; focus: CriteriaFocus; }
   | PlaceholderAction
   | { type: 'placeholderDuplicateRejected'; }
+  | { type: 'deleteResolved'; focus: CriteriaFocus | null | 'keep'; keyboardFocusRequest: KeyboardFocusRequest | null; }
+  | { type: 'keyboardFocusRequested'; keyboardFocusRequest: KeyboardFocusRequest | null; }
   | { type: 'ruleKeyResolved'; groupId: number; staleRuleKey: string | null; resolvedRuleKey: string | null; }
   | { type: 'createSucceeded'; generation: number; focus: CriteriaFocus; }
   | { type: 'courseExpandedBeforeLoad'; courseId: string; }
@@ -275,6 +305,7 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
         placeholder: initialPlaceholder,
         placeholderDuplicateRejected: false,
         placeholderDuplicateRejectionCount: 0,
+        keyboardFocusRequest: null,
         pendingCourseId: null,
         initialFocusDone: false,
         settled: false,
@@ -288,6 +319,15 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
       return { ...state, focus: { groupId: action.groupId, ruleKey: action.ruleKey }, pendingCourseId: null };
     case 'setFocus':
       return { ...state, focus: action.focus };
+    case 'deleteResolved':
+      return {
+        ...state,
+        focus: action.focus === 'keep' ? state.focus : action.focus,
+        placeholderDuplicateRejected: action.focus === 'keep' ? state.placeholderDuplicateRejected : false,
+        keyboardFocusRequest: action.keyboardFocusRequest,
+      };
+    case 'keyboardFocusRequested':
+      return { ...state, keyboardFocusRequest: action.keyboardFocusRequest };
     case 'addPlaceholderRuleBox':
     case 'addPlaceholderGroup':
     case 'setPlaceholderLogicOperator':
@@ -317,6 +357,17 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
   }
 }
 
+/** Actions that move focus for a reason other than a delete, which drops a pending keyboard focus request. */
+const KEYBOARD_REQUEST_CLEARING_ACTIONS: ReadonlySet<ProviderAction['type']> = new Set([
+  'competencyChanged',
+  'focusGroup',
+  'focusRuleBox',
+  'setFocus',
+  'addPlaceholderRuleBox',
+  'addPlaceholderGroup',
+  'discardPlaceholder',
+]);
+
 function providerReducer(state: ProviderState, action: ProviderAction): ProviderState {
   if (action.type === 'placeholderDuplicateRejected') {
     return {
@@ -325,10 +376,15 @@ function providerReducer(state: ProviderState, action: ProviderAction): Provider
       placeholderDuplicateRejectionCount: state.placeholderDuplicateRejectionCount + 1,
     };
   }
-  const next = clearStaleScoreSettingsOpen(state, reduceProviderState(state, action));
-  const clears = PLACEHOLDER_REJECTION_CLEARING_ACTIONS.has(action.type)
-    || (action.type === 'pendingCourseResolved' && action.focus !== null);
-  return clears && next.placeholderDuplicateRejected ? { ...next, placeholderDuplicateRejected: false } : next;
+  let next = clearStaleScoreSettingsOpen(state, reduceProviderState(state, action));
+  const movesFocus = action.type === 'pendingCourseResolved' && action.focus !== null;
+  if ((PLACEHOLDER_REJECTION_CLEARING_ACTIONS.has(action.type) || movesFocus) && next.placeholderDuplicateRejected) {
+    next = { ...next, placeholderDuplicateRejected: false };
+  }
+  if ((KEYBOARD_REQUEST_CLEARING_ACTIONS.has(action.type) || movesFocus) && next.keyboardFocusRequest) {
+    next = { ...next, keyboardFocusRequest: null };
+  }
+  return next;
 }
 
 /** Provides per-competency criteria-association state to the course panel.
@@ -352,6 +408,7 @@ export const CompetencyAssociationsProvider = ({
     placeholder: initialPlaceholder,
     placeholderDuplicateRejected: false,
     placeholderDuplicateRejectionCount: 0,
+    keyboardFocusRequest: null,
     pendingCourseId: null,
     initialFocusDone: false,
     settled: false,
@@ -361,6 +418,7 @@ export const CompetencyAssociationsProvider = ({
     placeholder,
     placeholderDuplicateRejected,
     placeholderDuplicateRejectionCount,
+    keyboardFocusRequest,
     generation,
     pendingCourseId,
     initialFocusDone,
@@ -380,6 +438,16 @@ export const CompetencyAssociationsProvider = ({
   const isAssociating = isCreatePending && variables?.tagId === tagId;
   const { mutate: updateGroupOperatorMutate } = useUpdateCompetencyCriteriaGroupOperator();
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
+  const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
+  const queryClient = useQueryClient();
+  // Closes the gap between a click and the render that disables the trash buttons.
+  const isDeleteInFlightRef = useRef(false);
+  // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
+  // respect a click made while the request was in flight.
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const placeholderRef = useRef(placeholder);
+  placeholderRef.current = placeholder;
 
   const groupsIndex = useMemo(
     () => (groupsQuery.data ? buildCompetencyCriteriaGroupsIndex(groupsQuery.data) : undefined),
@@ -633,6 +701,101 @@ export const CompetencyAssociationsProvider = ({
       });
   }, [groupsIndex, systemDefaultProfile, tagId, updateRuleScoreMutateAsync, showToast, intl]);
 
+  const consumeKeyboardFocusRequest = useCallback(() => {
+    dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: null });
+  }, []);
+
+  // Unlike `focusGroup`, lands on the group's first rule box. A group with none gets `null`, which focuses a
+  // placeholder rule box, as `focusGroup` does.
+  const focusGroupAfterRemoval = useCallback((
+    groupId: number,
+    freshIndex: CompetencyCriteriaGroupsIndex,
+    shouldRequestKeyboardFocus: boolean,
+  ) => {
+    const ruleKey = systemDefaultProfile
+      ? (ruleBoxesForGroup(groupId, freshIndex, systemDefaultProfile)[0]?.key ?? null)
+      : null;
+    dispatch({
+      type: 'deleteResolved',
+      focus: { groupId, ruleKey },
+      keyboardFocusRequest: shouldRequestKeyboardFocus ? { kind: 'group', groupId, expand: true } : null,
+    });
+  }, [systemDefaultProfile]);
+
+  const resolveFocusAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
+    const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+      competencyQueryKeys.competencyCriteriaGroups(tagId),
+    );
+    if (!freshData) {
+      return;
+    }
+    const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
+    const currentFocus = focusRef.current;
+    const target = focusTargetAfterRemoval(
+      snapshot,
+      freshIndex,
+      currentFocus,
+      placeholderRef.current.parentRuleGroupId,
+    );
+    // A failed or no-op delete leaves the trash button in the DOM, which keeps the browser's focus. Only a
+    // vanished group strands it.
+    const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
+
+    if (target === 'unchanged') {
+      const focusedGroupId = currentFocus?.groupId ?? null;
+      if (isDeletedGroupGone && focusedGroupId !== null) {
+        dispatch({
+          type: 'deleteResolved',
+          focus: 'keep',
+          keyboardFocusRequest: { kind: 'group', groupId: focusedGroupId, expand: false },
+        });
+      }
+    } else if (target === null) {
+      dispatch({
+        type: 'deleteResolved',
+        focus: null,
+        keyboardFocusRequest: isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex)
+          ? { kind: 'empty' }
+          : null,
+      });
+    } else {
+      focusGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
+    }
+  }, [queryClient, tagId, focusGroupAfterRemoval]);
+
+  const deleteGroup = useCallback((groupId: number) => {
+    if (isDeleteInFlightRef.current || !groupsIndex) {
+      return;
+    }
+    isDeleteInFlightRef.current = true;
+    const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
+    mutateDeleteGroup({ tagId, groupId }, {
+      onError: (deleteError) => {
+        // 404: the group is already gone, which is what the author asked for.
+        if (deleteError.response?.status !== 404) {
+          showToast(intl.formatMessage(messages.deleteGroupFailedToastMessage), undefined, undefined, ErrorIcon);
+        }
+      },
+      onSettled: () => {
+        isDeleteInFlightRef.current = false;
+        resolveFocusAfterDelete(groupId, snapshot);
+      },
+    });
+  }, [groupsIndex, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveFocusAfterDelete, showToast, intl]);
+
+  const removePlaceholderGroup = useCallback(() => {
+    const { parentRuleGroupId } = placeholder;
+    const parentGroup = parentRuleGroupId !== null ? groupsIndex?.groupsById.get(parentRuleGroupId) : undefined;
+    const lastGroup = groupsIndex && parentGroup?.courseKey != null
+      ? lastBottomTierGroupForCourse(groupsIndex, parentGroup.courseKey)
+      : null;
+    if (groupsIndex && lastGroup) {
+      focusGroupAfterRemoval(lastGroup.id, groupsIndex, true);
+    } else {
+      dispatch({ type: 'deleteResolved', focus: null, keyboardFocusRequest: null });
+    }
+  }, [placeholder, groupsIndex, focusGroupAfterRemoval]);
+
   const contextValue = useMemo<CompetencyAssociationsContextValue>(() => {
     const shared: CompetencyAssociationsContextBase = {
       error,
@@ -652,6 +815,11 @@ export const CompetencyAssociationsProvider = ({
       associateSubsection,
       updateGroupOperator,
       updateRuleScore,
+      deleteGroup,
+      isDeletingGroup,
+      removePlaceholderGroup,
+      keyboardFocusRequest,
+      consumeKeyboardFocusRequest,
       isAssociating,
       expansionCountByCourseId,
       hasPermissionsError,
@@ -683,6 +851,11 @@ export const CompetencyAssociationsProvider = ({
     associateSubsection,
     updateGroupOperator,
     updateRuleScore,
+    deleteGroup,
+    isDeletingGroup,
+    removePlaceholderGroup,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
     isAssociating,
     expansionCountByCourseId,
     hasPermissionsError,

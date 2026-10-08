@@ -166,4 +166,62 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect(scrollIntoView.mock.contexts[0]).toHaveClass('rule-box');
   });
+
+  describe('delete control', () => {
+    it('calls deleteGroup with its own id, without focusing the group', async () => {
+      const deleteGroup = jest.fn();
+      const focusGroup = jest.fn();
+      renderBox({ deleteGroup, focusGroup });
+
+      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
+
+      expect(deleteGroup).toHaveBeenCalledWith(10);
+      expect(focusGroup).not.toHaveBeenCalled();
+    });
+
+    it('renders no trash button when canEdit is false', () => {
+      renderBox({}, false);
+
+      expect(screen.queryByRole('button', { name: 'Delete rule group' })).not.toBeInTheDocument();
+    });
+
+    it('disables the trash button while a delete is in flight', () => {
+      renderBox({ isDeletingGroup: true });
+
+      expect(screen.getByRole('button', { name: 'Delete rule group' })).toBeDisabled();
+    });
+
+    it('lets the placeholder group\'s trash button discard it without calling deleteGroup', async () => {
+      const deleteGroup = jest.fn();
+      const removePlaceholderGroup = jest.fn();
+      render(
+        <MockCompetencyAssociationsProvider
+          value={{ focus: { groupId: null, ruleKey: null }, deleteGroup, removePlaceholderGroup }}
+        >
+          <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
+
+      expect(removePlaceholderGroup).toHaveBeenCalledTimes(1);
+      expect(deleteGroup).not.toHaveBeenCalled();
+    });
+
+    it('takes keyboard focus on its select button when a request names it, then consumes the request', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true }, consumeKeyboardFocusRequest });
+
+      expect(screen.getByRole('button', { name: 'By completing any of the following' })).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a keyboard focus request that names another group', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 99, expand: true }, consumeKeyboardFocusRequest });
+
+      expect(screen.getByRole('button', { name: 'By completing any of the following' })).not.toHaveFocus();
+      expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+    });
+  });
 });
