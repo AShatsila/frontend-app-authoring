@@ -1,6 +1,17 @@
 import { defineMessages } from '@edx/frontend-platform/i18n';
 
 const messages = defineMessages({
+  deleteRuleGroupButtonLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.delete-rule-group-button-label',
+    defaultMessage: 'Delete rule group',
+    description: 'Accessible label for the icon button that deletes a rule group, or discards the unsaved one.',
+  },
+  deleteCourseGroupButtonLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.delete-course-group-button-label',
+    defaultMessage: 'Delete course group for {courseName}',
+    description: 'Accessible label for the icon button that deletes a course group and all its rule groups. '
+      + '{courseName} is the name of the course the group belongs to.',
+  },
   logicOperatorAnyLabel: {
     id: 'course-authoring.competency-management.criteria-groups.logic-operator-any-label',
     defaultMessage: 'any',

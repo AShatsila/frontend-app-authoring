@@ -122,6 +122,18 @@ export async function updateCompetencyCriteriaGroupOperator(
 }
 
 /**
+ * Delete a group (`#709`). The backend archives or hard-deletes it, and
+ * deleting a course-level group's last bottom-tier group also removes that
+ * course-level group, so callers re-read the groups instead of using the
+ * response body.
+ * @param tagId The competency (tag) the group belongs to.
+ * @param groupId The group to delete.
+ */
+export async function deleteCompetencyCriteriaGroup(tagId: number, groupId: number): Promise<void> {
+  await getAuthenticatedHttpClient().delete(apiUrls.updateCompetencyCriteriaGroup(tagId, groupId));
+}
+
+/**
  * Batch-update a rule box's score threshold, across every criterion that
  * currently shares it (`#759`). Always sends explicit override values,
  * never a shared rule-profile reference - the backend reassigns a

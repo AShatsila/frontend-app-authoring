@@ -136,6 +136,24 @@ export const useUpdateCompetencyCriteriaRule = () => {
   });
 };
 
+/**
+ * Build the mutation to delete a group (`#709`). Invalidates that
+ * competency's criteria-groups query on success and on failure alike, since
+ * the group may already be gone (404) or the delete may have cascaded to its
+ * parent. `onSettled` returns the invalidation promise so the mutation stays
+ * pending until the refetch lands.
+ */
+export const useDeleteCompetencyCriteriaGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, AxiosError, { tagId: number; groupId: number; }>({
+    mutationFn: ({ tagId, groupId }) => api.deleteCompetencyCriteriaGroup(tagId, groupId),
+    onSettled: (_data, _error, { tagId }) =>
+      queryClient.invalidateQueries({
+        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
+      }),
+  });
+};
+
 export interface UseCourseTaggingPermissionsReturn {
   isLoading: boolean;
   isAuthzEnabled: boolean;

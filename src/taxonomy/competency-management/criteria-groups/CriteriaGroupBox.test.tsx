@@ -164,9 +164,7 @@ describe('<CriteriaGroupBox />', () => {
     const focusRuleBox = jest.fn();
     renderBox({ focusGroup, focusRuleBox });
 
-    // The header band, any/all toggle, rule box, and the add control.
-    expect(screen.getAllByRole('button')).toHaveLength(4);
-    fireEvent.click(screen.getAllByRole('button')[2]);
+    fireEvent.click(screen.getByRole('button', { name: /with a score of/i }));
 
     expect(focusRuleBox).toHaveBeenCalledTimes(1);
     expect(focusGroup).not.toHaveBeenCalled();
@@ -249,5 +247,87 @@ describe('<CriteriaGroupBox />', () => {
 
     expect(setPlaceholderLogicOperator).toHaveBeenCalledWith('OR');
     expect(updateGroupOperator).not.toHaveBeenCalled();
+  });
+
+  describe('delete control', () => {
+    it('calls deleteGroup with its own id when the trash button is clicked', async () => {
+      const user = userEvent.setup();
+      const deleteGroup = jest.fn();
+      renderBox({ deleteGroup });
+
+      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
+
+      expect(deleteGroup).toHaveBeenCalledWith(10);
+    });
+
+    it('does not focus the group when its trash button is clicked', async () => {
+      const user = userEvent.setup();
+      const deleteGroup = jest.fn();
+      const focusGroup = jest.fn();
+      renderBox({ deleteGroup, focusGroup });
+
+      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
+
+      expect(deleteGroup).toHaveBeenCalledTimes(1);
+      expect(focusGroup).not.toHaveBeenCalled();
+    });
+
+    it('renders no trash button when canEdit is false', () => {
+      renderBox({}, {}, false);
+
+      expect(screen.queryByRole('button', { name: 'Delete rule group' })).not.toBeInTheDocument();
+    });
+
+    it('disables the trash button while a delete is in flight', () => {
+      renderBox({ isDeletingGroup: true });
+
+      expect(screen.getByRole('button', { name: 'Delete rule group' })).toBeDisabled();
+    });
+
+    it('lets the placeholder group\'s trash button discard it without calling deleteGroup', async () => {
+      const user = userEvent.setup();
+      const deleteGroup = jest.fn();
+      const removePlaceholderGroup = jest.fn();
+      render(
+        <MockCompetencyAssociationsProvider
+          value={{
+            index,
+            systemDefaultProfile,
+            focus: { groupId: null, ruleKey: null },
+            deleteGroup,
+            removePlaceholderGroup,
+          }}
+        >
+          <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
+
+      expect(removePlaceholderGroup).toHaveBeenCalledTimes(1);
+      expect(deleteGroup).not.toHaveBeenCalled();
+    });
+
+    it('takes keyboard focus on its header band when a request names it, then consumes the request', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { container } = renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(container.querySelector('.criteria-group-box__header')).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a keyboard focus request that names another group', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { container } = renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 99, expand: true },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(container.querySelector('.criteria-group-box__header')).not.toHaveFocus();
+      expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+    });
   });
 });

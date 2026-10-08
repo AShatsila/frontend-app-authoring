@@ -56,6 +56,11 @@ const messages = defineMessages({
       + 'new criterion because an ancestor or descendant competency already has criteria in the same course '
       + '(a 400 response with a "tag_id" field error).',
   },
+  deleteGroupFailedToastMessage: {
+    id: 'course-authoring.competency-management.delete-group-failed-toast-message',
+    defaultMessage: 'Couldn\'t delete the group. The panel was refreshed.',
+    description: 'Toast shown when deleting a course group or rule group fails.',
+  },
   updateGroupOperatorFailedToastMessage: {
     id: 'course-authoring.competency-management.update-group-operator-failed-toast-message',
     defaultMessage: 'There was a problem updating this group\'s logic. Please try again.',

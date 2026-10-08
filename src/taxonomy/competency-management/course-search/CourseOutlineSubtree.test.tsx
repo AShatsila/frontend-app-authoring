@@ -313,4 +313,14 @@ describe('<CourseOutlineSubtree />', () => {
       expect(within(row as HTMLElement).getByText('Competency ID: EXT-042')).toBeInTheDocument();
     },
   );
+
+  it('disables a subsection\'s select button while a group delete is in flight', async () => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+    renderSubtree({ isDeletingGroup: true });
+
+    await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
+
+    expect(screen.getByRole('button', { name: 'Subsection 1A (graded)' })).toBeDisabled();
+  });
 });

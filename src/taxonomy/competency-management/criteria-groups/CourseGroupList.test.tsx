@@ -148,4 +148,32 @@ describe('<CourseGroupList />', () => {
     // was mounted.
     expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
   });
+
+  it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    renderList({
+      groupsQuery: loadedEmptyGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index: buildCompetencyCriteriaGroupsIndex(emptyGroupsResponse),
+      systemDefaultProfile,
+      accessibleCourseGroups: [],
+      keyboardFocusRequest: { kind: 'empty' },
+      consumeKeyboardFocusRequest,
+    });
+
+    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the empty state unfocused without a request', () => {
+    renderList({
+      groupsQuery: loadedEmptyGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index: buildCompetencyCriteriaGroupsIndex(emptyGroupsResponse),
+      systemDefaultProfile,
+      accessibleCourseGroups: [],
+    });
+
+    expect(screen.getByText('No content associated.').parentElement).not.toHaveFocus();
+  });
 });

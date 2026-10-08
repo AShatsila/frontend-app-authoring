@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Card } from '@openedx/paragon';
+import { Card, IconButton } from '@openedx/paragon';
+import { Delete } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
@@ -52,12 +54,39 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     addPlaceholderRuleBox,
     setPlaceholderLogicOperator,
     hasPlaceholder,
+    deleteGroup,
+    isDeletingGroup,
+    removePlaceholderGroup,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
 
   // `null` identifies the placeholder group, matching `CriteriaFocus`.
   const groupId = group?.id ?? null;
   const isFocused = focus?.groupId === groupId;
   const logicOperator = group ? group.logicOperator : placeholder.logicOperator;
+
+  const headerRef = useRef<HTMLDivElement>(null);
+  // A delete leaves this request when the trash button that had keyboard
+  // focus is gone. `preventScroll` because the focused group's own
+  // scrolling is not this component's call.
+  const takesKeyboardFocus = group !== undefined
+    && keyboardFocusRequest?.kind === 'group'
+    && keyboardFocusRequest.groupId === group.id;
+  useEffect(() => {
+    if (takesKeyboardFocus && headerRef.current) {
+      headerRef.current.focus({ preventScroll: true });
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
+
+  const handleDeleteClick: React.MouseEventHandler = () => {
+    if (group) {
+      deleteGroup(group.id);
+    } else {
+      removePlaceholderGroup();
+    }
+  };
 
   const handleClick: React.MouseEventHandler = () => {
     // The placeholder card has no real id to focus and is already focused.
@@ -94,32 +123,45 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
       className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
     >
       <Card>
-        <div
-          className="criteria-group-box__header"
-          role="button"
-          tabIndex={0}
-          aria-pressed={isFocused}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
-        >
-          {intl.formatMessage(messages.criteriaGroupBoxLabel, {
-            operator: (
-              <LogicOperatorSelect
-                key="operator"
-                className="criteria-group-box__header-operator"
-                value={logicOperator}
-                labels={{
-                  and: intl.formatMessage(messages.logicOperatorAllLabel),
-                  or: intl.formatMessage(messages.logicOperatorAnyLabel),
-                }}
-                onChange={canEdit
-                  ? (group
-                    ? (newLogicOperator) => updateGroupOperator(group.id, newLogicOperator)
-                    : setPlaceholderLogicOperator)
-                  : undefined}
-              />
-            ),
-          })}
+        <div className="criteria-group-box__header-row d-flex align-items-center">
+          <div
+            ref={headerRef}
+            className="criteria-group-box__header flex-grow-1"
+            role="button"
+            tabIndex={0}
+            aria-pressed={isFocused}
+            onClick={handleClick}
+            onKeyDown={handleKeyDown}
+          >
+            {intl.formatMessage(messages.criteriaGroupBoxLabel, {
+              operator: (
+                <LogicOperatorSelect
+                  key="operator"
+                  className="criteria-group-box__header-operator"
+                  value={logicOperator}
+                  labels={{
+                    and: intl.formatMessage(messages.logicOperatorAllLabel),
+                    or: intl.formatMessage(messages.logicOperatorAnyLabel),
+                  }}
+                  onChange={canEdit
+                    ? (group
+                      ? (newLogicOperator) => updateGroupOperator(group.id, newLogicOperator)
+                      : setPlaceholderLogicOperator)
+                    : undefined}
+                />
+              ),
+            })}
+          </div>
+          {canEdit && (
+            <IconButton
+              src={Delete}
+              alt={intl.formatMessage(messages.deleteRuleGroupButtonLabel)}
+              aria-label={intl.formatMessage(messages.deleteRuleGroupButtonLabel)}
+              size="sm"
+              disabled={isDeletingGroup}
+              onClick={handleDeleteClick}
+            />
+          )}
         </div>
         {index && systemDefaultProfile && (
           <Card.Body className="criteria-group-box__rules">

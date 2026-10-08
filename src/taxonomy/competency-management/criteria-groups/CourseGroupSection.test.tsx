@@ -284,4 +284,93 @@ describe('<CourseGroupSection />', () => {
 
     expect(discardPlaceholder).toHaveBeenCalledTimes(1);
   });
+
+  describe('delete control', () => {
+    it('calls deleteGroup with the course group id when its trash button is clicked', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const deleteGroup = jest.fn();
+      renderSection({ deleteGroup });
+
+      await user.click(await screen.findByRole('button', { name: 'Delete course group for Demo Course' }));
+
+      expect(deleteGroup).toHaveBeenCalledWith(courseGroup.id);
+    });
+
+    it('renders no course group trash button when the author cannot edit this course', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      renderSection({ canEditCourse: () => false });
+
+      await screen.findByText('Demo Course');
+      expect(screen.queryByRole('button', { name: /Delete course group/ })).not.toBeInTheDocument();
+    });
+
+    it('disables the course group trash button while a delete is in flight', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      renderSection({ isDeletingGroup: true });
+
+      expect(await screen.findByRole('button', { name: 'Delete course group for Demo Course' })).toBeDisabled();
+    });
+
+    it('expands itself when a keyboard focus request names one of its rule groups while collapsed', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const { rerender } = renderSection();
+      await user.click(await screen.findByRole('button', { name: 'Collapse' }));
+      expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{ index, systemDefaultProfile, keyboardFocusRequest: { kind: 'group', groupId: 11, expand: true } }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(await screen.findByText('Subsection 1A')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument();
+    });
+
+    it('stays collapsed and drops a request that does not ask to expand it', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { rerender } = renderSection({ consumeKeyboardFocusRequest });
+      await user.click(await screen.findByRole('button', { name: 'Collapse' }));
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{
+            index,
+            systemDefaultProfile,
+            consumeKeyboardFocusRequest,
+            keyboardFocusRequest: { kind: 'group', groupId: 11, expand: false },
+          }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument();
+      expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays collapsed for a keyboard focus request that names a group of another course group', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const { rerender } = renderSection();
+      await user.click(await screen.findByRole('button', { name: 'Collapse' }));
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{ index, systemDefaultProfile, keyboardFocusRequest: { kind: 'group', groupId: 999, expand: true } }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument();
+    });
+  });
 });
