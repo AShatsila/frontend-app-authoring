@@ -34,6 +34,14 @@
       box-shadow: 0 0 0 1px $focused-accent-color;
     }
 
+    // The trash button sits beside the band, so the row carries the band's
+    // fill and top corners instead.
+    &__header-row {
+      background-color: $sentence-band-bg;
+      border-radius: var(--pgn-size-card-border-radius) var(--pgn-size-card-border-radius) 0 0;
+      padding-right: var(--pgn-spacing-spacer-1);
+    }
+
     &__header {
       background-color: $sentence-band-bg;
       // Matches `Card`'s own top corners, so the band's top edge reads as
