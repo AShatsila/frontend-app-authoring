@@ -16,6 +16,7 @@ import {
   useCourseTaggingPermissions,
   useCreateCompetencyCriterion,
   useDefaultCompetencyRuleProfile,
+  useDeleteCompetencyCriteriaGroup,
   useUpdateCompetencyCriteriaGroupOperator,
   useUpdateCompetencyCriteriaRule,
 } from './apiHooks';
@@ -212,6 +213,67 @@ describe('useUpdateCompetencyCriteriaGroupOperator', () => {
 
     const state = queryClient.getQueryState(competencyQueryKeys.competencyCriteriaGroups(otherTagId));
     expect(state?.isInvalidated).toBe(false);
+  });
+});
+
+describe('useDeleteCompetencyCriteriaGroup', () => {
+  const groupsKey = competencyQueryKeys.competencyCriteriaGroups(tagId);
+
+  it('invalidates that tagId\'s groups query on success', async () => {
+    const { axiosMock, queryClient } = initializeMocks();
+    axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {});
+    queryClient.setQueryData(groupsKey, { groups: [], criteria: [] });
+
+    const { result } = renderHook(() => useDeleteCompetencyCriteriaGroup(), { wrapper: makeWrapper() });
+
+    await act(async () => {
+      await result.current.mutateAsync({ tagId, groupId: 10 });
+    });
+
+    expect(queryClient.getQueryState(groupsKey)?.isInvalidated).toBe(true);
+  });
+
+  it('invalidates that tagId\'s groups query on failure too', async () => {
+    const { axiosMock, queryClient } = initializeMocks();
+    axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(403);
+    queryClient.setQueryData(groupsKey, { groups: [], criteria: [] });
+
+    const { result } = renderHook(() => useDeleteCompetencyCriteriaGroup(), { wrapper: makeWrapper() });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ tagId, groupId: 10 })).rejects.toBeDefined();
+    });
+
+    expect(queryClient.getQueryState(groupsKey)?.isInvalidated).toBe(true);
+  });
+
+  it('stays pending until the refetch of an active groups query has landed', async () => {
+    const { axiosMock } = initializeMocks();
+    axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).replyOnce(200, { groups: [], criteria: [] });
+    const { result } = renderHook(
+      () => ({ query: useCompetencyCriteriaGroups(tagId), mutation: useDeleteCompetencyCriteriaGroup() }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+
+    let releaseRefetch: () => void = () => {};
+    axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).reply(() => (
+      new Promise((resolve) => {
+        releaseRefetch = () => resolve([200, { groups: [], criteria: [] }]);
+      })
+    ));
+    axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {});
+
+    act(() => {
+      result.current.mutation.mutate({ tagId, groupId: 10 });
+    });
+    await waitFor(() => expect(result.current.query.isFetching).toBe(true));
+    expect(result.current.mutation.isPending).toBe(true);
+
+    await act(async () => {
+      releaseRefetch();
+    });
+    await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
   });
 });
 

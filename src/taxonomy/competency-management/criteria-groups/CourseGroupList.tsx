@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 
 import AlertMessage from '@src/generic/alert-message';
@@ -21,7 +22,25 @@ import './criteria-groups.scss';
  */
 const CourseGroupList = () => {
   const intl = useIntl();
-  const { groupsQuery, profileQuery, index, accessibleCourseGroups } = useCompetencyAssociations();
+  const {
+    groupsQuery,
+    profileQuery,
+    index,
+    accessibleCourseGroups,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
+  } = useCompetencyAssociations();
+  const emptyStateRef = useRef<HTMLDivElement>(null);
+  const takesKeyboardFocus = keyboardFocusRequest?.kind === 'empty';
+
+  // The empty state mounts in the same render that last emptied the list, so
+  // the ref is normally set by the time this runs.
+  useEffect(() => {
+    if (takesKeyboardFocus && emptyStateRef.current) {
+      emptyStateRef.current.focus({ preventScroll: true });
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, accessibleCourseGroups.length, consumeKeyboardFocusRequest]);
 
   if (groupsQuery.isLoading || profileQuery.isLoading) {
     return (
@@ -42,7 +61,7 @@ const CourseGroupList = () => {
 
   if (accessibleCourseGroups.length === 0) {
     return (
-      <div className="course-search-browse__associations-empty-state">
+      <div ref={emptyStateRef} tabIndex={-1} className="course-search-browse__associations-empty-state">
         <p>{intl.formatMessage(courseSearchMessages.noAssociationsMessage)}</p>
         <p>{intl.formatMessage(courseSearchMessages.noAssociationsPromptMessage)}</p>
       </div>
