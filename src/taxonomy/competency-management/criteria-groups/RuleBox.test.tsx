@@ -56,7 +56,7 @@ describe('<RuleBox />', () => {
     const focusRuleBox = jest.fn();
     renderRuleBox({ focusRuleBox });
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('group', { name: 'Rule: 70% or higher' }));
     expect(focusRuleBox).toHaveBeenCalledWith(10, 'grade:gte:0.7:percent');
   });
 

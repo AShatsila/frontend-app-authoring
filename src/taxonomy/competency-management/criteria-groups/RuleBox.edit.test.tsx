@@ -124,13 +124,14 @@ describe('<RuleBox /> editing (#794)', () => {
     await waitFor(() => expect(input).toHaveValue('70'));
   });
 
-  it('does not call focusRuleBox when the score input itself is clicked', async () => {
+  it('selects the box when tabbing into its score input', async () => {
     const user = userEvent.setup();
     const focusRuleBox = jest.fn();
     renderRuleBox({ focusRuleBox }, { canEdit: true });
 
-    await user.click(screen.getByRole('textbox'));
+    await user.tab();
 
-    expect(focusRuleBox).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox')).toHaveFocus();
+    expect(focusRuleBox).toHaveBeenCalledWith(10, 'grade:gte:0.7:percent');
   });
 });

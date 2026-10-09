@@ -88,6 +88,11 @@ describe('<CourseGroupList />', () => {
       .toBeInTheDocument();
   });
 
+  it('renders no "+ Rule"/"+ Rule Group" add control on a failed load', () => {
+    renderList({ groupsQuery: erroredGroupsQuery, profileQuery: loadedProfileQuery });
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('renders a failed state when the default-rule-profile query errors, even if groups already loaded', () => {
     renderList({
       groupsQuery: loadedEmptyGroupsQuery,

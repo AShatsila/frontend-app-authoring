@@ -42,11 +42,6 @@
       border-radius: var(--pgn-size-card-border-radius) var(--pgn-size-card-border-radius) 0 0;
       padding: 10px 12px;
       cursor: pointer;
-
-      &:focus-visible {
-        outline: 2px solid $focused-accent-color;
-        outline-offset: -2px;
-      }
     }
 
     // The any/all word itself - bold, matching the screenshot - passed as
@@ -70,9 +65,12 @@
 
     &__rules {
       // `Card.Body`'s own default padding already insets these from the
-      // card's edges; only the gap between adjacent rule boxes is added
-      // here.
+      // card's edges; only the gaps between rule boxes and above the "+ Rule" control are added here.
       .rule-box-list > * + * {
+        margin-top: 10px;
+      }
+
+      .add-control {
         margin-top: 10px;
       }
     }
@@ -88,6 +86,14 @@
 
     &__body > * + * {
       margin-top: 8px;
+    }
+
+    // Stands in for the chips on a placeholder box.
+    &__placeholder-hint {
+      border: 1px dashed $connector-line-color;
+      border-radius: var(--pgn-size-card-border-radius);
+      padding: 8px;
+      font-size: var(--pgn-typography-font-size-sm);
     }
   }
 
@@ -133,6 +139,19 @@
       font-size: var(--pgn-typography-font-size-sm);
       font-weight: 700;
       white-space: nowrap;
+    }
+  }
+
+  // The add control's button, centered between lines styled like `.group-connector`.
+  .add-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    &__line {
+      flex: 1;
+      height: 1px;
+      background-color: $connector-line-color;
     }
   }
 }
