@@ -104,6 +104,23 @@ const messages = defineMessages({
     description: 'Link under the "score already used" guidance that applies the nearest unused score. '
       + '"{score}" is that score as shown in the field, such as "80% or higher".',
   },
+  scoreOutOfRangeValidationMessage: {
+    id: 'course-authoring.competency-management.criteria-groups.score-out-of-range-validation-message',
+    defaultMessage: 'Enter a whole number from 0 to 100.',
+    description: 'Inline validation message shown when a typed score threshold is not a whole number from 0 '
+      + 'to 100, such as a decimal, a negative number, or text.',
+  },
+  ruleBoxGroupLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.rule-box-group-label',
+    defaultMessage: 'Rule: {score}',
+    description: 'Accessible name for a rule box, which groups its score field and content chips. '
+      + '"{score}" is the score as shown in the field, such as "75% or higher".',
+  },
+  criteriaGroupBoxGroupLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.criteria-group-box-group-label',
+    defaultMessage: 'Rule group',
+    description: 'Accessible name for a bottom-tier group card, which groups its any/all control and rule boxes.',
+  },
   addRuleButtonLabel: {
     id: 'course-authoring.competency-management.criteria-groups.add-rule-button-label',
     defaultMessage: 'Rule',

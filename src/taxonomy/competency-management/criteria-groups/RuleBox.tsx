@@ -6,7 +6,7 @@ import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
 import CriterionChipList from './CriterionChipList';
-import ScoreThresholdField from './ScoreThresholdField';
+import ScoreThresholdField, { formatScoreSummary } from './ScoreThresholdField';
 import messages from './messages';
 
 export interface RuleBoxProps {
@@ -92,25 +92,11 @@ const RuleBox = ({
     }
   }, [isRejected]);
 
-  const handleClick: React.MouseEventHandler = () => {
-    // The placeholder is already focused by the control that created it.
-    if (!isPlaceholder) {
+  // Click and focus inside both select the box. The placeholder is already
+  // focused by the control that created it.
+  const selectBox = () => {
+    if (!isPlaceholder && !isFocused) {
       focusRuleBox(groupId!, ruleKey);
-    }
-  };
-
-  const handleKeyDown: React.KeyboardEventHandler = (event) => {
-    // Only this wrapper's own key events, not ones bubbled up from the
-    // score input once `canEdit` is true - otherwise this handler's
-    // `preventDefault` would swallow the input's own Enter/Escape.
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      if (!isPlaceholder) {
-        focusRuleBox(groupId!, ruleKey);
-      }
     }
   };
 
@@ -130,11 +116,11 @@ const RuleBox = ({
     <div
       ref={ref}
       className={classNames('rule-box', { 'rule-box--focused': isFocused })}
-      role="button"
-      tabIndex={0}
-      aria-pressed={isFocused}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      role="group"
+      aria-label={intl.formatMessage(messages.ruleBoxGroupLabel, { score: formatScoreSummary(intl, rule.rulePayload) })}
+      aria-current={isFocused ? 'true' : undefined}
+      onClick={selectBox}
+      onFocus={selectBox}
     >
       <Card>
         <Card.Body className="rule-box__body">

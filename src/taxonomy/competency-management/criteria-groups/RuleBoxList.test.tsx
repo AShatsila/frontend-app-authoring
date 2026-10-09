@@ -85,7 +85,7 @@ describe('<RuleBoxList />', () => {
       </MockCompetencyAssociationsProvider>,
     );
 
-    const boxes = screen.getAllByRole('button');
+    const boxes = screen.getAllByRole('group');
     expect(boxes).toHaveLength(2);
     // Box 1 (min criterion id 101) holds both Subsection A and B.
     expect(boxes[0]).toHaveTextContent('Subsection A');
@@ -109,9 +109,9 @@ describe('<RuleBoxList />', () => {
       </MockCompetencyAssociationsProvider>,
     );
 
-    const boxes = screen.getAllByRole('button');
-    expect(boxes[0].className).not.toContain('rule-box--focused');
-    expect(boxes[1].className).toContain('rule-box--focused');
+    const boxes = screen.getAllByRole('group');
+    expect(boxes[0]).not.toHaveAttribute('aria-current');
+    expect(boxes[1]).toHaveAttribute('aria-current', 'true');
   });
 
   it('renders no box as focused, without throwing, when the focused key matches none rendered', () => {
@@ -131,8 +131,8 @@ describe('<RuleBoxList />', () => {
       )
     ).not.toThrow();
 
-    screen.getAllByRole('button').forEach((box) => {
-      expect(box.className).not.toContain('rule-box--focused');
+    screen.getAllByRole('group').forEach((box) => {
+      expect(box).not.toHaveAttribute('aria-current');
     });
   });
 
@@ -194,7 +194,7 @@ describe('<RuleBoxList />', () => {
         </MockCompetencyAssociationsProvider>,
       );
 
-      const boxes = screen.getAllByRole('button');
+      const boxes = screen.getAllByRole('group');
       expect(boxes).toHaveLength(2);
       expect(boxes[1]).toHaveTextContent('With a score of 70% or higher');
       expect(boxes[1]).toHaveTextContent('Select content below to add it here.');

@@ -163,6 +163,39 @@ describe('<ScoreThresholdField />', () => {
       expect(input).toHaveValue('70');
     });
 
+    it.each(['70.4', '-1', '101', 'abc'])(
+      'rejects %j with an inline message and does not call onChange',
+      async (typed) => {
+        const user = userEvent.setup();
+        const onChange = jest.fn().mockResolvedValue(undefined);
+        render(
+          <ScoreThresholdField rulePayload={rulePayload} onChange={onChange} getInlineValidationMessage={jest.fn()} />,
+        );
+
+        const input = screen.getByRole('textbox');
+        await user.clear(input);
+        await user.type(input, typed);
+        await user.keyboard('{Enter}');
+
+        expect(screen.getByText('Enter a whole number from 0 to 100.')).toBeInTheDocument();
+        expect(input).toHaveValue(typed);
+        expect(onChange).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([['0', 0], ['100', 1]])('accepts %j as a valid score', async (typed, fraction) => {
+      const user = userEvent.setup();
+      const onChange = jest.fn().mockResolvedValue(undefined);
+      render(<ScoreThresholdField rulePayload={rulePayload} onChange={onChange} />);
+
+      const input = screen.getByRole('textbox');
+      await user.clear(input);
+      await user.type(input, typed);
+      await user.keyboard('{Enter}');
+
+      expect(onChange).toHaveBeenCalledWith({ ...rulePayload, value: fraction });
+    });
+
     it('focuses and selects the input on mount when autoFocusSelect is set', () => {
       render(<ScoreThresholdField rulePayload={rulePayload} onChange={jest.fn()} autoFocusSelect />);
 

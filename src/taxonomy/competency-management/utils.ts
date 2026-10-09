@@ -148,6 +148,19 @@ export function isRuleTakenInGroup(rule: EffectiveRule, boxes: RuleBox[], exclud
   ));
 }
 
+/** A typed score as a whole percent, or `null` unless it is plain digits from
+ * 0 to 100 (decimals, signs, exponents, and letters are rejected). Leading
+ * zeros are accepted, so '075' reads as 75.
+ */
+export function parseScorePercent(input: string): number | null {
+  const trimmed = input.trim();
+  if (!/^\d{1,3}$/.test(trimmed)) {
+    return null;
+  }
+  const percent = Number(trimmed);
+  return percent <= 100 ? percent : null;
+}
+
 const SUGGESTED_SCORE_STEP = 5;
 
 /** The nearest unused score in steps of 5, moving stricter: `gte` up, `lte`

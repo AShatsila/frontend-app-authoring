@@ -100,10 +100,8 @@ describe('<CriteriaGroupBox />', () => {
     expect(container.querySelector('.criteria-group-box__header')).toHaveTextContent(
       'By completing all of the following',
     );
-    // Two `role="button"` elements exist (the group's own header band and
-    // the one rendered rule box) - neither is a `Dropdown` trigger, since
-    // `canEdit` is false here.
-    expect(screen.getAllByRole('button')).toHaveLength(2);
+    // No `Dropdown` trigger exists, since `canEdit` is false here.
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.getByText('Subsection A')).toBeInTheDocument();
   });
 
@@ -115,46 +113,44 @@ describe('<CriteriaGroupBox />', () => {
     expect(focusGroup).toHaveBeenCalledWith(10);
   });
 
-  it('calls focusGroup when the header band is activated with Enter or Space', () => {
+  it('calls focusGroup when focus moves into the header band, such as onto the any/all toggle', async () => {
+    const user = userEvent.setup();
     const focusGroup = jest.fn();
     renderBox({ focusGroup });
-    const [header] = screen.getAllByRole('button');
 
-    fireEvent.keyDown(header, { key: 'Enter' });
-    fireEvent.keyDown(header, { key: ' ' });
+    await user.tab();
 
-    expect(focusGroup).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'all' })).toHaveFocus();
     expect(focusGroup).toHaveBeenCalledWith(10);
   });
 
-  it('exposes focus state via aria-pressed on the header band and the rule box', () => {
-    // Queried by their own selectors, not `getAllByRole('button')` position:
-    // with the default `canEdit: true`, the any/all `Dropdown` trigger is a
-    // third button nested inside the header band (see the exception noted
-    // on the test below), which would otherwise shift a positional index.
-    const { container, unmount } = renderBox();
-    const header = container.querySelector('.criteria-group-box__header')!;
-    const ruleBox = container.querySelector('.rule-box')!;
-    expect([header, ruleBox].map((el) => el.getAttribute('aria-pressed'))).toEqual(['false', 'false']);
-    unmount();
+  it('selects the rule box, not just the group, when focus moves into its score input', async () => {
+    const user = userEvent.setup();
+    const focusRuleBox = jest.fn();
+    renderBox({ focusRuleBox });
 
-    const { container: focusedContainer } = renderBox({ focus: { groupId: 10, ruleKey: null } });
-    const focusedHeader = focusedContainer.querySelector('.criteria-group-box__header')!;
-    const focusedRuleBox = focusedContainer.querySelector('.rule-box')!;
-    expect([focusedHeader, focusedRuleBox].map((el) => el.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+    await user.tab();
+    await user.tab();
+
+    expect(screen.getByRole('textbox')).toHaveFocus();
+    expect(focusRuleBox).toHaveBeenCalledWith(10, 'grade:gte:0.7:percent');
   });
 
-  it('never nests an element with role button inside another, when canEdit is false', () => {
-    // Read-only exception: when `canEdit` is true, the any/all `Dropdown`
-    // trigger is deliberately nested inside the header band's own
-    // `role="button"` - the same "interactive control nested inside an
-    // interactive row" shape `RuleBox`/`ScoreThresholdField` already use,
-    // guarded against a swallowed Enter/Space by this component's own
-    // `event.target === event.currentTarget` check in `handleKeyDown`, not
-    // by avoiding the nesting itself.
-    renderBox({}, {}, false);
+  it('exposes the selection with aria-current on the group card and the rule box', () => {
+    const { unmount } = renderBox();
+    expect(screen.getAllByRole('group').some((el) => el.hasAttribute('aria-current'))).toBe(false);
+    unmount();
+
+    renderBox({ focus: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
+    expect(screen.getByRole('group', { name: 'Rule group' })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('group', { name: 'Rule: 70% or higher' })).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('never puts an input or dropdown toggle inside an element with role button', () => {
+    renderBox();
 
     screen.getAllByRole('button').forEach((button) => {
+      expect(within(button).queryByRole('textbox')).not.toBeInTheDocument();
       expect(within(button).queryByRole('button')).not.toBeInTheDocument();
     });
   });
@@ -164,9 +160,7 @@ describe('<CriteriaGroupBox />', () => {
     const focusRuleBox = jest.fn();
     renderBox({ focusGroup, focusRuleBox });
 
-    // The header band, any/all toggle, rule box, and the add control.
-    expect(screen.getAllByRole('button')).toHaveLength(4);
-    fireEvent.click(screen.getAllByRole('button')[2]);
+    fireEvent.click(screen.getByRole('group', { name: 'Rule: 70% or higher' }));
 
     expect(focusRuleBox).toHaveBeenCalledTimes(1);
     expect(focusGroup).not.toHaveBeenCalled();

@@ -4,6 +4,7 @@ import { useIntl } from '@edx/frontend-platform/i18n';
 import { Form } from '@openedx/paragon';
 import type { IntlShape, MessageDescriptor } from 'react-intl';
 import type { GradeRulePayload } from '../data/types';
+import { parseScorePercent } from '../utils';
 import messages from './messages';
 
 export interface ScoreThresholdFieldProps {
@@ -99,10 +100,13 @@ const ScoreThresholdField = ({
   };
 
   const commit = () => {
-    const trimmedInput = inputValue.trim();
-    const numericPercent = Number(trimmedInput);
-    if (trimmedInput === '' || !Number.isFinite(numericPercent)) {
+    if (inputValue.trim() === '') {
       revertToLastPersisted();
+      return;
+    }
+    const numericPercent = parseScorePercent(inputValue);
+    if (numericPercent === null) {
+      setValidationMessage(intl.formatMessage(messages.scoreOutOfRangeValidationMessage));
       return;
     }
     if (numericPercent === Math.round(rulePayload.value * 100)) {
@@ -114,7 +118,7 @@ const ScoreThresholdField = ({
       setValidationMessage('');
       return;
     }
-    const message = getInlineValidationMessage ? getInlineValidationMessage(inputValue) : '';
+    const message = getInlineValidationMessage ? getInlineValidationMessage(String(numericPercent)) : '';
     if (message) {
       // getInlineValidationMessage only sets the inline message by itself;
       // gating the actual commit on it is this component's own work.

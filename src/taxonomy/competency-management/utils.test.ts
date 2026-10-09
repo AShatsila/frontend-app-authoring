@@ -14,6 +14,7 @@ import {
   lastBottomTierGroupForCourse,
   lastRealRuleKeyIn,
   nextUnusedScore,
+  parseScorePercent,
   ruleBoxesForGroup,
   ruleKeyOf,
   visibleCourseGroups,
@@ -323,6 +324,22 @@ describe('visibleCourseGroups', () => {
 describe('associatedObjectIds', () => {
   it('returns every criterion\'s objectId across the whole tree', () => {
     expect(associatedObjectIds(fixtureResponse)).toEqual(new Set(['block-a', 'block-b', 'block-d', 'block-c']));
+  });
+});
+
+describe('parseScorePercent', () => {
+  it.each([
+    ['0', 0],
+    ['100', 100],
+    ['75', 75],
+    [' 75 ', 75],
+    ['075', 75],
+  ])('accepts %j as %i', (input, expected) => {
+    expect(parseScorePercent(input)).toBe(expected);
+  });
+
+  it.each(['', '-1', '-0.01', '70.4', '100.01', '101', 'abc', '1e2', '0x10', ' 7 0'])('rejects %j', (input) => {
+    expect(parseScorePercent(input)).toBeNull();
   });
 });
 

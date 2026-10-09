@@ -59,8 +59,9 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   const isFocused = focus?.groupId === groupId;
   const logicOperator = group ? group.logicOperator : placeholder.logicOperator;
 
-  const handleClick: React.MouseEventHandler = () => {
-    // The placeholder card has no real id to focus and is already focused.
+  // Click and focus inside the header both select the group. The placeholder
+  // card has no real id to focus and is already focused.
+  const selectGroup = () => {
     if (group) {
       focusGroup(group.id);
     }
@@ -72,35 +73,19 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     }
   };
 
-  const handleKeyDown: React.KeyboardEventHandler = (event) => {
-    // Only this wrapper's own key events, not ones bubbled up from the
-    // any/all dropdown once `canEdit` is true - otherwise this handler's
-    // `preventDefault` would swallow the dropdown's own Enter/Space.
-    if (event.target !== event.currentTarget) {
-      return;
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      if (group) {
-        focusGroup(group.id);
-      }
-    }
-  };
-
   return (
-    // This wrapper is not itself interactive, since the rule boxes it
-    // contains are; the group's own control is the header band.
+    // Selection is exposed with `aria-current`; the header band selects the group on click or focus.
     <div
       className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
+      role="group"
+      aria-label={intl.formatMessage(messages.criteriaGroupBoxGroupLabel)}
+      aria-current={isFocused ? 'true' : undefined}
     >
       <Card>
         <div
           className="criteria-group-box__header"
-          role="button"
-          tabIndex={0}
-          aria-pressed={isFocused}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
+          onClick={selectGroup}
+          onFocus={selectGroup}
         >
           {intl.formatMessage(messages.criteriaGroupBoxLabel, {
             operator: (
