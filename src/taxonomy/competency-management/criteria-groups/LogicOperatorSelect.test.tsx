@@ -29,9 +29,27 @@ describe('<LogicOperatorSelect />', () => {
     const onChange = jest.fn();
     render(<LogicOperatorSelect value="AND" labels={labels} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(screen.getByRole('button', { name: 'all' }));
     fireEvent.click(screen.getByText('any'));
 
     expect(onChange).toHaveBeenCalledWith('OR');
   });
+
+  it(
+    'keeps showing the prior label after a rejected save, since the trigger is controlled by value, not by '
+      + 'the click that was made',
+    () => {
+      const onChange = jest.fn();
+      const { container, rerender } = render(<LogicOperatorSelect value="AND" labels={labels} onChange={onChange} />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'all' }));
+      fireEvent.click(screen.getByText('any'));
+      expect(onChange).toHaveBeenCalledWith('OR');
+
+      // keeps its closed menu's items in the DOM rather than removing them.
+      rerender(<LogicOperatorSelect value="AND" labels={labels} onChange={onChange} />);
+
+      expect(container.querySelector('.dropdown-toggle')).toHaveTextContent('all');
+    },
+  );
 });

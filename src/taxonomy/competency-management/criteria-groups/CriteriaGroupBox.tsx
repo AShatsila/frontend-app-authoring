@@ -11,6 +11,7 @@ import messages from './messages';
 export interface CriteriaGroupBoxProps {
   group: BottomTierCompetencyCriteriaGroup;
   subsectionNamesByUsageKey: Record<string, string>;
+  canEdit: boolean;
 }
 
 /** One bottom-tier group's "By completing any/all of the following"
@@ -27,9 +28,9 @@ export interface CriteriaGroupBoxProps {
  * title/subtitle typography) nor any Paragon prop covers an inline-sentence
  * band like this one.
  */
-const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey }: CriteriaGroupBoxProps) => {
+const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: CriteriaGroupBoxProps) => {
   const intl = useIntl();
-  const { focus, focusGroup, index, systemDefaultProfile } = useCompetencyAssociations();
+  const { focus, focusGroup, index, systemDefaultProfile, updateGroupOperator } = useCompetencyAssociations();
   const ref = useRef<HTMLDivElement>(null);
 
   const isFocused = focus?.groupId === group.id;
@@ -43,16 +44,9 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey }: CriteriaGroupBox
     }
   }, [isFocused, focusedRuleKey]);
 
-  const handleClick: React.MouseEventHandler = () => {
-    focusGroup(group.id);
-  };
-
-  const handleKeyDown: React.KeyboardEventHandler = (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      focusGroup(group.id);
-    }
-  };
+  const operatorLabel = group.logicOperator === 'AND'
+    ? intl.formatMessage(messages.logicOperatorAllLabel)
+    : intl.formatMessage(messages.logicOperatorAnyLabel);
 
   return (
     // Focus/scroll state lives on this wrapping `<div>`, not `Card` itself:
@@ -64,14 +58,23 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey }: CriteriaGroupBox
       className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
     >
       <Card>
-        <div
-          className="criteria-group-box__header"
-          role="button"
-          tabIndex={0}
-          aria-pressed={isFocused}
-          onClick={handleClick}
-          onKeyDown={handleKeyDown}
-        >
+        <div className="criteria-group-box__header">
+          {
+            /* `.stretched-link` (Bootstrap/Paragon utility) makes the whole
+          * header band clickable via this button's own `::after`, without
+          * nesting the dropdown toggle below inside a `button`-role
+          * ancestor - ARIA disallows interactive content inside one. */
+          }
+          <button
+            type="button"
+            className="stretched-link criteria-group-box__select-button"
+            aria-current={isFocused}
+            onClick={() => focusGroup(group.id)}
+          >
+            <span className="sr-only">
+              {intl.formatMessage(messages.criteriaGroupBoxLabel, { operator: operatorLabel })}
+            </span>
+          </button>
           {intl.formatMessage(messages.criteriaGroupBoxLabel, {
             operator: (
               <LogicOperatorSelect
@@ -82,6 +85,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey }: CriteriaGroupBox
                   and: intl.formatMessage(messages.logicOperatorAllLabel),
                   or: intl.formatMessage(messages.logicOperatorAnyLabel),
                 }}
+                onChange={canEdit ? (logicOperator) => updateGroupOperator(group.id, logicOperator) : undefined}
               />
             ),
           })}
@@ -93,6 +97,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey }: CriteriaGroupBox
               index={index}
               systemDefaultProfile={systemDefaultProfile}
               subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+              canEdit={canEdit}
             />
           </Card.Body>
         )}
