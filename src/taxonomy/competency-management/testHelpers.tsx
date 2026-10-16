@@ -53,6 +53,7 @@ export const buildMockCompetencyAssociationsContextValue = (
   accessibleCourseGroups: [],
   areCourseOutlinesLoading: false,
   competencyExternalId: null,
+  competencyName: 'Test Competency',
   ...overrides,
 });
 

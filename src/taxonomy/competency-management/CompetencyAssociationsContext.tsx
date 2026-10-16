@@ -81,7 +81,7 @@ export interface CriteriaPlaceholder {
 }
 
 /** A one-shot request for the browser's keyboard focus, left by a delete
- * because the trash button that had it is gone. Kept here, not in the cards,
+ * because the menu button that had it is gone. Kept here, not in the cards,
  * since they can unmount and remount (or be collapsed) before the new target
  * renders. `group` names the bottom-tier group card that takes it;
  * `empty` is the "no associations" message. `expand` says whether a
@@ -190,6 +190,10 @@ export interface CompetencyAssociationsContextValue {
    * has none.
    */
   competencyExternalId: string | null;
+  /** The active competency's name, shown in the Course Group menu's
+   * "Remove from {competencyName}" item.
+   */
+  competencyName: string;
 }
 
 // Exported so component tests can render a hand-built value via
@@ -213,6 +217,7 @@ export function useCompetencyAssociations(): CompetencyAssociationsContextValue 
 
 export interface CompetencyAssociationsProviderProps {
   tagId: number;
+  competencyName: string;
   /** The active competency's short external id, for the already-associated
    * badge in the content panel below. `null` when the competency has none.
    */
@@ -230,6 +235,7 @@ export interface CompetencyAssociationsProviderProps {
  */
 export const CompetencyAssociationsProvider = ({
   tagId,
+  competencyName,
   competencyExternalId,
   children,
 }: CompetencyAssociationsProviderProps) => {
@@ -273,7 +279,7 @@ export const CompetencyAssociationsProvider = ({
   const updateRuleScoreMutation = useUpdateCompetencyCriteriaRule();
   const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the trash buttons.
+  // Closes the gap between a click and the render that disables the delete menus.
   const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the
   // latest focus and placeholder through refs to respect a click made
@@ -551,7 +557,7 @@ export const CompetencyAssociationsProvider = ({
       currentFocus,
       placeholderRef.current.parentRuleGroupId,
     );
-    // A failed or no-op delete leaves the trash button in the DOM, which
+    // A failed or no-op delete leaves the menu button in the DOM, which
     // keeps the browser's focus; only a vanished group strands it.
     const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
 
@@ -635,6 +641,7 @@ export const CompetencyAssociationsProvider = ({
     accessibleCourseGroups,
     areCourseOutlinesLoading: !allVisibleCourseOutlinesResolved,
     competencyExternalId,
+    competencyName,
   }), [
     focus,
     placeholder,
@@ -665,6 +672,7 @@ export const CompetencyAssociationsProvider = ({
     accessibleCourseGroups,
     allVisibleCourseOutlinesResolved,
     competencyExternalId,
+    competencyName,
   ]);
 
   return (

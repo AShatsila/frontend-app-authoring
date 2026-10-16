@@ -5,8 +5,13 @@ import {
   useState,
 } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Card, IconButton } from '@openedx/paragon';
-import { Delete, ExpandLess, ExpandMore } from '@openedx/paragon/icons';
+import {
+  Card,
+  Dropdown,
+  Icon,
+  IconButton,
+} from '@openedx/paragon';
+import { ExpandLess, ExpandMore, MoreVert } from '@openedx/paragon/icons';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
@@ -43,6 +48,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     addPlaceholderGroup,
     discardPlaceholder,
     hasPlaceholder,
+    competencyName,
     deleteGroup,
     isDeletingGroup,
     keyboardFocusRequest,
@@ -79,9 +85,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     && focus.groupId !== null
     && bottomTierGroups.some((group) => group.id === focus.groupId);
 
-  // A collapsed section has not mounted its cards, so one named by a pending
-  // keyboard focus request is either opened for it or, when the author's
-  // collapse is to be kept, the request is dropped rather than left to linger.
+  // A collapsed section has not mounted its cards: open it for the request, or drop the request.
   const request = keyboardFocusRequest?.kind === 'group'
       && bottomTierGroups.some((group) => group.id === keyboardFocusRequest.groupId)
     ? keyboardFocusRequest
@@ -116,8 +120,6 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     ? intl.formatMessage(messages.expandCourseGroupButtonLabel)
     : intl.formatMessage(messages.collapseCourseGroupButtonLabel);
 
-  const deleteLabel = intl.formatMessage(messages.deleteCourseGroupButtonLabel, { courseName: courseDisplayName });
-
   return (
     <Card className="course-group-section">
       <Card.Header
@@ -128,14 +130,25 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
         actions={
           <div className="d-flex">
             {canEdit && (
-              <IconButton
-                src={Delete}
-                alt={deleteLabel}
-                aria-label={deleteLabel}
-                size="sm"
-                disabled={isDeletingGroup}
-                onClick={() => deleteGroup(courseGroup.id)}
-              />
+              <Dropdown>
+                <Dropdown.Toggle
+                  id={`course-group-menu-toggle-${courseGroup.id}`}
+                  as={IconButton}
+                  src={MoreVert}
+                  iconAs={Icon}
+                  variant="primary"
+                  aria-label={intl.formatMessage(messages.courseGroupMoreActionsLabel, {
+                    courseName: courseDisplayName,
+                  })}
+                  size="inline"
+                  disabled={isDeletingGroup}
+                />
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={() => deleteGroup(courseGroup.id)}>
+                    {intl.formatMessage(messages.removeFromCompetencyMenuItem, { competencyName })}
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
             )}
             <IconButton
               src={isCollapsed ? ExpandMore : ExpandLess}

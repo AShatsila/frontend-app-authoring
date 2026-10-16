@@ -317,7 +317,7 @@ const TestConsumer = () => {
 
 const renderProvider = () =>
   render(
-    <CompetencyAssociationsProvider tagId={tagId} competencyExternalId="CCRS-1.3">
+    <CompetencyAssociationsProvider tagId={tagId} competencyName="Competency" competencyExternalId="CCRS-1.3">
       <TestConsumer />
     </CompetencyAssociationsProvider>,
   );
@@ -1191,7 +1191,7 @@ describe('CompetencyAssociationsProvider', () => {
       });
 
       await waitFor(() => expect(screen.getByTestId('is-deleting-group')).toHaveTextContent('false'));
-      expect(mockShowToast).toHaveBeenCalledWith('Couldn\'t delete the group. The panel was refreshed.');
+      expect(mockShowToast).toHaveBeenCalledWith('Couldn\'t remove the group. The panel was refreshed.');
       expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
     });
