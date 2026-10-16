@@ -129,6 +129,8 @@ describe('<CriteriaGroupBox />', () => {
     const focusRuleBox = jest.fn();
     renderBox({ focusRuleBox });
 
+    // The any/all toggle and the group's ⋮ button come first.
+    await user.tab();
     await user.tab();
     await user.tab();
 
@@ -243,5 +245,84 @@ describe('<CriteriaGroupBox />', () => {
 
     expect(setPlaceholderLogicOperator).toHaveBeenCalledWith('OR');
     expect(updateGroupOperator).not.toHaveBeenCalled();
+  });
+
+  describe('group menu', () => {
+    const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: 'More actions for this group' }));
+    };
+
+    it('calls deleteGroup with its own id, without focusing the group, when Remove group is chosen', async () => {
+      const user = userEvent.setup();
+      const deleteGroup = jest.fn();
+      const focusGroup = jest.fn();
+      renderBox({ deleteGroup, focusGroup });
+
+      await openMenu(user);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
+
+      expect(deleteGroup).toHaveBeenCalledTimes(1);
+      expect(deleteGroup).toHaveBeenCalledWith(10);
+      expect(focusGroup).not.toHaveBeenCalled();
+    });
+
+    it('renders no menu when canEdit is false', () => {
+      renderBox({}, {}, false);
+
+      expect(screen.queryByRole('button', { name: 'More actions for this group' })).not.toBeInTheDocument();
+    });
+
+    it('disables the menu button while a delete is in flight', () => {
+      renderBox({ isDeletingGroup: true });
+
+      expect(screen.getByRole('button', { name: 'More actions for this group' })).toBeDisabled();
+    });
+
+    it('lets the placeholder group\'s menu discard it without calling deleteGroup', async () => {
+      const user = userEvent.setup();
+      const deleteGroup = jest.fn();
+      const removePlaceholderGroup = jest.fn();
+      render(
+        <MockCompetencyAssociationsProvider
+          value={{
+            index,
+            systemDefaultProfile,
+            focus: { groupId: null, ruleKey: null },
+            deleteGroup,
+            removePlaceholderGroup,
+          }}
+        >
+          <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      await openMenu(user);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
+
+      expect(removePlaceholderGroup).toHaveBeenCalledTimes(1);
+      expect(deleteGroup).not.toHaveBeenCalled();
+    });
+
+    it('takes keyboard focus on its group when a request names it, then consumes the request', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(screen.getByRole('group', { name: 'Rule group' })).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a keyboard focus request that names another group', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 99, expand: true },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(screen.getByRole('group', { name: 'Rule group' })).not.toHaveFocus();
+      expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+    });
   });
 });

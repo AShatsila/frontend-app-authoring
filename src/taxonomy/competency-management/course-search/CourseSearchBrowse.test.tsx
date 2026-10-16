@@ -49,14 +49,22 @@ const lastRequestParams = () => {
 
 const renderCourseSearchBrowse = () =>
   render(
-    <CompetencyAssociationsProvider tagId={Number(activeCompetency.id)} competencyExternalId={null}>
+    <CompetencyAssociationsProvider
+      tagId={Number(activeCompetency.id)}
+      competencyName={activeCompetency.value}
+      competencyExternalId={null}
+    >
       <CourseSearchBrowse activeCompetency={activeCompetency} />
     </CompetencyAssociationsProvider>,
   );
 
 const renderCourseRow = (course: Course) =>
   render(
-    <CompetencyAssociationsProvider tagId={Number(activeCompetency.id)} competencyExternalId={null}>
+    <CompetencyAssociationsProvider
+      tagId={Number(activeCompetency.id)}
+      competencyName={activeCompetency.value}
+      competencyExternalId={null}
+    >
       <CourseRow course={course} />
     </CompetencyAssociationsProvider>,
   );

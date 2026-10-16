@@ -1,6 +1,28 @@
 import { defineMessages } from '@edx/frontend-platform/i18n';
 
 const messages = defineMessages({
+  ruleGroupMoreActionsLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.rule-group-more-actions-label',
+    defaultMessage: 'More actions for this group',
+    description: 'Accessible label for the ⋮ button that opens a rule group\'s actions menu.',
+  },
+  removeRuleGroupMenuItem: {
+    id: 'course-authoring.competency-management.criteria-groups.remove-rule-group-menu-item',
+    defaultMessage: 'Remove group',
+    description: 'Menu item that removes a rule group, or discards the unsaved one, with its rule boxes.',
+  },
+  courseGroupMoreActionsLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.course-group-more-actions-label',
+    defaultMessage: 'More actions for {courseName}',
+    description: 'Accessible label for the ⋮ button that opens a course group\'s actions menu. '
+      + '{courseName} is the name of the course the group belongs to.',
+  },
+  removeFromCompetencyMenuItem: {
+    id: 'course-authoring.competency-management.criteria-groups.remove-from-competency-menu-item',
+    defaultMessage: 'Remove from {competencyName}',
+    description: 'Menu item that removes a course group, with all its rule groups, from the active competency. '
+      + '{competencyName} is the name of that competency.',
+  },
   logicOperatorAnyLabel: {
     id: 'course-authoring.competency-management.criteria-groups.logic-operator-any-label',
     defaultMessage: 'any',

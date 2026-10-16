@@ -2,6 +2,7 @@ import { initializeMocks } from '@src/testUtils';
 import {
   apiUrls,
   createCompetencyCriterion,
+  deleteCompetencyCriteriaGroup,
   getCompetencyCriteriaGroups,
   getDefaultCompetencyRuleProfile,
   updateCompetencyCriteriaGroupOperator,
@@ -177,6 +178,21 @@ describe('competency-management api calls', () => {
       logicOperator: 'OR',
       archived: false,
     });
+  });
+
+  it('deletes a criteria group at the same URL the group PATCH uses', async () => {
+    const { axiosMock } = initializeMocks();
+    axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {
+      id: 10,
+      archived: false,
+      cascaded_group_count: 0,
+      cascaded_criteria_count: 1,
+    });
+
+    await expect(deleteCompetencyCriteriaGroup(tagId, 10)).resolves.toBeUndefined();
+
+    expect(axiosMock.history.delete).toHaveLength(1);
+    expect(axiosMock.history.delete[0].url).toEqual(apiUrls.updateCompetencyCriteriaGroup(tagId, 10));
   });
 
   it('batch-updates a rule box\'s score, sending a snake_case payload and camelCasing the response', async () => {
