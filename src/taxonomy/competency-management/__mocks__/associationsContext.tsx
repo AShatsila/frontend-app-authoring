@@ -44,6 +44,7 @@ export const buildMockCompetencyAssociationsContextValue = (
     deleteGroup: jest.fn(),
     isDeletingGroup: false,
     discardPlaceholderGroup: jest.fn(),
+    removeAssociation: jest.fn(),
     keyboardFocusRequest: null,
     consumeKeyboardFocusRequest: jest.fn(),
     isAssociating: false,
