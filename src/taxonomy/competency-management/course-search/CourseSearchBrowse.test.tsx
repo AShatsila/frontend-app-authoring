@@ -311,6 +311,219 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
     });
   });
 
+  describe('scoping the associations to the listed courses', () => {
+    const tagId = Number(activeCompetency.id);
+    const groupsUrl = competencyManagementApiUrls.competencyCriteriaGroups(tagId);
+    const courseA = buildCourse({ courseKey: 'course-v1:OrgX+CSA+2024', displayName: 'Course A' });
+    const courseB = buildCourse({ courseKey: 'course-v1:OrgX+CSB+2024', displayName: 'Course B' });
+    const courseC = buildCourse({ courseKey: 'course-v1:OrgX+CSC+2024', displayName: 'Course C' });
+    const emptyMessage = 'No content associated.';
+
+    const groupsRequests = () => axiosMock.history.get.filter((req) => req.url === groupsUrl);
+
+    /** A promise-backed reply the test settles itself, to hold a request in flight. */
+    const deferredReply = () => {
+      let settle: (reply: [number, unknown]) => void = () => {};
+      const promise = new Promise<[number, unknown]>((resolve) => {
+        settle = resolve;
+      });
+      return { promise, settle };
+    };
+
+    /** One course-level group for `course`, holding one leaf group with one criterion, in wire (snake_case) form. */
+    const buildGroupsResponse = (course: Course, courseGroupId: number) => ({
+      groups: [
+        {
+          id: 500,
+          parent_id: null,
+          tag_id: tagId,
+          course_key: null,
+          name: 'root',
+          ordering: 0,
+          logic_operator: 'AND',
+          archived: false,
+        },
+        {
+          id: courseGroupId,
+          parent_id: 500,
+          tag_id: tagId,
+          course_key: course.courseKey,
+          name: 'course',
+          ordering: 0,
+          logic_operator: 'AND',
+          archived: false,
+        },
+        {
+          id: courseGroupId * 10,
+          parent_id: courseGroupId,
+          tag_id: tagId,
+          course_key: null,
+          name: 'leaf',
+          ordering: 0,
+          logic_operator: 'AND',
+          archived: false,
+        },
+      ],
+      criteria: [{
+        id: courseGroupId * 100,
+        object_id: `sub-${courseGroupId}`,
+        group_id: courseGroupId * 10,
+        rule_profile_id: 1,
+        rule_type_override: null,
+        rule_payload_override: null,
+      }],
+    });
+
+    /** The outline names the course differently from its course-list row, so a course group's header is findable apart from that row. */
+    const outlineNameOf = (course: Course) => `${course.displayName} outline`;
+    const buildOutline = (course: Course) =>
+      buildOutlineIndex({
+        overrides: { courseStructure: { displayName: outlineNameOf(course) } },
+      });
+
+    /** Records whether `text` is ever added to the page, so a message that flashes between assertions is still caught. */
+    const watchForText = (text: string) => {
+      let seen = false;
+      const check = (records: MutationRecord[]) => {
+        seen = seen || records.some((record) => (
+          Array.from(record.addedNodes).some((node) => node.textContent?.includes(text))
+        ));
+      };
+      const observer = new MutationObserver(check);
+      observer.observe(document.body, { childList: true, subtree: true });
+      return {
+        wasSeen: () => {
+          check(observer.takeRecords());
+          return seen;
+        },
+        stop: () => observer.disconnect(),
+      };
+    };
+
+    beforeEach(() => {
+      // jsdom has no layout; a sole group gets auto-focused, and its rule box scrolls itself into view.
+      Element.prototype.scrollIntoView = jest.fn();
+    });
+
+    const associationsSection = () =>
+      screen.getByText('Competency Criteria Associations').closest(
+        '.course-search-browse__associations',
+      ) as HTMLElement;
+
+    it('sends no groups request until the course list loads, then one carrying its keys in list order', async () => {
+      // Deliberately out of alphabetical order, so any sort on the way out would show.
+      const listedCourses = [courseC, courseA, courseB];
+      const coursesReply = deferredReply();
+      axiosMock.onGet(coursesApiUrl).reply(() => coursesReply.promise);
+      renderCourseSearchBrowse();
+
+      await waitFor(() => {
+        expect(axiosMock.history.get.some((req) => req.url === coursesApiUrl)).toBe(true);
+      });
+      expect(groupsRequests()).toHaveLength(0);
+
+      await act(async () => {
+        coursesReply.settle([200, buildResponse(listedCourses)]);
+      });
+      expect(await screen.findByText('Course C')).toBeInTheDocument();
+
+      await waitFor(() => expect(groupsRequests()).toHaveLength(1));
+      expect(groupsRequests()[0].params).toEqual({
+        course_keys: listedCourses.map((course) => course.courseKey).join(','),
+      });
+    });
+
+    it('still sends course_keys, as an empty value, for an empty page', async () => {
+      axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([]));
+      renderCourseSearchBrowse();
+
+      expect(await screen.findByText('You do not have access to any courses.')).toBeInTheDocument();
+      await waitFor(() => expect(groupsRequests()).toHaveLength(1));
+      expect(groupsRequests()[0].params).toEqual({ course_keys: '' });
+      expect(await screen.findByText(emptyMessage)).toBeInTheDocument();
+    });
+
+    it('keeps nothing from the previous page once a page change has loaded', async () => {
+      axiosMock.onGet(coursesApiUrl).reply((
+        config,
+      ) => [200, buildResponse(config.params.page === 2 ? [courseB] : [courseA], 2)]);
+      axiosMock.onGet(groupsUrl).reply((config) => [
+        200,
+        config.params.course_keys === courseB.courseKey
+          ? buildGroupsResponse(courseB, 2)
+          : buildGroupsResponse(courseA, 1),
+      ]);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(200, buildOutline(courseA));
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB.courseKey)).reply(200, buildOutline(courseB));
+      renderCourseSearchBrowse();
+      expect(await screen.findByText(outlineNameOf(courseA))).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
+
+      expect(await screen.findByText(outlineNameOf(courseB))).toBeInTheDocument();
+      expect(screen.queryByText(outlineNameOf(courseA))).not.toBeInTheDocument();
+      expect(screen.queryByText('Course A')).not.toBeInTheDocument();
+      expect(groupsRequests()[groupsRequests().length - 1].params).toEqual({ course_keys: courseB.courseKey });
+    });
+
+    it('shows no empty-associations message at any point while re-scoping to a new page', async () => {
+      const page2CoursesReply = deferredReply();
+      const page2GroupsReply = deferredReply();
+      const outlineBReply = deferredReply();
+      axiosMock.onGet(coursesApiUrl).reply((config) => (
+        config.params.page === 2 ? page2CoursesReply.promise : [200, buildResponse([courseA], 2)]
+      ));
+      axiosMock.onGet(groupsUrl).reply((config) => (
+        config.params.course_keys === courseB.courseKey
+          ? page2GroupsReply.promise
+          : [200, buildGroupsResponse(courseA, 1)]
+      ));
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(200, buildOutline(courseA));
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB.courseKey)).reply(() => outlineBReply.promise);
+      renderCourseSearchBrowse();
+      expect(await screen.findByText(outlineNameOf(courseA))).toBeInTheDocument();
+
+      const emptyMessageWatch = watchForText(emptyMessage);
+      try {
+        fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
+
+        // The new page's courses are loading.
+        await waitFor(() => {
+          expect(axiosMock.history.get.some((req) => req.url === coursesApiUrl && req.params.page === 2)).toBe(true);
+        });
+        expect(screen.queryByText(emptyMessage)).not.toBeInTheDocument();
+
+        // The new page is listed; its groups are loading.
+        await act(async () => {
+          page2CoursesReply.settle([200, buildResponse([courseB], 2)]);
+        });
+        expect(await screen.findByText('Course B')).toBeInTheDocument();
+        await waitFor(() => expect(groupsRequests()).toHaveLength(2));
+        expect(within(associationsSection()).getByRole('status')).toBeInTheDocument();
+        expect(screen.queryByText(emptyMessage)).not.toBeInTheDocument();
+
+        // The new page's groups are in; its course's outline, which decides access, is loading.
+        await act(async () => {
+          page2GroupsReply.settle([200, buildGroupsResponse(courseB, 2)]);
+        });
+        await waitFor(() => {
+          expect(axiosMock.history.get.some((req) => req.url === getCourseOutlineIndexApiUrl(courseB.courseKey)))
+            .toBe(true);
+        });
+        expect(screen.queryByText(emptyMessage)).not.toBeInTheDocument();
+
+        await act(async () => {
+          outlineBReply.settle([200, buildOutline(courseB)]);
+        });
+        expect(await screen.findByText(outlineNameOf(courseB))).toBeInTheDocument();
+
+        expect(emptyMessageWatch.wasSeen()).toBe(false);
+      } finally {
+        emptyMessageWatch.stop();
+      }
+    });
+  });
+
   describe('<CourseRow />', () => {
     it('toggles expansion only via its disclosure control, and title clicks do nothing', async () => {
       const course = buildCourse();

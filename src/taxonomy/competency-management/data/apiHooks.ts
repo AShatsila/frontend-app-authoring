@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 
 import { useUserPermissions } from '@src/authz/data/apiHooks';
@@ -30,27 +30,30 @@ export const competencyQueryKeys = {
    */
   competency: (tagId: number | undefined) => [...competencyQueryKeys.all, 'competency', tagId],
   /** @param tagId ID of the competency (tag) */
-  competencyCriteriaGroups: (tagId: number | undefined) => [
+  competencyCriteriaGroups: (tagId: number | undefined, courseKeys?: string[]) => [
     ...competencyQueryKeys.competency(tagId),
     'criteriaGroups',
+    ...(courseKeys ? [courseKeys] : []),
   ],
   /** The studio-wide default rule profile - not scoped to any one competency. */
   defaultRuleProfile: () => [...competencyQueryKeys.all, 'defaultRuleProfile'],
 } satisfies Record<
   string,
-  Array<string | number | undefined> | ((...args: any[]) => Array<string | number | undefined>)
+  Array<string | number | undefined> | ((...args: any[]) => Array<string | number | string[] | undefined>)
 >;
 
 /**
  * Load a competency's existing criteria groups and criteria (`#681`).
  * @param tagId The id of the selected competency, or `undefined` while
  * none is selected yet - the query is disabled until a real id is available.
+ * @param courseKeys The listed courses' keys; `undefined` until reported (query disabled).
  */
-export const useCompetencyCriteriaGroups = (tagId: number | undefined) => (
+export const useCompetencyCriteriaGroups = (tagId: number | undefined, courseKeys: string[] | undefined) => (
   useQuery({
-    queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
-    queryFn: () => api.getCompetencyCriteriaGroups(tagId as number),
-    enabled: tagId !== undefined,
+    queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId, courseKeys),
+    queryFn: tagId !== undefined && courseKeys !== undefined
+      ? () => api.getCompetencyCriteriaGroups(tagId, courseKeys)
+      : skipToken,
   })
 );
 

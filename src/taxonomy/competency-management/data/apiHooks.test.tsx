@@ -26,26 +26,86 @@ jest.mock('@src/authz/data/apiHooks', () => ({
 }));
 
 const tagId = 42;
+const courseKeys = ['course-v1:OrgX+CS101+2024', 'course-v1:OrgX+CS102+2024'];
 
 describe('useCompetencyCriteriaGroups', () => {
-  it('fetches a competency\'s criteria groups when tagId is defined', async () => {
+  // Any criteria-groups request, whatever its tag id.
+  const criteriaGroupsRequests = (axiosMock: ReturnType<typeof initializeMocks>['axiosMock']) => (
+    axiosMock.history.get.filter((req) => req.url?.includes('/criteria-groups/'))
+  );
+
+  it('fetches a competency\'s criteria groups, scoped to the given course keys', async () => {
     const { axiosMock } = initializeMocks();
     const mockResponse = { groups: [], criteria: [] };
     axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).reply(200, mockResponse);
 
-    const { result } = renderHook(() => useCompetencyCriteriaGroups(tagId), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useCompetencyCriteriaGroups(tagId, courseKeys), { wrapper: makeWrapper() });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(mockResponse);
+    expect(criteriaGroupsRequests(axiosMock)).toHaveLength(1);
+    expect(criteriaGroupsRequests(axiosMock)[0].params).toEqual({ course_keys: courseKeys.join(',') });
   });
 
   it('issues no request, and reports not loading, while tagId is undefined', () => {
     const { axiosMock } = initializeMocks();
-    const { result } = renderHook(() => useCompetencyCriteriaGroups(undefined), { wrapper: makeWrapper() });
+    const { result } = renderHook(
+      () => useCompetencyCriteriaGroups(undefined, courseKeys),
+      { wrapper: makeWrapper() },
+    );
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.fetchStatus).toEqual('idle');
-    expect(axiosMock.history.get.filter((req) => req.url?.includes('competency_criteria_groups'))).toHaveLength(0);
+    expect(criteriaGroupsRequests(axiosMock)).toHaveLength(0);
+  });
+
+  it('issues no request, and stays pending rather than loading, until course keys are reported', async () => {
+    const { axiosMock } = initializeMocks();
+    axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).reply(200, { groups: [], criteria: [] });
+    const { result, rerender } = renderHook(
+      ({ keys }: { keys: string[] | undefined; }) => useCompetencyCriteriaGroups(tagId, keys),
+      { wrapper: makeWrapper(), initialProps: { keys: undefined } },
+    );
+
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.fetchStatus).toEqual('idle');
+    expect(criteriaGroupsRequests(axiosMock)).toHaveLength(0);
+
+    rerender({ keys: [] });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(criteriaGroupsRequests(axiosMock)).toHaveLength(1);
+    expect(criteriaGroupsRequests(axiosMock)[0].params).toEqual({ course_keys: '' });
+  });
+
+  it('does not hand back the previous course keys\' data while new keys are fetching', async () => {
+    const { axiosMock } = initializeMocks();
+    const firstPageResponse = { groups: [{ id: 1 }], criteria: [] };
+    axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).replyOnce(200, firstPageResponse);
+    let releaseSecondPage: () => void = () => {};
+    axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).replyOnce(() => (
+      new Promise((resolve) => {
+        releaseSecondPage = () => resolve([200, { groups: [], criteria: [] }]);
+      })
+    ));
+    const { result, rerender } = renderHook(
+      ({ keys }: { keys: string[]; }) => useCompetencyCriteriaGroups(tagId, keys),
+      { wrapper: makeWrapper(), initialProps: { keys: [courseKeys[0]] } },
+    );
+    await waitFor(() => expect(result.current.data).toEqual(firstPageResponse));
+
+    rerender({ keys: [courseKeys[1]] });
+
+    await waitFor(() => expect(criteriaGroupsRequests(axiosMock)).toHaveLength(2));
+    expect(criteriaGroupsRequests(axiosMock)[1].params).toEqual({ course_keys: courseKeys[1] });
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.data).toBeUndefined();
+
+    await act(async () => {
+      releaseSecondPage();
+    });
+    await waitFor(() => expect(result.current.data).toEqual({ groups: [], criteria: [] }));
   });
 });
 
@@ -251,7 +311,7 @@ describe('useDeleteCompetencyCriteriaGroup', () => {
     const { axiosMock } = initializeMocks();
     axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).replyOnce(200, { groups: [], criteria: [] });
     const { result } = renderHook(
-      () => ({ query: useCompetencyCriteriaGroups(tagId), mutation: useDeleteCompetencyCriteriaGroup() }),
+      () => ({ query: useCompetencyCriteriaGroups(tagId, courseKeys), mutation: useDeleteCompetencyCriteriaGroup() }),
       { wrapper: makeWrapper() },
     );
     await waitFor(() => expect(result.current.query.isSuccess).toBe(true));

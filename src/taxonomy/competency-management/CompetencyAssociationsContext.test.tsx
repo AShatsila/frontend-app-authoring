@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { getCourseOutlineIndexApiUrl } from '@src/course-outline/data';
 import {
@@ -219,9 +220,25 @@ const twoCoursesWithCriteriaResponse: CompetencyCriteriaGroupsResponse = {
 
 const outlineFixture = buildOutlineIndex();
 
+/** The course keys `TestConsumer` reports by default: every course the fixtures above use. */
+const defaultReportedCourseKeys = [courseA, courseB];
+
+interface TestConsumerProps {
+  /** Reported through `notifyCoursesDisplayed` on mount and on change, the way
+   * `CourseSearchBrowse` reports its page; `null` reports nothing.
+   */
+  reportedCourseKeys?: string[] | null;
+}
+
 /** Exposes every context value/action as plain, clickable test hooks. */
-const TestConsumer = () => {
+const TestConsumer = ({ reportedCourseKeys = defaultReportedCourseKeys }: TestConsumerProps) => {
   const ctx = useCompetencyAssociations();
+  const { notifyCoursesDisplayed } = ctx;
+  useEffect(() => {
+    if (reportedCourseKeys !== null) {
+      notifyCoursesDisplayed(reportedCourseKeys);
+    }
+  }, [notifyCoursesDisplayed, reportedCourseKeys]);
   return (
     <div>
       <div data-testid="focus">{JSON.stringify(ctx.focus)}</div>
@@ -293,10 +310,10 @@ const TestConsumer = () => {
   );
 };
 
-const renderProvider = () =>
+const renderProvider = (props: TestConsumerProps = {}) =>
   render(
     <CompetencyAssociationsProvider tagId={tagId} competencyExternalId="CCRS-1.3">
-      <TestConsumer />
+      <TestConsumer {...props} />
     </CompetencyAssociationsProvider>,
   );
 

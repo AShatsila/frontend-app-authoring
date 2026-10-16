@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { isEqual } from 'lodash';
 
 import { getCourseOutlineIndex } from '@src/course-outline/data';
 // Bypasses the public barrel deliberately: this is the same query key
@@ -176,20 +177,29 @@ export interface CompetencyAssociationsContextValue {
   /** Built from `groupsQuery.data`; `undefined` until that query resolves. */
   index: CompetencyCriteriaGroupsIndex | undefined;
   systemDefaultProfile: CompetencyRuleProfile | undefined;
-  /** Every already-associated criterion's `objectId`, across the whole
-   * tree: the create mutation's duplicate guard and the content panel's
-   * "already associated" marking both read this.
+  /** Every already-associated criterion's `objectId` in the listed courses:
+   * the create mutation's duplicate guard and the content panel's
+   * "already associated" marking both read this. Content can only be picked
+   * from a listed course, so the guard needs nothing outside them.
    */
   associatedObjectIds: Set<string>;
   /** `utils.ts`'s `visibleCourseGroups`, filtered by this provider's own
    * per-course outline-fetch results.
    */
   accessibleCourseGroups: CourseCompetencyCriteriaGroup[];
+  /** Whether every course-level group's outline fetch has finished, either
+   * way. Until then `accessibleCourseGroups` can still be missing a course
+   * that is about to count as accessible, so an empty list is not yet "no
+   * associations".
+   */
+  isCourseAccessResolved: boolean;
   /** The active competency's short external id (e.g. "CCRS-1.3"), shown on
    * an already-associated subsection's badge. `null` when the competency
    * has none.
    */
   competencyExternalId: string | null;
+  /** Reports the course keys the course list shows; call only once its query has succeeded. */
+  notifyCoursesDisplayed: (courseKeys: string[]) => void;
 }
 
 // Exported so component tests can render a hand-built value via
@@ -246,6 +256,7 @@ export const CompetencyAssociationsProvider = ({
   const [duplicateRejected, setDuplicateRejected] = useState(false);
   const [keyboardFocusRequest, setKeyboardFocusRequest] = useState<KeyboardFocusRequest | null>(null);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
+  const [displayedCourseKeys, setDisplayedCourseKeys] = useState<string[] | undefined>(undefined);
   const hasRunInitialFocusRef = useRef(false);
   if (tagId !== prevTagId) {
     setPrevTagId(tagId);
@@ -257,7 +268,11 @@ export const CompetencyAssociationsProvider = ({
     hasRunInitialFocusRef.current = false;
   }
 
-  const groupsQuery = useCompetencyCriteriaGroups(tagId);
+  const notifyCoursesDisplayed = useCallback((courseKeys: string[]) => {
+    setDisplayedCourseKeys((prev) => (isEqual(prev, courseKeys) ? prev : courseKeys));
+  }, []);
+
+  const groupsQuery = useCompetencyCriteriaGroups(tagId, displayedCourseKeys);
   const profileQuery = useDefaultCompetencyRuleProfile();
   const createCriterion = useCreateCompetencyCriterion();
   const updateGroupOperatorMutation = useUpdateCompetencyCriteriaGroupOperator();
@@ -305,8 +320,8 @@ export const CompetencyAssociationsProvider = ({
     }
   }, [focus, placeholder.parentRuleGroupId, index, systemDefaultProfile]);
 
-  // Every course-level group's course key, unfiltered - each must be
-  // fetched to determine accessibility (see `accessibleCourseIds` below).
+  // Every course-level group's course key in the listed courses - each must
+  // be fetched to determine accessibility (see `accessibleCourseIds` below).
   // Also feeds the initial-focus gate and, unioned with `expandedCourseIds`,
   // `canEditCourse`'s permission check.
   const courseIdsWithGroups = useMemo(
@@ -610,7 +625,7 @@ export const CompetencyAssociationsProvider = ({
 
   const resolveFocusAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
-      competencyQueryKeys.competencyCriteriaGroups(tagId),
+      competencyQueryKeys.competencyCriteriaGroups(tagId, displayedCourseKeys),
     );
     if (!freshData) {
       return;
@@ -641,7 +656,7 @@ export const CompetencyAssociationsProvider = ({
     } else {
       focusGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
     }
-  }, [queryClient, tagId, focusGroupAfterRemoval]);
+  }, [queryClient, tagId, displayedCourseKeys, focusGroupAfterRemoval]);
 
   const deleteGroup = useCallback((groupId: number) => {
     if (isDeleteInFlightRef.current || !index) {
@@ -705,7 +720,9 @@ export const CompetencyAssociationsProvider = ({
     systemDefaultProfile,
     associatedObjectIds: associatedIds,
     accessibleCourseGroups,
+    isCourseAccessResolved: allVisibleCourseOutlinesResolved,
     competencyExternalId,
+    notifyCoursesDisplayed,
   }), [
     focus,
     placeholder,
@@ -734,7 +751,9 @@ export const CompetencyAssociationsProvider = ({
     systemDefaultProfile,
     associatedIds,
     accessibleCourseGroups,
+    allVisibleCourseOutlinesResolved,
     competencyExternalId,
+    notifyCoursesDisplayed,
   ]);
 
   return (
