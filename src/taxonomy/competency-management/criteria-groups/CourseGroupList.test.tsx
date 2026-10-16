@@ -42,20 +42,27 @@ const populatedGroupsResponse: CompetencyCriteriaGroupsResponse = {
 };
 
 const buildQueryResult = <T,>(overrides: Partial<UseQueryResult<T>>): UseQueryResult<T> => ({
+  isPending: false,
   isLoading: false,
   isError: false,
   data: undefined,
   ...overrides,
 } as UseQueryResult<T>);
 
-const loadingGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ isLoading: true });
+const loadingGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ isPending: true, isLoading: true });
+/** Disabled until the course list reports its keys: pending, but not loading, since nothing is fetching. */
+const awaitingCourseKeysGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({
+  isPending: true,
+  isLoading: false,
+  fetchStatus: 'idle',
+});
 const loadedEmptyGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ data: emptyGroupsResponse });
 const loadedPopulatedGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({
   data: populatedGroupsResponse,
 });
 const erroredGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ isError: true });
 
-const loadingProfileQuery = buildQueryResult<CompetencyRuleProfile>({ isLoading: true });
+const loadingProfileQuery = buildQueryResult<CompetencyRuleProfile>({ isPending: true, isLoading: true });
 const loadedProfileQuery = buildQueryResult<CompetencyRuleProfile>({ data: systemDefaultProfile });
 const erroredProfileQuery = buildQueryResult<CompetencyRuleProfile>({ isError: true });
 
@@ -75,6 +82,12 @@ describe('<CourseGroupList />', () => {
   it('renders a loading state while the groups query is still loading', () => {
     renderList({ groupsQuery: loadingGroupsQuery, profileQuery: loadedProfileQuery });
     expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('renders a loading state, not the empty state, while the groups query waits for course keys', () => {
+    renderList({ groupsQuery: awaitingCourseKeysGroupsQuery, profileQuery: loadedProfileQuery });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
   });
 
   it('renders a loading state while the default-rule-profile query is still loading, even if groups already loaded', () => {
@@ -132,6 +145,60 @@ describe('<CourseGroupList />', () => {
       expect(screen.getByText('No content associated.')).toBeInTheDocument();
     },
   );
+
+  it('renders a loading state, not the empty state, while course outlines that decide access are still loading', () => {
+    renderList({
+      groupsQuery: loadedPopulatedGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index: buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse),
+      systemDefaultProfile,
+      accessibleCourseGroups: [],
+      isCourseAccessResolved: false,
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+  });
+
+  it('takes keyboard focus on the empty state once course access resolves, when a request was waiting', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    const value = {
+      groupsQuery: loadedEmptyGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index: buildCompetencyCriteriaGroupsIndex(emptyGroupsResponse),
+      systemDefaultProfile,
+      accessibleCourseGroups: [],
+      keyboardFocusRequest: { kind: 'empty' } as const,
+      consumeKeyboardFocusRequest,
+    };
+    const { rerender } = render(
+      <MockCompetencyAssociationsProvider value={{ ...value, isCourseAccessResolved: false }}>
+        <CourseGroupList />
+      </MockCompetencyAssociationsProvider>,
+    );
+    expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+
+    rerender(
+      <MockCompetencyAssociationsProvider value={{ ...value, isCourseAccessResolved: true }}>
+        <CourseGroupList />
+      </MockCompetencyAssociationsProvider>,
+    );
+
+    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the accessible course group sections without waiting on other courses\' outlines', async () => {
+    const index = buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse);
+    renderList({
+      groupsQuery: loadedPopulatedGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index,
+      systemDefaultProfile,
+      accessibleCourseGroups: index.courseGroups,
+      isCourseAccessResolved: false,
+    });
+    expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
+  });
 
   it('renders course group sections for every accessible course-level group', async () => {
     const index = buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse);

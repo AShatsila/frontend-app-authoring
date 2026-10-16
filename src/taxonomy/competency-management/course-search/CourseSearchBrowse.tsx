@@ -26,7 +26,8 @@ import AlertMessage from '@src/generic/alert-message';
 import { LoadingSpinner } from '@src/generic/Loading';
 import { DATE_FORMAT } from '@src/constants';
 import { useStudioHomeCoursesV2 } from '@src/studio-home/data/apiHooks';
-import type { CompetencyTreeNode } from '../CompetencyTree';
+import { useCompetencyAssociations } from '@src/taxonomy/competency-management/CompetencyAssociationsContext';
+import type { CompetencyTreeNode } from '@src/taxonomy/competency-management/CompetencyTree';
 import CourseRow from './CourseRow';
 import CriteriaAssociationsSection from './CriteriaAssociationsSection';
 import messages from './messages';
@@ -161,7 +162,7 @@ const CourseSearchBrowse = ({ activeCompetency }: CourseSearchBrowseProps) => {
 
   const handleClearDateRange = () => handleDateRangeChange([null, null]);
 
-  const { data, isLoading, isError } = useStudioHomeCoursesV2({
+  const { data, isLoading, isError, isSuccess } = useStudioHomeCoursesV2({
     page,
     pageSize: PAGE_SIZE,
     search,
@@ -169,6 +170,13 @@ const CourseSearchBrowse = ({ activeCompetency }: CourseSearchBrowseProps) => {
     startDateOnOrAfter: dateRange[0] ? formatDateOnlyParam(dateRange[0]) : undefined,
     startDateOnOrBefore: dateRange[1] ? formatDateOnlyParam(dateRange[1]) : undefined,
   });
+
+  const { notifyCoursesDisplayed } = useCompetencyAssociations();
+  useEffect(() => {
+    if (isSuccess) {
+      notifyCoursesDisplayed(data.results.courses.map((course) => course.courseKey));
+    }
+  }, [isSuccess, data, notifyCoursesDisplayed]);
 
   const courses = data?.results.courses ?? [];
   const numPages = data?.numPages ?? 0;

@@ -51,7 +51,9 @@ export const buildMockCompetencyAssociationsContextValue = (
   systemDefaultProfile: undefined,
   associatedObjectIds: new Set(),
   accessibleCourseGroups: [],
+  isCourseAccessResolved: true,
   competencyExternalId: null,
+  notifyCoursesDisplayed: jest.fn(),
   ...overrides,
 });
 

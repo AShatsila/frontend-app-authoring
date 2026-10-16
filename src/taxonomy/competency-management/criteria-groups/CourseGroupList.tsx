@@ -18,7 +18,8 @@ import './criteria-groups.scss';
  * since `effectiveRuleOf` needs the profile to resolve an unoverridden
  * criterion. The empty state is decided on `accessibleCourseGroups` (already
  * filtered), never the raw payload's own counts, so a course the author
- * can't see renders identically to no associations at all.
+ * can't see renders identically to no associations at all. It waits for
+ * `isCourseAccessResolved`, since that filter is incomplete until then.
  */
 const CourseGroupList = () => {
   const intl = useIntl();
@@ -27,22 +28,24 @@ const CourseGroupList = () => {
     profileQuery,
     index,
     accessibleCourseGroups,
+    isCourseAccessResolved,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   const emptyStateRef = useRef<HTMLDivElement>(null);
   const takesKeyboardFocus = keyboardFocusRequest?.kind === 'empty';
 
-  // The empty state mounts in the same render that last emptied the list, so
-  // the ref is normally set by the time this runs.
+  // The empty state mounts in the same render that last emptied the list, or
+  // in the one that resolves course access, so the ref is normally set by the
+  // time this runs.
   useEffect(() => {
     if (takesKeyboardFocus && emptyStateRef.current) {
       emptyStateRef.current.focus({ preventScroll: true });
       consumeKeyboardFocusRequest();
     }
-  }, [takesKeyboardFocus, accessibleCourseGroups.length, consumeKeyboardFocusRequest]);
+  }, [takesKeyboardFocus, accessibleCourseGroups.length, isCourseAccessResolved, consumeKeyboardFocusRequest]);
 
-  if (groupsQuery.isLoading || profileQuery.isLoading) {
+  if (groupsQuery.isPending || profileQuery.isPending) {
     return (
       <div className="d-flex justify-content-center py-3">
         <LoadingSpinner size="sm" />
@@ -56,6 +59,16 @@ const CourseGroupList = () => {
         variant="danger"
         description={intl.formatMessage(messages.courseGroupListErrorMessage)}
       />
+    );
+  }
+
+  // Groups can land before their courses' outlines, which decide access; an
+  // empty list then only means "not known yet", so it must not read as empty.
+  if (accessibleCourseGroups.length === 0 && !isCourseAccessResolved) {
+    return (
+      <div className="d-flex justify-content-center py-3">
+        <LoadingSpinner size="sm" />
+      </div>
     );
   }
 
