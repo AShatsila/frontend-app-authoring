@@ -27,6 +27,7 @@ import {
   useCreateCompetencyCriterion,
   useDefaultCompetencyRuleProfile,
   useDeleteCompetencyCriteriaGroup,
+  useDeleteCompetencyCriterion,
   useUpdateCompetencyCriteriaGroupOperator,
   useUpdateCompetencyCriteriaRule,
 } from './data/apiHooks';
@@ -113,6 +114,9 @@ export interface CompetencyAssociationsContextBase {
    * panel's subsection pills.
    */
   isDeletingGroup: boolean;
+  // SPIKE: shape not final
+  /** Deletes the criterion for this subsection (`#710`). */
+  removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
   /** Discards the placeholder group without a request and focuses the last saved group in its course group. */
   removePlaceholderGroup: () => void;
   keyboardFocusRequest: KeyboardFocusRequest | null;
@@ -459,6 +463,7 @@ export const CompetencyAssociationsProvider = ({
   const { mutate: updateGroupOperatorMutate } = useUpdateCompetencyCriteriaGroupOperator();
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
   const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
+  const { mutate: mutateDeleteCriterion } = useDeleteCompetencyCriterion();
   const queryClient = useQueryClient();
   // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
   // respect a click made while the request was in flight.
@@ -807,6 +812,14 @@ export const CompetencyAssociationsProvider = ({
     });
   }, [groupsIndex, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveFocusAfterDelete, showToast, intl]);
 
+  const removeAssociation = useCallback((objectId: string, _origin: 'chip' | 'browse') => {
+    const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === objectId);
+    if (!criterion) {
+      return;
+    }
+    mutateDeleteCriterion({ tagId, criterionId: criterion.id });
+  }, [groupsQuery.data, tagId, mutateDeleteCriterion]);
+
   const removePlaceholderGroup = useCallback(() => {
     const { parentRuleGroupId } = placeholder;
     const parentGroup = parentRuleGroupId !== null ? groupsIndex?.groupsById.get(parentRuleGroupId) : undefined;
@@ -840,6 +853,7 @@ export const CompetencyAssociationsProvider = ({
       updateRuleScore,
       deleteGroup,
       isDeletingGroup,
+      removeAssociation,
       removePlaceholderGroup,
       keyboardFocusRequest,
       consumeKeyboardFocusRequest,
@@ -876,6 +890,7 @@ export const CompetencyAssociationsProvider = ({
     updateRuleScore,
     deleteGroup,
     isDeletingGroup,
+    removeAssociation,
     removePlaceholderGroup,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,

@@ -42,6 +42,7 @@ export const buildMockCompetencyAssociationsContextValue = (
     updateRuleScore: jest.fn().mockResolvedValue(undefined),
     deleteGroup: jest.fn(),
     isDeletingGroup: false,
+    removeAssociation: jest.fn(),
     removePlaceholderGroup: jest.fn(),
     keyboardFocusRequest: null,
     consumeKeyboardFocusRequest: jest.fn(),
