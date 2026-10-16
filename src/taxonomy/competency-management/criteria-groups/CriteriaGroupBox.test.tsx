@@ -216,42 +216,38 @@ describe('<CriteriaGroupBox />', () => {
     expect(updateGroupOperator).not.toHaveBeenCalled();
   });
 
-  describe('delete control', () => {
-    it('calls deleteGroup with its own id when the trash button is clicked', async () => {
-      const user = userEvent.setup();
-      const deleteGroup = jest.fn();
-      renderBox({ deleteGroup });
+  describe('group menu', () => {
+    const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: 'More actions for this group' }));
+    };
 
-      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
-
-      expect(deleteGroup).toHaveBeenCalledWith(10);
-    });
-
-    it('does not focus the group when its trash button is clicked', async () => {
+    it('calls deleteGroup with its own id, without focusing the group, when Remove group is chosen', async () => {
       const user = userEvent.setup();
       const deleteGroup = jest.fn();
       const focusGroup = jest.fn();
       renderBox({ deleteGroup, focusGroup });
 
-      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
+      await openMenu(user);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
 
       expect(deleteGroup).toHaveBeenCalledTimes(1);
+      expect(deleteGroup).toHaveBeenCalledWith(10);
       expect(focusGroup).not.toHaveBeenCalled();
     });
 
-    it('renders no trash button when canEdit is false', () => {
+    it('renders no menu when canEdit is false', () => {
       renderBox({}, {}, false);
 
-      expect(screen.queryByRole('button', { name: 'Delete rule group' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'More actions for this group' })).not.toBeInTheDocument();
     });
 
-    it('disables the trash button while a delete is in flight', () => {
+    it('disables the menu button while a delete is in flight', () => {
       renderBox({ isDeletingGroup: true });
 
-      expect(screen.getByRole('button', { name: 'Delete rule group' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'More actions for this group' })).toBeDisabled();
     });
 
-    it('lets the placeholder group\'s trash button discard it without calling deleteGroup', async () => {
+    it('lets the placeholder group\'s menu discard it without calling deleteGroup', async () => {
       const user = userEvent.setup();
       const deleteGroup = jest.fn();
       const removePlaceholderGroup = jest.fn();
@@ -269,7 +265,8 @@ describe('<CriteriaGroupBox />', () => {
         </MockCompetencyAssociationsProvider>,
       );
 
-      await user.click(screen.getByRole('button', { name: 'Delete rule group' }));
+      await openMenu(user);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
 
       expect(removePlaceholderGroup).toHaveBeenCalledTimes(1);
       expect(deleteGroup).not.toHaveBeenCalled();
