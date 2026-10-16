@@ -154,6 +154,18 @@ export const useDeleteCompetencyCriteriaGroup = () => {
   });
 };
 
+// SPIKE: shape not final
+export const useDeleteCompetencyCriterion = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, AxiosError, { tagId: number; criterionId: number; }>({
+    mutationFn: ({ tagId, criterionId }) => api.deleteCompetencyCriterion(tagId, criterionId),
+    onSettled: (_data, _error, { tagId }) =>
+      queryClient.invalidateQueries({
+        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
+      }),
+  });
+};
+
 export interface UseCourseTaggingPermissionsReturn {
   isLoading: boolean;
   isAuthzEnabled: boolean;
