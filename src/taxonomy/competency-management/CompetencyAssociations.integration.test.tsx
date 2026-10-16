@@ -61,7 +61,7 @@ const outlineOf = (courseName: string, subsections: Record<string, string>) =>
 
 const renderPanel = (rows: Course[] = [courseBRow]) =>
   render(
-    <CompetencyAssociationsProvider tagId={tagId} competencyExternalId="CCRS-1.3">
+    <CompetencyAssociationsProvider tagId={tagId} competencyName="Competency" competencyExternalId="CCRS-1.3">
       <CourseGroupList />
       {rows.map((row) => <CourseRow key={row.courseKey} course={row} />)}
     </CompetencyAssociationsProvider>,
