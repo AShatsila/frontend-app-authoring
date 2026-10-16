@@ -170,6 +170,8 @@ export interface CompetencyAssociationsContextBase {
   accessibleCourseGroups: CourseCompetencyCriteriaGroup[];
   /** The active competency's short external id (e.g. "CCRS-1.3"), or `null`. */
   competencyExternalId: string | null;
+  /** The active competency's name, for the course group menu's "Remove from" item. */
+  competencyName: string;
 }
 
 /** Discriminated on `status`. `groupsIndex` and `systemDefaultProfile` are
@@ -215,6 +217,7 @@ export function useCompetencyAssociations(): CompetencyAssociationsContextValue 
 
 export interface CompetencyAssociationsProviderProps {
   tagId: number;
+  competencyName: string;
   competencyExternalId: string | null;
   children: ReactNode;
 }
@@ -395,6 +398,7 @@ function providerReducer(state: ProviderState, action: ProviderAction): Provider
  */
 export const CompetencyAssociationsProvider = ({
   tagId,
+  competencyName,
   competencyExternalId,
   children,
 }: CompetencyAssociationsProviderProps) => {
@@ -440,7 +444,7 @@ export const CompetencyAssociationsProvider = ({
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
   const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the trash buttons.
+  // Closes the gap between a click and the render that disables the delete menus.
   const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
   // respect a click made while the request was in flight.
@@ -827,6 +831,7 @@ export const CompetencyAssociationsProvider = ({
       associatedObjectIds: associatedIds,
       accessibleCourseGroups,
       competencyExternalId,
+      competencyName,
     };
     if (status === 'success' && groupsIndex && systemDefaultProfile) {
       return { ...shared, status, groupsIndex, systemDefaultProfile };
@@ -865,6 +870,7 @@ export const CompetencyAssociationsProvider = ({
     associatedIds,
     accessibleCourseGroups,
     competencyExternalId,
+    competencyName,
   ]);
 
   return (

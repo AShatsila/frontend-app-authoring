@@ -1,7 +1,13 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Card, IconButton, Stack } from '@openedx/paragon';
-import { Delete, ExpandLess, ExpandMore } from '@openedx/paragon/icons';
+import {
+  Card,
+  Dropdown,
+  Icon,
+  IconButton,
+  Stack,
+} from '@openedx/paragon';
+import { ExpandLess, ExpandMore, MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
@@ -36,6 +42,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     discardPlaceholder,
     hasPlaceholder,
     isAssociating,
+    competencyName,
     deleteGroup,
     isDeletingGroup,
     keyboardFocusRequest,
@@ -117,7 +124,6 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   } else if (hasPlaceholder) {
     disabledReason = 'placeholder';
   }
-  const deleteLabel = intl.formatMessage(messages.deleteCourseGroupButtonLabel, { courseName });
 
   return (
     <Card className={classNames('course-group-section', { 'course-group-section--focused': containsFocus })}>
@@ -141,14 +147,23 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
           </Stack>
         }
         actions={canEdit && (
-          <IconButton
-            src={Delete}
-            alt={deleteLabel}
-            aria-label={deleteLabel}
-            size="sm"
-            disabled={isDeletingGroup}
-            onClick={() => deleteGroup(courseGroup.id)}
-          />
+          <Dropdown>
+            <Dropdown.Toggle
+              id={`course-group-menu-toggle-${courseGroup.id}`}
+              as={IconButton}
+              src={MoreVert}
+              iconAs={Icon}
+              variant="primary"
+              aria-label={intl.formatMessage(messages.courseGroupMoreActionsLabel, { courseName })}
+              size="inline"
+              disabled={isDeletingGroup}
+            />
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={() => deleteGroup(courseGroup.id)}>
+                {intl.formatMessage(messages.removeFromCompetencyMenuItem, { competencyName })}
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
         )}
       />
       {!isCollapsed && (

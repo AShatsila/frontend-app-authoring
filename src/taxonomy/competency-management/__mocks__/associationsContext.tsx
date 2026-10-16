@@ -53,6 +53,7 @@ export const buildMockCompetencyAssociationsContextValue = (
     associatedObjectIds: new Set(),
     accessibleCourseGroups: [],
     competencyExternalId: null,
+    competencyName: 'Competency',
     ...overrides,
   };
   if (overrides.status === 'pending' || overrides.status === 'error') {
