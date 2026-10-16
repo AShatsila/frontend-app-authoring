@@ -174,7 +174,7 @@ const TestConsumer = () => {
 };
 
 const providerFor = (id: number, children: ReactNode = <TestConsumer />) => (
-  <CompetencyAssociationsProvider tagId={id} competencyExternalId="CCRS-1.3">
+  <CompetencyAssociationsProvider tagId={id} competencyName="Competency" competencyExternalId="CCRS-1.3">
     {children}
   </CompetencyAssociationsProvider>
 );
@@ -1169,7 +1169,7 @@ describe('CompetencyAssociationsProvider', () => {
       await deleteAndRefetch('Delete group 10', reads);
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expectToast('Couldn\'t delete the group. The panel was refreshed.', ErrorIcon);
+      expectToast('Couldn\'t remove the group. The panel was refreshed.', ErrorIcon);
       expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });

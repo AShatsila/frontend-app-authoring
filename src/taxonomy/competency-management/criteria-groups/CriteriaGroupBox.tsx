@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { IconButton } from '@openedx/paragon';
-import { Delete } from '@openedx/paragon/icons';
+import {
+  Dropdown,
+  Icon,
+  IconButton,
+} from '@openedx/paragon';
+import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
@@ -78,8 +82,6 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     }
   }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
 
-  const deleteLabel = intl.formatMessage(messages.deleteRuleGroupButtonLabel);
-
   const sentenceLabel = intl.formatMessage(messages.criteriaGroupBoxLabel, {
     operator: logicOperator === 'AND'
       ? intl.formatMessage(messages.logicOperatorAllLabel)
@@ -134,14 +136,23 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
               )}
               {sentence}
             </div>
-            <IconButton
-              src={Delete}
-              alt={deleteLabel}
-              aria-label={deleteLabel}
-              size="sm"
-              disabled={isDeletingGroup}
-              onClick={() => (group ? deleteGroup(group.id) : removePlaceholderGroup())}
-            />
+            <Dropdown>
+              <Dropdown.Toggle
+                id={`rule-group-menu-toggle-${group?.id ?? 'placeholder'}`}
+                as={IconButton}
+                src={MoreVert}
+                iconAs={Icon}
+                variant="primary"
+                aria-label={intl.formatMessage(messages.ruleGroupMoreActionsLabel)}
+                size="inline"
+                disabled={isDeletingGroup}
+              />
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={() => (group ? deleteGroup(group.id) : removePlaceholderGroup())}>
+                  {intl.formatMessage(messages.removeRuleGroupMenuItem)}
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
           </div>
         )
         : (
