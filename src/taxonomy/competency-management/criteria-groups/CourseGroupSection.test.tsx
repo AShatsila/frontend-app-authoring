@@ -327,30 +327,31 @@ describe('<CourseGroupSection />', () => {
   });
 
   describe('delete control', () => {
-    it('calls deleteGroup with the course group id when its trash button is clicked', async () => {
+    it('calls deleteGroup with the course group id when Remove from the competency is chosen', async () => {
       const user = userEvent.setup();
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       const deleteGroup = jest.fn();
-      renderSection({ deleteGroup });
+      renderSection({ deleteGroup, competencyName: 'Critical Thinking' });
 
-      await user.click(await screen.findByRole('button', { name: 'Delete course group for Demo Course' }));
+      await user.click(await screen.findByRole('button', { name: 'More actions for Demo Course' }));
+      await user.click(screen.getByRole('button', { name: 'Remove from Critical Thinking' }));
 
       expect(deleteGroup).toHaveBeenCalledWith(courseGroup.id);
     });
 
-    it('renders no course group trash button when the author cannot edit this course', async () => {
+    it('renders no menu when the author cannot edit this course', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       renderSection({ canEditCourse: () => false });
 
       await screen.findByText('Demo Course');
-      expect(screen.queryByRole('button', { name: /Delete course group/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /More actions for/ })).not.toBeInTheDocument();
     });
 
-    it('disables the course group trash button while a delete is in flight', async () => {
+    it('disables the menu button while a delete is in flight', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       renderSection({ isDeletingGroup: true });
 
-      expect(await screen.findByRole('button', { name: 'Delete course group for Demo Course' })).toBeDisabled();
+      expect(await screen.findByRole('button', { name: 'More actions for Demo Course' })).toBeDisabled();
     });
 
     it('expands itself when a keyboard focus request names one of its rule groups while collapsed', async () => {

@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { IconButton } from '@openedx/paragon';
-import { Delete } from '@openedx/paragon/icons';
+import {
+  Dropdown,
+  Icon,
+  IconButton,
+} from '@openedx/paragon';
+import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
@@ -70,7 +74,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     }
   }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
 
-  const handleDeleteClick: React.MouseEventHandler = () => {
+  const handleRemoveClick = () => {
     if (group) {
       deleteGroup(group.id);
     } else {
@@ -131,14 +135,23 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
           })}
         </div>
         {canEdit && (
-          <IconButton
-            src={Delete}
-            alt={intl.formatMessage(messages.deleteRuleGroupButtonLabel)}
-            aria-label={intl.formatMessage(messages.deleteRuleGroupButtonLabel)}
-            size="sm"
-            disabled={isDeletingGroup}
-            onClick={handleDeleteClick}
-          />
+          <Dropdown>
+            <Dropdown.Toggle
+              id={`rule-group-menu-toggle-${group?.id ?? 'placeholder'}`}
+              as={IconButton}
+              src={MoreVert}
+              iconAs={Icon}
+              variant="primary"
+              aria-label={intl.formatMessage(messages.ruleGroupMoreActionsLabel)}
+              size="inline"
+              disabled={isDeletingGroup}
+            />
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={handleRemoveClick}>
+                {intl.formatMessage(messages.removeRuleGroupMenuItem)}
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
         )}
       </div>
       {index && systemDefaultProfile && (
