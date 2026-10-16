@@ -6,6 +6,9 @@ export interface CriterionChipProps {
    * never fetches or looks anything up itself.
    */
   displayName: string;
+  // SPIKE: shape not final
+  /** When set, the chip shows a remove ("x") affordance that calls it. */
+  onRemove?: () => void;
 }
 
 /** One chip inside a rule box: the associated subsection's display name,
@@ -13,8 +16,16 @@ export interface CriterionChipProps {
  * trailing "x" is a plain icon with no handler: deleting an association is
  * out of scope here.
  */
-const CriterionChip = ({ displayName }: CriterionChipProps) => (
-  <Chip variant="dark" className="criterion-chip mr-1" iconAfter={Close}>{displayName}</Chip>
+const CriterionChip = ({ displayName, onRemove = undefined }: CriterionChipProps) => (
+  <Chip
+    variant="dark"
+    className="criterion-chip mr-1"
+    iconAfter={onRemove ? Close : undefined}
+    iconAfterAlt={onRemove ? `Remove ${displayName}` : undefined}
+    onIconAfterClick={onRemove}
+  >
+    {displayName}
+  </Chip>
 );
 
 export default CriterionChip;
