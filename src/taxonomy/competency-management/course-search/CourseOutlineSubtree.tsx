@@ -33,8 +33,8 @@ interface SubsectionRowProps {
 
 /**
  * One graded subsection: its name plus the competency pill. The applied pill shows regardless of
- * `canEditCourse`, and holds a remove button when the author can edit. Takes DOM focus when a `'subsection'`
- * keyboard request names it, which returns focus here after a remove.
+ * `canEditCourse`, and holds a remove button when the author can edit. Takes keyboard focus back after a remove
+ * started from this row.
  */
 const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const intl = useIntl();
