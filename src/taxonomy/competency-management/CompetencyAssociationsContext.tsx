@@ -70,15 +70,14 @@ export interface CriteriaFocus {
 }
 
 /** A one-shot request for the browser's keyboard focus, left by a delete
- * because the trash button, chip, or remove button that had it is gone. Kept
- * here, not in the cards, since they can unmount and remount (or be
- * collapsed) before the new target renders. `group` names the bottom-tier
- * group card that takes it; `empty` is the "no associations" message;
- * `subsection` is the Browse Courses row for `objectId`, after a remove
- * started from that row. `expand` (for `group`) says whether a
- * collapsed course-level group holding the target should open for it: true
- * when focus moved there, false when the author's own focus stays where it
- * was and a section they collapsed is theirs to keep.
+ * because the control that had it is gone. Kept here, not in the cards,
+ * since they can unmount and remount (or be collapsed) before the new target
+ * renders. `group` names the bottom-tier group card that takes it; `empty`
+ * is the "no associations" message; `subsection` is the Browse Courses row
+ * for `objectId`. `expand` says whether a collapsed course-level group
+ * holding the target should open for it: true when focus moved there, false
+ * when the author's own focus stays where it was and a section they
+ * collapsed is theirs to keep.
  */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
@@ -159,15 +158,10 @@ export interface CompetencyAssociationsContextValue {
    * is a toast, with focus kept unless the refetch shows the group gone.
    */
   deleteGroup: (groupId: number) => void;
-  /** True while a group or criterion delete, or its follow-up refetch, is in
-   * flight; every delete control, and the content panel's subsection
-   * select, disable on it.
-   */
+  /** True while any delete, or its refetch, is in flight. */
   isDeleting: boolean;
-  /** Deletes the criterion linking this subsection to the competency
-   * (`#710`). Focus then follows `origin`: back to the group box for
-   * `'chip'`, to the subsection's row for `'browse'`. Dropped while another
-   * delete is in flight. A 404 counts as success; any other failure is a toast.
+  /** Deletes this subsection's criterion; keyboard focus returns to the
+   * group box (`'chip'`) or the row (`'browse'`).
    */
   removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
   /** Discards the placeholder group without a request and focuses the last
@@ -278,8 +272,7 @@ export const CompetencyAssociationsProvider = ({
   const { mutate: mutateDeleteCriterion, isPending: isDeletingCriterion } = useDeleteCompetencyCriterion();
   const isDeleting = isDeletingGroup || isDeletingCriterion;
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the delete
-  // controls; shared so a group delete and a criterion delete block each other.
+  // Closes the gap between a click and the render that disables the delete controls.
   const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the
   // latest focus and placeholder through refs to respect a click made
@@ -688,7 +681,6 @@ export const CompetencyAssociationsProvider = ({
     const { groupId } = criterion;
     mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
       onError: (error) => {
-        // 404: the association is already gone, which is what the author asked for.
         if (error.response?.status !== 404) {
           showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
         }
