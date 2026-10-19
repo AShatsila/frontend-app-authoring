@@ -27,14 +27,8 @@ interface SubsectionRowProps {
 }
 
 /**
- * One row for a single graded subsection.
- *
- * Unassociated and editable (`canEditCourse(courseId)` with the association data
- * loaded): a button that calls `associateSubsection`. Associated and editable: a `div`
- * holding the pill with a button that calls `removeAssociation`. Otherwise a
- * non-interactive `div`, so a view-only course still shows what's associated.
- * Takes DOM focus when a `'subsection'` keyboard request names it, which is
- * how focus returns here after a remove.
+ * One row for a single graded subsection. A view-only course still shows what's associated.
+ * Takes keyboard focus back after a remove started from this row.
  */
 const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const intl = useIntl();
