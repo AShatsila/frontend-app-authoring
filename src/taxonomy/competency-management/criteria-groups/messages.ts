@@ -71,6 +71,12 @@ const messages = defineMessages({
     description: 'Suffix appended to the score threshold label when the rule\'s comparison is "at most" '
       + '(op: lte). No suffix is appended for an exact-match rule (op: eq).',
   },
+  removeCriterionButtonLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.remove-criterion-button-label',
+    defaultMessage: 'Remove {subsectionName}',
+    description: 'Accessible label for the "x" icon on a rule box chip that removes the subsection\'s association '
+      + 'with the competency. {subsectionName} is the name of the subsection.',
+  },
   unknownSubsectionLabel: {
     id: 'course-authoring.competency-management.criteria-groups.unknown-subsection-label',
     defaultMessage: 'Content unavailable',
