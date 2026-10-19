@@ -69,10 +69,15 @@ export interface CriteriaFocus {
   ruleKey: string | null;
 }
 
-/** One-shot keyboard focus target after a delete removed the focused control.
- * `group` is the bottom-tier group card that takes it, `empty` the "no associations" message,
- * and `subsection` the Browse Courses row for `objectId`.
- * `expand` (for `group`): whether a collapsed section holding the target should open for it.
+/** A one-shot request for the browser's keyboard focus, left by a delete
+ * because the control that had it is gone. Kept here, not in the cards,
+ * since they can unmount and remount (or be collapsed) before the new target
+ * renders. `group` names the bottom-tier group card that takes it; `empty`
+ * is the "no associations" message; `subsection` is the Browse Courses row
+ * for `objectId`. `expand` says whether a collapsed course-level group
+ * holding the target should open for it: true when focus moved there, false
+ * when the author's own focus stays where it was and a section they
+ * collapsed is theirs to keep.
  */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
@@ -142,11 +147,10 @@ export interface CompetencyAssociationsContextValue {
    * A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
-  /** True while a group or criterion delete, or its follow-up refetch, is in flight. */
+  /** True while any delete, or its refetch, is in flight. */
   isDeleting: boolean;
-  /** Deletes the criterion for this subsection (`#710`), then focuses the group box
-   * for `'chip'` or the subsection's row for `'browse'`. A 404 counts as success;
-   * any other failure shows a toast.
+  /** Deletes this subsection's criterion; keyboard focus returns to the
+   * group box (`'chip'`) or the row (`'browse'`).
    */
   removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
   /** Discards the placeholder group without a request and focuses the last
@@ -679,7 +683,6 @@ export const CompetencyAssociationsProvider = ({
     const { groupId } = criterion;
     mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
       onError: (error) => {
-        // 404: the association is already gone, which is what the author asked for.
         if (error.response?.status !== 404) {
           showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
         }
