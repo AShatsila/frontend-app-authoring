@@ -237,7 +237,7 @@ describe('<CourseOutlineSubtree />', () => {
 
       expect(screen.getAllByText('Associated')).toHaveLength(1);
       expect(screen.getByText('Competency ID: EXT-042')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Subsection 1A/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Associate .* Subsection 1A/ })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Associate EXT-042 with Subsection 2A (graded)' }))
         .toBeInTheDocument();
     });
@@ -351,9 +351,56 @@ describe('<CourseOutlineSubtree />', () => {
       expect(associateSubsection).not.toHaveBeenCalled();
     });
 
+    it('renders an associated row on an editable course with a remove button in its pill', async () => {
+      const user = userEvent.setup();
+      const removeAssociation = jest.fn();
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({ associatedObjectIds: new Set(['sub-1a']), removeAssociation });
+      await expandFirstSection();
+
+      await user.click(
+        await screen.findByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }),
+      );
+
+      expect(removeAssociation).toHaveBeenCalledWith('sub-1a', 'browse');
+    });
+
+    it('renders no remove button when the course cannot be edited', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({ associatedObjectIds: new Set(['sub-1a']), canEditCourse: () => false });
+      await expandFirstSection();
+
+      expect(await screen.findByText('Associated')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Remove the association/ })).not.toBeInTheDocument();
+    });
+
+    it('disables the remove button while a delete is in flight', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({ associatedObjectIds: new Set(['sub-1a']), isDeleting: true });
+      await expandFirstSection();
+
+      expect(await screen.findByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }))
+        .toBeDisabled();
+    });
+
+    it('takes DOM focus on a matching subsection keyboard request, then consumes it', async () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({
+        keyboardFocusRequest: { kind: 'subsection', objectId: 'sub-1a' },
+        consumeKeyboardFocusRequest,
+        competencyExternalId: 'EXT-042',
+      });
+      await expandFirstSection();
+
+      expect(await screen.findByRole('button', { name: 'Associate EXT-042 with Subsection 1A (graded)' }))
+        .toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalled();
+    });
+
     it('disables the add button while a group delete is in flight', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
-      renderSubtreeWithAssociations({ isDeletingGroup: true, competencyExternalId: 'EXT-042' });
+      renderSubtreeWithAssociations({ isDeleting: true, competencyExternalId: 'EXT-042' });
       await expandFirstSection();
 
       expect(await screen.findByRole('button', { name: 'Associate EXT-042 with Subsection 1A (graded)' }))

@@ -1,8 +1,18 @@
-import { type ReactNode, useState } from 'react';
+import {
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Button, Icon, IconButton } from '@openedx/paragon';
-import { AddCircle, ExpandLess, ExpandMore } from '@openedx/paragon/icons';
+import {
+  AddCircle,
+  Cancel,
+  ExpandLess,
+  ExpandMore,
+} from '@openedx/paragon/icons';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import type { XBlock } from '@src/data/types';
@@ -22,8 +32,9 @@ interface SubsectionRowProps {
 }
 
 /**
- * One graded subsection: its name plus the competency pill. The applied pill
- * shows regardless of `canEditCourse`.
+ * One graded subsection: its name plus the competency pill. The applied pill shows regardless of
+ * `canEditCourse`, and holds a remove button when the author can edit. Takes DOM focus when a `'subsection'`
+ * keyboard request names it, which returns focus here after a remove.
  */
 const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const intl = useIntl();
@@ -33,12 +44,25 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     canEditCourse,
     competencyExternalId,
     isAssociating,
-    isDeletingGroup,
+    isDeleting,
+    removeAssociation,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
     status,
   } = useCompetencyAssociations();
   // The `course_index` response populates `.id`, never `.usageKey`.
   const isAssociated = associatedObjectIds.has(subsection.id);
   const canAssociate = status === 'success' && canEditCourse(courseId);
+
+  const associateButtonRef = useRef<HTMLButtonElement>(null);
+  const takesKeyboardFocus = keyboardFocusRequest?.kind === 'subsection'
+    && keyboardFocusRequest.objectId === subsection.id;
+  useEffect(() => {
+    if (takesKeyboardFocus && associateButtonRef.current) {
+      associateButtonRef.current.focus();
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, consumeKeyboardFocusRequest, isAssociated]);
 
   const pillContent = (
     <>
@@ -62,12 +86,28 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
           </span>
         )}
         {pillContent}
+        {canAssociate && (
+          <>
+            <span className="course-search-browse__subsection-pill-divider" aria-hidden="true" />
+            <IconButton
+              src={Cancel}
+              size="inline"
+              invertColors
+              alt={intl.formatMessage(messages.removeAssociationButtonLabel, {
+                subsectionName: subsection.displayName,
+              })}
+              disabled={isDeleting}
+              onClick={() => removeAssociation(subsection.id, 'browse')}
+            />
+          </>
+        )}
       </span>
     );
   } else if (canAssociate) {
     const subsectionName = subsection.displayName;
     pill = (
       <Button
+        ref={associateButtonRef}
         variant="tertiary"
         type="button"
         className="course-search-browse__subsection-pill course-search-browse__subsection-pill--available"
@@ -77,7 +117,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
             subsectionName,
           })
           : intl.formatMessage(messages.associateSubsectionWithoutIdButtonLabel, { subsectionName })}
-        disabled={isAssociating || isDeletingGroup}
+        disabled={isAssociating || isDeleting}
         onClick={() => associateSubsection(subsection.id, courseId)}
       >
         {pillContent}
