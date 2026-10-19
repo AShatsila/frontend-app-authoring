@@ -144,11 +144,10 @@ export interface CompetencyAssociationsContextValue {
    * A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
-  /** True while a group or criterion delete, or its follow-up refetch, is in flight. */
+  /** True while any delete, or its refetch, is in flight. */
   isDeleting: boolean;
-  /** Deletes the criterion for this subsection (`#710`), then focuses the group box
-   * for `'chip'` or the subsection's row for `'browse'`. A 404 counts as success;
-   * any other failure shows a toast.
+  /** Deletes this subsection's criterion; keyboard focus returns to the
+   * group box (`'chip'`) or the row (`'browse'`).
    */
   removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
   /** Discards the placeholder group without a request and selects the last
@@ -605,7 +604,6 @@ export const CompetencyAssociationsProvider = ({
     const { groupId } = criterion;
     mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
       onError: (error) => {
-        // 404: the association is already gone, which is what the author asked for.
         if (error.response?.status !== 404) {
           showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
         }
