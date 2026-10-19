@@ -52,7 +52,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     hasPlaceholder,
     competencyName,
     deleteGroup,
-    isDeletingGroup,
+    isDeleting,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
@@ -156,7 +156,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
                 courseName: courseDisplayName,
               })}
               size="inline"
-              disabled={isDeletingGroup}
+              disabled={isDeleting}
             />
             <Dropdown.Menu>
               <Dropdown.Item onClick={() => deleteGroup(courseGroup.id)}>

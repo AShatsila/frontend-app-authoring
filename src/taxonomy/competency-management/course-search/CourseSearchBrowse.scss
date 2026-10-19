@@ -254,8 +254,8 @@
   }
 
   // Target icon | competency ID | divider | action icon. The action icon is
-  // decorative in both states (add is the row's own click, remove is out of
-  // scope), so the pill carries no interaction of its own.
+  // decorative when it is the row's own add click; an editable associated row
+  // holds a remove button there instead.
   &__subsection-pill {
     display: inline-flex;
     align-items: center;

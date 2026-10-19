@@ -154,7 +154,6 @@ export const useDeleteCompetencyCriteriaGroup = () => {
   });
 };
 
-// SPIKE: shape not final
 export const useDeleteCompetencyCriterion = () => {
   const queryClient = useQueryClient();
   return useMutation<void, AxiosError, { tagId: number; criterionId: number; }>({
