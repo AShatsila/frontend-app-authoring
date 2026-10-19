@@ -104,6 +104,12 @@ const messages = defineMessages({
     description: 'Second line of the static empty state shown in the associations block, prompting the user '
       + 'to make content selections below.',
   },
+  removeAssociationButtonLabel: {
+    id: 'course-authoring.competency-management.course-search.remove-association-button-label',
+    defaultMessage: 'Remove the association with {subsectionName}',
+    description: 'Accessible label for the icon button on an associated subsection row that removes its '
+      + 'association with the competency. {subsectionName} is the name of the subsection.',
+  },
 });
 
 export default messages;

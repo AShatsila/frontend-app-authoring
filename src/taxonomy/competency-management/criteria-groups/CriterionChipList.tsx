@@ -12,8 +12,7 @@ export interface CriterionChipListProps {
    * lag) falls back to a neutral label.
    */
   subsectionNamesByUsageKey: Record<string, string>;
-  // SPIKE: shape not final
-  /** Shows each chip's remove affordance. */
+  /** Shows each chip's remove icon. */
   canEdit?: boolean;
 }
 
@@ -25,7 +24,7 @@ export interface CriterionChipListProps {
  */
 const CriterionChipList = ({ criteria, subsectionNamesByUsageKey, canEdit = false }: CriterionChipListProps) => {
   const intl = useIntl();
-  const { removeAssociation } = useCompetencyAssociations();
+  const { removeAssociation, isDeleting } = useCompetencyAssociations();
 
   if (criteria.length === 0) {
     return null;
@@ -38,6 +37,7 @@ const CriterionChipList = ({ criteria, subsectionNamesByUsageKey, canEdit = fals
           key={criterion.id}
           displayName={subsectionNamesByUsageKey[criterion.objectId] ??
             intl.formatMessage(messages.unknownSubsectionLabel)}
+          disabled={isDeleting}
           onRemove={canEdit ? () => removeAssociation(criterion.objectId, 'chip') : undefined}
         />
       ))}

@@ -46,7 +46,6 @@ export const apiUrls = {
   defaultCompetencyRuleProfile: () => makeCbeV1Url('rule_profiles/'),
   /** POST: create a new criterion under this competency (tag). Backs `#665`. */
   createCompetencyCriterion: (tagId: number) => makeUrl(`${tagId}/criteria/`),
-  // SPIKE: shape not final
   /** DELETE: remove one criterion (association). Backs `#674`. */
   deleteCompetencyCriterion: (tagId: number, criterionId: number) => makeUrl(`${tagId}/criteria/${criterionId}/`),
   /** PATCH: update a bottom-tier group's any/all combining logic. Backs `#760`. */
