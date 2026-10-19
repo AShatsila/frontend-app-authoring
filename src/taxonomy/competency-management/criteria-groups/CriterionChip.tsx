@@ -1,23 +1,32 @@
+import { useIntl } from '@edx/frontend-platform/i18n';
 import { Chip } from '@openedx/paragon';
 import { Close } from '@openedx/paragon/icons';
 
+import messages from './messages';
+
 export interface CriterionChipProps {
   displayName: string;
-  // SPIKE: shape not final
-  /** When set, the chip shows a remove ("x") affordance that calls it. */
+  /** Shows the remove ("x") icon, which calls this. Omitted when the author can't edit. */
   onRemove?: () => void;
+  disabled?: boolean;
 }
 
-const CriterionChip = ({ displayName, onRemove = undefined }: CriterionChipProps) => (
-  <Chip
-    variant="dark"
-    className="criterion-chip mr-1"
-    iconAfter={onRemove ? Close : undefined}
-    iconAfterAlt={onRemove ? `Remove ${displayName}` : undefined}
-    onIconAfterClick={onRemove}
-  >
-    {displayName}
-  </Chip>
-);
+const CriterionChip = ({ displayName, onRemove = undefined, disabled = false }: CriterionChipProps) => {
+  const intl = useIntl();
+  return (
+    <Chip
+      variant="dark"
+      className="criterion-chip mr-1"
+      iconAfter={onRemove ? Close : undefined}
+      iconAfterAlt={onRemove
+        ? intl.formatMessage(messages.removeCriterionButtonLabel, { subsectionName: displayName })
+        : undefined}
+      onIconAfterClick={onRemove}
+      disabled={disabled}
+    >
+      {displayName}
+    </Chip>
+  );
+};
 
 export default CriterionChip;

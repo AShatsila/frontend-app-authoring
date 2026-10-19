@@ -61,4 +61,17 @@ describe('<CriterionChipList />', () => {
     expect(removeAssociation).toHaveBeenCalledTimes(1);
     expect(removeAssociation).toHaveBeenCalledWith('block-b', 'chip');
   });
+
+  it('takes the remove button out of the tab order while a delete is in flight', () => {
+    renderList(
+      {
+        criteria: [criterion(1, 'block-a', 10)],
+        subsectionNamesByUsageKey: { 'block-a': 'Subsection A' },
+        canEdit: true,
+      },
+      { isDeleting: true },
+    );
+
+    expect(screen.getByRole('button', { name: 'Remove Subsection A' })).toHaveAttribute('tabindex', '-1');
+  });
 });
