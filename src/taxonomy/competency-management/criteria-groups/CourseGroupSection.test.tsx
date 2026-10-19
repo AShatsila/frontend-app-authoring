@@ -307,7 +307,7 @@ describe('<CourseGroupSection />', () => {
 
     it('disables the course group trash button while a delete is in flight', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-      renderSection({ isDeletingGroup: true });
+      renderSection({ isDeleting: true });
 
       expect(await screen.findByRole('button', { name: 'Delete course group for Demo Course' })).toBeDisabled();
     });

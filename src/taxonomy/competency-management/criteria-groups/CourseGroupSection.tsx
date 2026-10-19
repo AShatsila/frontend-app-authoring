@@ -44,7 +44,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     discardPlaceholder,
     hasPlaceholder,
     deleteGroup,
-    isDeletingGroup,
+    isDeleting,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
@@ -133,7 +133,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
                 alt={deleteLabel}
                 aria-label={deleteLabel}
                 size="sm"
-                disabled={isDeletingGroup}
+                disabled={isDeleting}
                 onClick={() => deleteGroup(courseGroup.id)}
               />
             )}

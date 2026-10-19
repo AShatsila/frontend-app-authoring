@@ -277,7 +277,7 @@ describe('<CriteriaGroupBox />', () => {
     });
 
     it('disables the trash button while a delete is in flight', () => {
-      renderBox({ isDeletingGroup: true });
+      renderBox({ isDeleting: true });
 
       expect(screen.getByRole('button', { name: 'Delete rule group' })).toBeDisabled();
     });

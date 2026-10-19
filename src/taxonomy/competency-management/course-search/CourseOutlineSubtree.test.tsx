@@ -235,10 +235,8 @@ describe('<CourseOutlineSubtree />', () => {
       await user.click(expandButtons[0]);
       await user.click(screen.getByRole('button', { name: 'Expand' }));
 
-      expect(screen.getByRole('button', { name: 'Subsection 1A (graded)' })).toHaveAttribute(
-        'data-associated',
-        'true',
-      );
+      expect(screen.getByText('Subsection 1A (graded)').closest('.course-search-browse__subsection'))
+        .toHaveAttribute('data-associated', 'true');
       // A sibling row whose id isn't in the set stays unmarked - proves the
       // lookup is a real per-row match, not something that's always true.
       expect(screen.getByRole('button', { name: 'Subsection 2A (graded)' })).toHaveAttribute(
@@ -272,9 +270,11 @@ describe('<CourseOutlineSubtree />', () => {
       renderSubtree({ associatedObjectIds: new Set(['sub-1a']), competencyExternalId: 'EXT-042' });
 
       await userEvent.setup().click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
-      // The badge's own text becomes part of the button's accessible name
-      // once set, so find the row by its label text instead of `getByRole`.
-      const row = (await screen.findByText('Subsection 1A (graded)')).closest('button') as HTMLElement;
+      // The badge's own text is part of the row's accessible name, so find the
+      // row by its label text instead of `getByRole`.
+      const row = (await screen.findByText('Subsection 1A (graded)')).closest(
+        '.course-search-browse__subsection',
+      ) as HTMLElement;
 
       expect(within(row).getByText('EXT-042')).toHaveAttribute('aria-hidden', 'true');
       expect(within(row).getByText('Competency ID: EXT-042')).toBeInTheDocument();
@@ -286,7 +286,9 @@ describe('<CourseOutlineSubtree />', () => {
     renderSubtree({ associatedObjectIds: new Set(['sub-1a']), competencyExternalId: null });
 
     await userEvent.setup().click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
-    const row = (await screen.findByText('Subsection 1A (graded)')).closest('button') as HTMLElement;
+    const row = (await screen.findByText('Subsection 1A (graded)')).closest(
+      '.course-search-browse__subsection',
+    ) as HTMLElement;
 
     expect(within(row).queryByText('Competency ID:', { exact: false })).not.toBeInTheDocument();
   });
@@ -314,10 +316,61 @@ describe('<CourseOutlineSubtree />', () => {
     },
   );
 
+  it('renders an associated row on an editable course as a div with a remove button, not a select button', async () => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+    const removeAssociation = jest.fn();
+    renderSubtree({
+      canEditCourse: () => true,
+      associatedObjectIds: new Set(['sub-1a']),
+      removeAssociation,
+    });
+
+    await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
+
+    const row = screen.getByText('Subsection 1A (graded)').closest('.course-search-browse__subsection')!;
+    expect(row.tagName).toBe('DIV');
+    expect(screen.queryByRole('button', { name: 'Subsection 1A (graded)' })).not.toBeInTheDocument();
+    await user.click(
+      within(row as HTMLElement).getByRole('button', {
+        name: 'Remove the association with Subsection 1A (graded)',
+      }),
+    );
+    expect(removeAssociation).toHaveBeenCalledWith('sub-1a', 'browse');
+  });
+
+  it('disables the remove button while a delete is in flight', async () => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+    renderSubtree({ canEditCourse: () => true, associatedObjectIds: new Set(['sub-1a']), isDeleting: true });
+
+    await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
+
+    expect(
+      screen.getByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }),
+    ).toBeDisabled();
+  });
+
+  it('takes DOM focus on a matching subsection keyboard request, then consumes it', async () => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+    const consumeKeyboardFocusRequest = jest.fn();
+    renderSubtree({
+      canEditCourse: () => true,
+      keyboardFocusRequest: { kind: 'subsection', objectId: 'sub-1a' },
+      consumeKeyboardFocusRequest,
+    });
+
+    await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
+
+    expect(screen.getByRole('button', { name: 'Subsection 1A (graded)' })).toHaveFocus();
+    expect(consumeKeyboardFocusRequest).toHaveBeenCalled();
+  });
+
   it('disables a subsection\'s select button while a group delete is in flight', async () => {
     const user = userEvent.setup();
     axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
-    renderSubtree({ isDeletingGroup: true });
+    renderSubtree({ isDeleting: true });
 
     await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
 

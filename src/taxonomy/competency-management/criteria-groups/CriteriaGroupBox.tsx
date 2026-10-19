@@ -55,7 +55,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     setPlaceholderLogicOperator,
     hasPlaceholder,
     deleteGroup,
-    isDeletingGroup,
+    isDeleting,
     removePlaceholderGroup,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
@@ -142,7 +142,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
               alt={intl.formatMessage(messages.deleteRuleGroupButtonLabel)}
               aria-label={intl.formatMessage(messages.deleteRuleGroupButtonLabel)}
               size="sm"
-              disabled={isDeletingGroup}
+              disabled={isDeleting}
               onClick={handleDeleteClick}
             />
           )}
