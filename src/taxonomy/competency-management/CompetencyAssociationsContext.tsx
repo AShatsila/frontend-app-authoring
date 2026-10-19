@@ -176,9 +176,7 @@ export interface CompetencyAssociationsContextBase {
   isDeleting: boolean;
   /** Discards the placeholder group without a request and selects the last saved group in its course group. */
   discardPlaceholderGroup: () => void;
-  /** Deletes the criterion for this subsection, then returns keyboard focus to the group box for `'chip'` or the
-   * subsection's row for `'browse'`. A 404 counts as success; any other failure shows a toast.
-   */
+  /** Deletes this subsection's criterion; keyboard focus returns to the group box (`'chip'`) or the row (`'browse'`). */
   removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
   keyboardFocusRequest: KeyboardFocusRequest | null;
   /** Clears `keyboardFocusRequest` once the component it names has taken it. */
@@ -1136,7 +1134,6 @@ export const CompetencyAssociationsProvider = ({
     const { groupId } = criterion;
     mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
       onError: (deleteError) => {
-        // 404: the association is already gone, which is what the author asked for.
         if (deleteError.response?.status !== 404) {
           showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage), undefined, undefined, ErrorIcon);
         }
