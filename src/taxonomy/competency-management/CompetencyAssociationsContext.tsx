@@ -81,10 +81,13 @@ export interface CriteriaPlaceholder {
   rulePayload: GradeRulePayload | null;
 }
 
-/** One-shot move of the browser's keyboard focus after a delete removes the ⋮ button that held it (focus would fall to <body>).
- * `group` targets the newly selected group's select button, `empty` the empty-panel message;
- * `expand` opens a collapsed section holding the target. */
-export type KeyboardFocusRequest = { kind: 'group'; groupId: number; expand: boolean; } | { kind: 'empty'; };
+/** One-shot move of the browser's keyboard focus after a delete removes the control that held it (focus would fall to <body>).
+ * `group` targets the newly selected group's select button, `empty` the empty-panel message,
+ * `subsection` the Browse Courses row for `objectId`; `expand` opens a collapsed section holding the group target. */
+export type KeyboardFocusRequest =
+  | { kind: 'group'; groupId: number; expand: boolean; }
+  | { kind: 'empty'; }
+  | { kind: 'subsection'; objectId: string; };
 
 export interface CompetencyAssociationsContextValue {
   selection: CriteriaSelection | null;
@@ -141,10 +144,12 @@ export interface CompetencyAssociationsContextValue {
    * A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
-  /** True until a delete's follow-up refetch lands. */
-  isDeletingGroup: boolean;
-  // SPIKE: shape not final
-  /** Deletes the criterion for this subsection (`#710`). */
+  /** True while a group or criterion delete, or its follow-up refetch, is in flight. */
+  isDeleting: boolean;
+  /** Deletes the criterion for this subsection (`#710`), then focuses the group box
+   * for `'chip'` or the subsection's row for `'browse'`. A 404 counts as success;
+   * any other failure shows a toast.
+   */
   removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
   /** Discards the placeholder group without a request and selects the last
    * saved group in its course-level group, or nothing when it has none.
@@ -297,9 +302,12 @@ export const CompetencyAssociationsProvider = ({
   const createCriterion = useCreateCompetencyCriterion();
   const updateGroupOperatorMutation = useUpdateCompetencyCriteriaGroupOperator();
   const updateRuleScoreMutation = useUpdateCompetencyCriteriaRule();
-  const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
-  const { mutate: mutateDeleteCriterion } = useDeleteCompetencyCriterion();
+  const { mutate: mutateDeleteGroup, isPending: isGroupDeletePending } = useDeleteCompetencyCriteriaGroup();
+  const { mutate: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
+  const isDeleting = isGroupDeletePending || isCriterionDeletePending;
   const queryClient = useQueryClient();
+  // Closes the gap between a click and the render that disables the delete controls.
+  const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the
   // latest selection and placeholder through refs to respect a click made
   // while the request was in flight.
@@ -628,9 +636,10 @@ export const CompetencyAssociationsProvider = ({
   }, [queryClient, tagId, selectGroupAfterRemoval]);
 
   const deleteGroup = useCallback((groupId: number) => {
-    if (!index) {
+    if (isDeleteInFlightRef.current || !index) {
       return;
     }
+    isDeleteInFlightRef.current = true;
     const snapshot = snapshotPageOrder(index, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
       onError: (error) => {
@@ -640,18 +649,67 @@ export const CompetencyAssociationsProvider = ({
         }
       },
       onSettled: () => {
+        isDeleteInFlightRef.current = false;
         resolveSelectionAfterDelete(groupId, snapshot);
       },
     });
   }, [index, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveSelectionAfterDelete, showToast, intl]);
 
-  const removeAssociation = useCallback((objectId: string, _origin: 'chip' | 'browse') => {
+  const removeAssociation = useCallback((objectId: string, origin: 'chip' | 'browse') => {
     const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === objectId);
-    if (!criterion) {
+    if (isDeleteInFlightRef.current || !index || !criterion) {
       return;
     }
-    mutateDeleteCriterion({ tagId, criterionId: criterion.id });
-  }, [groupsQuery.data, tagId, mutateDeleteCriterion]);
+    isDeleteInFlightRef.current = true;
+    const snapshot = snapshotPageOrder(index, accessibleCourseGroups);
+    const { groupId } = criterion;
+    mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
+      onError: (error) => {
+        // 404: the association is already gone, which is what the author asked for.
+        if (error.response?.status !== 404) {
+          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
+        }
+      },
+      onSettled: () => {
+        isDeleteInFlightRef.current = false;
+        resolveSelectionAfterDelete(groupId, snapshot);
+        const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+          competencyQueryKeys.competencyCriteriaGroups(tagId),
+        );
+        if (!freshData || freshData.criteria.some((c) => c.id === criterion.id)) {
+          return;
+        }
+        const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
+        const groupSurvived = freshIndex.groupsById.has(groupId);
+        if (groupSurvived && systemDefaultProfile) {
+          // Rule boxes are derived from criteria, so removing a box's last chip
+          // leaves a focused key that names no box.
+          const keys = ruleBoxesForGroup(groupId, freshIndex, systemDefaultProfile).map((box) => box.key);
+          setSelection((prev) => (
+            prev?.groupId === groupId && prev.ruleKey !== null && !keys.includes(prev.ruleKey)
+              ? { groupId, ruleKey: keys[0] ?? null }
+              : prev
+          ));
+        }
+        if (origin === 'browse') {
+          setKeyboardFocusRequest({ kind: 'subsection', objectId });
+        } else if (groupSurvived) {
+          setKeyboardFocusRequest({ kind: 'group', groupId, expand: false });
+        }
+      },
+    });
+  }, [
+    groupsQuery.data,
+    index,
+    accessibleCourseGroups,
+    tagId,
+    mutateDeleteCriterion,
+    resolveSelectionAfterDelete,
+    queryClient,
+    systemDefaultProfile,
+    showToast,
+    intl,
+  ]);
 
   const removePlaceholderGroup = useCallback(() => {
     const { parentRuleGroupId } = placeholder;
@@ -684,7 +742,7 @@ export const CompetencyAssociationsProvider = ({
     updateGroupOperator,
     updateRuleScore,
     deleteGroup,
-    isDeletingGroup,
+    isDeleting,
     removeAssociation,
     removePlaceholderGroup,
     keyboardFocusRequest,
@@ -716,7 +774,7 @@ export const CompetencyAssociationsProvider = ({
     updateGroupOperator,
     updateRuleScore,
     deleteGroup,
-    isDeletingGroup,
+    isDeleting,
     removeAssociation,
     removePlaceholderGroup,
     keyboardFocusRequest,
