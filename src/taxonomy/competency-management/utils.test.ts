@@ -1,5 +1,5 @@
 import type {
-  CompetencyCriteriaGroupsResponse,
+  CompetencyCriteriaTree,
   CompetencyCriterion,
   CompetencyRuleProfile,
   GradeRulePayload,
@@ -48,7 +48,7 @@ const buildCriterion = (overrides: Partial<CompetencyCriterion> = {}): Competenc
 // 103). Group ids and array order are deliberately out of numeric/array
 // order so tests can't pass by accident from iterating in id or array
 // order instead of by the fields the derivation actually sorts on.
-const fixtureResponse: CompetencyCriteriaGroupsResponse = {
+const fixtureResponse: CompetencyCriteriaTree = {
   groups: [
     {
       id: 100,
@@ -244,7 +244,7 @@ describe('lastBottomTierGroupForCourse', () => {
   });
 
   it('breaks a tie in ordering by the higher id', () => {
-    const tieResponse: CompetencyCriteriaGroupsResponse = {
+    const tieResponse: CompetencyCriteriaTree = {
       groups: [
         {
           id: 1,
@@ -290,7 +290,7 @@ describe('lastBottomTierGroupForCourse', () => {
   });
 
   it('returns null when the course-level group has no bottom-tier children yet', () => {
-    const noChildrenResponse: CompetencyCriteriaGroupsResponse = {
+    const noChildrenResponse: CompetencyCriteriaTree = {
       groups: [
         {
           id: 1,
@@ -382,7 +382,7 @@ describe('isRuleTakenInGroup / nextUnusedScore', () => {
 
 /** A tree of course-level groups (ids 1, 2, 3...), each with the given leaf group ids, in order. */
 const buildTree = (courses: Array<{ id: number; ruleGroupIds: number[]; }>) => {
-  const response: CompetencyCriteriaGroupsResponse = {
+  const response: CompetencyCriteriaTree = {
     groups: [
       {
         id: 500,
