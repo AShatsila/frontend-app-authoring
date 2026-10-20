@@ -9,7 +9,7 @@ import {
 } from '@src/testUtils';
 import { buildMockCompetencyAssociationsContextValue, MockCompetencyAssociationsProvider } from '../testHelpers';
 import type {
-  CompetencyCriteriaGroupsResponse,
+  CompetencyCriteriaTree,
   CompetencyRuleProfile,
   CourseCompetencyCriteriaGroup,
 } from '../data/types';
@@ -35,7 +35,7 @@ const courseGroup: CourseCompetencyCriteriaGroup = {
 // The competency's root group (id 100, never rendered), plus two leaf
 // groups (10, 11) under the same course, each with one criterion pointing
 // at a real subsection in the outline fixture below.
-const response: CompetencyCriteriaGroupsResponse = {
+const response: CompetencyCriteriaTree = {
   groups: [
     {
       id: 100,

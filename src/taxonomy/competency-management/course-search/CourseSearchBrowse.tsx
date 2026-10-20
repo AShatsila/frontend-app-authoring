@@ -18,7 +18,7 @@ import {
   Stack,
 } from '@openedx/paragon';
 import { Calendar, Close } from '@openedx/paragon/icons';
-import { debounce } from 'lodash';
+import { debounce, isEqual } from 'lodash';
 import moment from 'moment';
 import DatePicker from 'react-datepicker';
 
@@ -26,7 +26,9 @@ import AlertMessage from '@src/generic/alert-message';
 import { LoadingSpinner } from '@src/generic/Loading';
 import { DATE_FORMAT } from '@src/constants';
 import { useStudioHomeCoursesV2 } from '@src/studio-home/data/apiHooks';
-import type { CompetencyTreeNode } from '../CompetencyTree';
+import { useCompetencyAssociations } from '@src/taxonomy/competency-management/CompetencyAssociationsContext';
+import type { CompetencyTreeNode } from '@src/taxonomy/competency-management/CompetencyTree';
+import CourseListSummary from './CourseListSummary';
 import CourseRow from './CourseRow';
 import CriteriaAssociationsSection from './CriteriaAssociationsSection';
 import messages from './messages';
@@ -43,6 +45,8 @@ export interface CourseSearchBrowseProps {
 }
 
 const PAGE_SIZE = 10;
+
+const ACCESSIBLE_COURSES_COUNT_PARAMS = { pageSize: 1 };
 
 // Sends the local calendar day's own start/end instant (in the browser's own
 // UTC offset), not a bare date: a bare `YYYY-MM-DD` is inherently ambiguous
@@ -181,7 +185,7 @@ const CourseSearchBrowse = ({ activeCompetency }: CourseSearchBrowseProps) => {
 
   const handleClearDateRange = () => handleDateRangeChange([null, null]);
 
-  const { data, isLoading, isError } = useStudioHomeCoursesV2({
+  const { data, status, isLoading, isError, isSuccess } = useStudioHomeCoursesV2({
     page,
     pageSize: PAGE_SIZE,
     search,
@@ -189,9 +193,23 @@ const CourseSearchBrowse = ({ activeCompetency }: CourseSearchBrowseProps) => {
     startDateOnOrAfter: dateRange[0] ? formatLocalDayBoundary(dateRange[0], 'start') : undefined,
     startDateOnOrBefore: dateRange[1] ? formatLocalDayBoundary(dateRange[1], 'end') : undefined,
   });
+  const accessibleCourseCount = useStudioHomeCoursesV2(ACCESSIBLE_COURSES_COUNT_PARAMS).data?.count;
+
+  const { notifyCoursesDisplayed, displayedCourseKeys, groupsQuery } = useCompetencyAssociations();
+  const listedCourseKeys = useMemo(
+    () => (isSuccess ? data.results.courses.map((course) => course.courseKey) : undefined),
+    [isSuccess, data],
+  );
+  useEffect(() => {
+    if (listedCourseKeys) {
+      notifyCoursesDisplayed(listedCourseKeys);
+    }
+  }, [listedCourseKeys, notifyCoursesDisplayed]);
 
   const courses = data?.results.courses ?? [];
   const numPages = data?.numPages ?? 0;
+  const associationCounts = isEqual(displayedCourseKeys, listedCourseKeys) ? groupsQuery.data : undefined;
+  const showSummary = isSuccess && accessibleCourseCount !== undefined && associationCounts !== undefined;
 
   let body: ReactNode;
   if (isLoading) {
@@ -285,9 +303,19 @@ const CourseSearchBrowse = ({ activeCompetency }: CourseSearchBrowseProps) => {
             )}
           </div>
         </Stack>
+        {showSummary && (
+          <CourseListSummary
+            listedCount={courses.length}
+            totalCount={accessibleCourseCount}
+            search={search}
+            dateRange={dateRange}
+            listedAssociationCount={associationCounts.criteriaCount}
+            totalAssociationCount={associationCounts.totalCriteriaCount}
+          />
+        )}
       </div>
       <div className="course-search-browse__panel">
-        <CriteriaAssociationsSection competency={activeCompetency} />
+        <CriteriaAssociationsSection competency={activeCompetency} courseListStatus={status} />
         <div className="course-search-browse__container">
           <div className="course-search-browse__section-label">
             {intl.formatMessage(messages.coursesAndContentLabel)}
