@@ -12,6 +12,7 @@ import { Error as ErrorIcon, InfoOutline } from '@openedx/paragon/icons';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { isEqual } from 'lodash';
 
 import { getCourseOutlineIndex } from '@src/course-outline/data';
 // Bypasses the public barrel deliberately: this is the same query key
@@ -157,12 +158,14 @@ export interface CompetencyAssociationsContextValue {
   canEditCourse: (courseId: string) => boolean;
   groupsQuery: UseQueryResult<CompetencyCriteriaGroupsResponse>;
   profileQuery: UseQueryResult<CompetencyRuleProfile>;
+  isLoadingAssociations: boolean;
   /** Built from `groupsQuery.data`; `undefined` until that query resolves. */
   index: CompetencyCriteriaGroupsIndex | undefined;
   systemDefaultProfile: CompetencyRuleProfile | undefined;
-  /** Every already-associated criterion's `objectId`, across the whole
-   * tree: the create mutation's duplicate guard and the content panel's
-   * "already associated" marking both read this.
+  /** Every already-associated criterion's `objectId` in the listed courses:
+   * the create mutation's duplicate guard and the content panel's
+   * "already associated" marking both read this. Content can only be picked
+   * from a listed course, so the guard needs nothing outside them.
    */
   associatedObjectIds: Set<string>;
   /** `utils.ts`'s `visibleCourseGroups`, filtered by this provider's own
@@ -179,6 +182,17 @@ export interface CompetencyAssociationsContextValue {
    * has none.
    */
   competencyExternalId: string | null;
+  /** Reports the course keys the course list shows; call only once its query
+   * has succeeded. A report that changes the keys discards an unsaved
+   * placeholder.
+   */
+  notifyCoursesDisplayed: (courseKeys: string[]) => void;
+  /** The course keys last reported through `notifyCoursesDisplayed`, which
+   * `groupsQuery` is scoped to; `undefined` until the first report. Until it
+   * matches the course list's own keys, `groupsQuery.data` describes the
+   * previously listed courses.
+   */
+  displayedCourseKeys: string[] | undefined;
   /** The active competency's name, shown in the Course Group menu's
    * "Remove from {competencyName}" item.
    */
@@ -251,6 +265,8 @@ export const CompetencyAssociationsProvider = ({
     discardPlaceholder,
   } = usePlaceholderState(setFocusAndDropKeyboardRequest);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
+  const [displayedCourseKeys, setDisplayedCourseKeys] = useState<string[] | undefined>(undefined);
+  const [prevDisplayedCourseKeys, setPrevDisplayedCourseKeys] = useState(displayedCourseKeys);
   const hasRunInitialFocusRef = useRef(false);
   if (tagId !== prevTagId) {
     setPrevTagId(tagId);
@@ -261,7 +277,24 @@ export const CompetencyAssociationsProvider = ({
     hasRunInitialFocusRef.current = false;
   }
 
-  const groupsQuery = useCompetencyCriteriaGroups(tagId);
+  // Drops the placeholder when the listed courses change, as its course may be
+  // gone. Updating `prevDisplayedCourseKeys` makes this run once per change.
+  if (displayedCourseKeys !== prevDisplayedCourseKeys) {
+    setPrevDisplayedCourseKeys(displayedCourseKeys);
+    const isFirstReport = prevDisplayedCourseKeys === undefined;
+    const isPlaceholderFocused = focus !== null && focus.ruleKey === null;
+    if (!isFirstReport && isPlaceholderFocused) {
+      setFocus(null);
+      setKeyboardFocusRequest(null);
+      setDuplicateRejected(false);
+    }
+  }
+
+  const notifyCoursesDisplayed = useCallback((courseKeys: string[]) => {
+    setDisplayedCourseKeys((prev) => (isEqual(prev, courseKeys) ? prev : courseKeys));
+  }, []);
+
+  const groupsQuery = useCompetencyCriteriaGroups(tagId, displayedCourseKeys);
   const profileQuery = useDefaultCompetencyRuleProfile();
   const createCriterion = useCreateCompetencyCriterion();
   const updateGroupOperatorMutation = useUpdateCompetencyCriteriaGroupOperator();
@@ -283,6 +316,7 @@ export const CompetencyAssociationsProvider = ({
     [groupsQuery.data],
   );
   const systemDefaultProfile = profileQuery.data;
+  const isLoadingAssociations = groupsQuery.isPending || profileQuery.isPending;
   const associatedIds = useMemo(
     () => (groupsQuery.data ? associatedObjectIds(groupsQuery.data) : new Set<string>()),
     [groupsQuery.data],
@@ -304,8 +338,8 @@ export const CompetencyAssociationsProvider = ({
     }
   }, [focus, placeholder, index, systemDefaultProfile]);
 
-  // Every course-level group's course key, unfiltered - each must be
-  // fetched to determine accessibility (see `accessibleCourseIds` below).
+  // Every course-level group's course key in the listed courses - each must
+  // be fetched to determine accessibility (see `accessibleCourseIds` below).
   // Also feeds the initial-focus gate and, unioned with `expandedCourseIds`,
   // `canEditCourse`'s permission check.
   const courseIdsWithGroups = useMemo(
@@ -533,7 +567,7 @@ export const CompetencyAssociationsProvider = ({
 
   const resolveFocusAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
-      competencyQueryKeys.competencyCriteriaGroups(tagId),
+      competencyQueryKeys.competencyCriteriaGroups(tagId, displayedCourseKeys),
     );
     if (!freshData) {
       return;
@@ -564,7 +598,7 @@ export const CompetencyAssociationsProvider = ({
     } else {
       focusGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
     }
-  }, [queryClient, tagId, focusGroupAfterRemoval]);
+  }, [queryClient, tagId, displayedCourseKeys, focusGroupAfterRemoval]);
 
   const deleteGroup = useCallback((groupId: number) => {
     if (isDeleteInFlightRef.current || !index) {
@@ -624,12 +658,15 @@ export const CompetencyAssociationsProvider = ({
     canEditCourse,
     groupsQuery,
     profileQuery,
+    isLoadingAssociations,
     index,
     systemDefaultProfile,
     associatedObjectIds: associatedIds,
     accessibleCourseGroups,
     areCourseOutlinesLoading: !allVisibleCourseOutlinesResolved,
     competencyExternalId,
+    notifyCoursesDisplayed,
+    displayedCourseKeys,
     competencyName,
   }), [
     focus,
@@ -655,12 +692,15 @@ export const CompetencyAssociationsProvider = ({
     canEditCourse,
     groupsQuery,
     profileQuery,
+    isLoadingAssociations,
     index,
     systemDefaultProfile,
     associatedIds,
     accessibleCourseGroups,
     allVisibleCourseOutlinesResolved,
     competencyExternalId,
+    notifyCoursesDisplayed,
+    displayedCourseKeys,
     competencyName,
   ]);
 

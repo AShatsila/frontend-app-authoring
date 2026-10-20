@@ -1,6 +1,7 @@
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Badge } from '@openedx/paragon';
 
+import { LoadingSpinner } from '@src/generic/Loading';
 import type { CompetencyTreeNode } from '../CompetencyTree';
 import { CourseGroupList } from '../criteria-groups';
 import messages from './messages';
@@ -10,6 +11,10 @@ export interface CriteriaAssociationsSectionProps {
    * For" line along with its Competency ID badge.
    */
   competency: CompetencyTreeNode;
+  /** The status of the course list below this section. The groups are scoped
+   * to the listed courses, so they only render once that list has loaded.
+   */
+  courseListStatus: 'pending' | 'error' | 'success';
 }
 
 /** The associations section above "Courses & Content": the selected
@@ -21,7 +26,7 @@ export interface CriteriaAssociationsSectionProps {
  * label/mastery lines, which need `competency` directly since the context
  * doesn't track its name.
  */
-const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSectionProps) => {
+const CriteriaAssociationsSection = ({ competency, courseListStatus }: CriteriaAssociationsSectionProps) => {
   const intl = useIntl();
 
   return (
@@ -46,7 +51,12 @@ const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSection
           </>
         )}
       </div>
-      <CourseGroupList />
+      {courseListStatus === 'pending' && (
+        <div className="d-flex justify-content-center py-3">
+          <LoadingSpinner size="sm" />
+        </div>
+      )}
+      {courseListStatus === 'success' && <CourseGroupList />}
     </div>
   );
 };

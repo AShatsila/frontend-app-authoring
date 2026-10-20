@@ -68,6 +68,10 @@
     --pgn-size-search-field-border-radius: var(--pgn-size-border-radius-base);
   }
 
+  &__summary {
+    overflow-wrap: anywhere;
+  }
+
   // Shared white envelope for `&__associations` and `&__container` below,
   // so the two read as one continuous column instead of two separate boxes.
   // `flex: 1` (this element is a flex child of the root `.course-search-
