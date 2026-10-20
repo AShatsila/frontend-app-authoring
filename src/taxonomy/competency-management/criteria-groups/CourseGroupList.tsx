@@ -11,6 +11,10 @@ import './criteria-groups.scss';
 /** The associations tree for the selected competency: loading, failed, empty, or the
  * accessible course-level groups. A course whose outline returns 403 or 404 is hidden,
  * and any other outline failure shows the error state.
+ *
+ * The fetch is scoped to the listed courses, so the empty state only means
+ * none are in the listed courses; the course list's summary line carries the
+ * listed and total association counts.
  */
 const CourseGroupList = () => {
   const intl = useIntl();

@@ -74,4 +74,35 @@ describe('<CourseGroupList />', () => {
     expect(screen.queryByRole('heading', { name: /From within Course A/ })).not.toBeInTheDocument();
     expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
   });
+
+  describe('the empty state when no associations are in the listed courses', () => {
+    const noAssociationsMessage = 'No content associated.';
+    const noAssociationsPromptMessage = 'Make content selections to associate this competency with course content.';
+
+    it.each([
+      { criteriaCount: 0, totalCriteriaCount: 0 },
+      // Some of the competency's criteria are in courses not listed.
+      { criteriaCount: 0, totalCriteriaCount: 1 },
+      { criteriaCount: 1, totalCriteriaCount: 3 },
+      // The listed courses hold every criterion, but none of those courses is accessible.
+      { criteriaCount: 2, totalCriteriaCount: 2 },
+    ])(
+      'shows the no-associations messages when criteriaCount is $criteriaCount of totalCriteriaCount '
+        + '$totalCriteriaCount',
+      ({ criteriaCount, totalCriteriaCount }) => {
+        renderList({ accessibleCourseGroups: [], criteriaCounts: { criteriaCount, totalCriteriaCount } });
+        expect(screen.getByText(noAssociationsMessage)).toBeInTheDocument();
+        expect(screen.getByText(noAssociationsPromptMessage)).toBeInTheDocument();
+      },
+    );
+
+    it.each([
+      { status: 'pending' as const },
+      { status: 'error' as const },
+    ])('shows no empty state while the status is $status', ({ status }) => {
+      renderList({ status, accessibleCourseGroups: [], criteriaCounts: { criteriaCount: 1, totalCriteriaCount: 3 } });
+      expect(screen.queryByText(noAssociationsMessage)).not.toBeInTheDocument();
+      expect(screen.queryByText(noAssociationsPromptMessage)).not.toBeInTheDocument();
+    });
+  });
 });

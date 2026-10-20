@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { getCourseOutlineIndexApiUrl } from '@src/course-outline/data';
 import type { Course } from '@src/studio-home/data/api';
@@ -21,7 +22,7 @@ import {
   twoCoursesResponse,
   twoGroupsResponse,
 } from './__mocks__';
-import { CompetencyAssociationsProvider } from './CompetencyAssociationsContext';
+import { CompetencyAssociationsProvider, useCompetencyAssociations } from './CompetencyAssociationsContext';
 import CourseRow from './course-search/CourseRow';
 import { CourseGroupList } from './criteria-groups';
 import { apiUrls } from './data/api';
@@ -61,9 +62,17 @@ const outlineOf = (courseName: string, subsections: Record<string, string>) =>
     overrides: { courseStructure: { displayName: courseName } },
   });
 
+/** Stands in for `CourseSearchBrowse`, which reports its listed courses' keys once its page loads. */
+const ReportCourseKeys = ({ rows }: { rows: Course[]; }) => {
+  const { notifyCoursesDisplayed } = useCompetencyAssociations();
+  useEffect(() => notifyCoursesDisplayed(rows.map((row) => row.courseKey)), [notifyCoursesDisplayed, rows]);
+  return null;
+};
+
 const renderPanel = (rows: Course[] = [courseBRow]) =>
   render(
     <CompetencyAssociationsProvider tagId={tagId} competencyExternalId="CCRS-1.3">
+      <ReportCourseKeys rows={rows} />
       <CourseGroupList />
       {rows.map((row) => <CourseRow key={row.courseKey} course={row} />)}
     </CompetencyAssociationsProvider>,
