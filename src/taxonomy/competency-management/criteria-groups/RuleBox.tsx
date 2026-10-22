@@ -28,6 +28,8 @@ export interface RuleBoxProps {
   rule: EffectiveRule;
   criteria: CompetencyCriterion[];
   subsectionNamesByUsageKey: Record<string, string>;
+  /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
+  courseName?: string;
   /** Threaded down from `RuleBoxList` (originally resolved by
    * `CourseGroupSection` via `canEditCourse`) - see `CriteriaGroupBoxProps.canEdit`.
    * Optional, defaulting to `false`, so every caller that predates this prop
@@ -60,6 +62,7 @@ const RuleBox = ({
   rule,
   criteria,
   subsectionNamesByUsageKey,
+  courseName,
   canEdit = false,
   getInlineValidationMessage,
   hint,
@@ -142,6 +145,7 @@ const RuleBox = ({
               <CriterionChipList
                 criteria={criteria}
                 subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+                courseName={courseName}
                 canEdit={canEdit}
               />
             )}

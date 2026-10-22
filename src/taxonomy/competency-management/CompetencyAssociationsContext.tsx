@@ -191,6 +191,10 @@ export interface CompetencyAssociationsContextValue {
    * per-course outline-fetch results.
    */
   accessibleCourseGroups: CourseCompetencyCriteriaGroup[];
+  /** `false` while any course outline fetch is in flight (`!isLoading`, i.e. not
+   * `isPending && isFetching`); `accessibleCourseGroups` is incomplete until then.
+   */
+  allVisibleCourseOutlinesResolved: boolean;
   /** The active competency's short external id (e.g. "CCRS-1.3"), shown on
    * an already-associated subsection's badge. `null` when the competency
    * has none.
@@ -769,6 +773,7 @@ export const CompetencyAssociationsProvider = ({
     systemDefaultProfile,
     associatedObjectIds: associatedIds,
     accessibleCourseGroups,
+    allVisibleCourseOutlinesResolved,
     competencyExternalId,
   }), [
     focus,
@@ -799,6 +804,7 @@ export const CompetencyAssociationsProvider = ({
     systemDefaultProfile,
     associatedIds,
     accessibleCourseGroups,
+    allVisibleCourseOutlinesResolved,
     competencyExternalId,
   ]);
 

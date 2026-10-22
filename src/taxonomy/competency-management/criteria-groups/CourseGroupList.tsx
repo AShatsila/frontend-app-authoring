@@ -18,7 +18,8 @@ import './criteria-groups.scss';
  * since `effectiveRuleOf` needs the profile to resolve an unoverridden
  * criterion. The empty state is decided on `accessibleCourseGroups` (already
  * filtered), never the raw payload's own counts, so a course the author
- * can't see renders identically to no associations at all.
+ * can't see renders identically to no associations at all. Outline queries
+ * only gate the empty state, so a refetch never unmounts rendered sections.
  */
 const CourseGroupList = () => {
   const intl = useIntl();
@@ -27,6 +28,7 @@ const CourseGroupList = () => {
     profileQuery,
     index,
     accessibleCourseGroups,
+    allVisibleCourseOutlinesResolved,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
@@ -40,7 +42,12 @@ const CourseGroupList = () => {
       emptyStateRef.current.focus({ preventScroll: true });
       consumeKeyboardFocusRequest();
     }
-  }, [takesKeyboardFocus, accessibleCourseGroups.length, consumeKeyboardFocusRequest]);
+  }, [
+    takesKeyboardFocus,
+    accessibleCourseGroups.length,
+    allVisibleCourseOutlinesResolved,
+    consumeKeyboardFocusRequest,
+  ]);
 
   if (groupsQuery.isLoading || profileQuery.isLoading) {
     return (
@@ -60,6 +67,13 @@ const CourseGroupList = () => {
   }
 
   if (accessibleCourseGroups.length === 0) {
+    if (!allVisibleCourseOutlinesResolved) {
+      return (
+        <div className="d-flex justify-content-center py-3">
+          <LoadingSpinner size="sm" />
+        </div>
+      );
+    }
     return (
       <div ref={emptyStateRef} tabIndex={-1} className="course-search-browse__associations-empty-state">
         <p>{intl.formatMessage(courseSearchMessages.noAssociationsMessage)}</p>
