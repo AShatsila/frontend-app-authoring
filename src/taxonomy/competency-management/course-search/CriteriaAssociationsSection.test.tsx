@@ -10,7 +10,7 @@ const competencyName = 'Data Literacy';
 
 const renderSection = () => (
   render(
-    <CompetencyAssociationsProvider tagId={tagId} competencyExternalId="CCRS-1.3">
+    <CompetencyAssociationsProvider tagId={tagId} competencyName="Competency" competencyExternalId="CCRS-1.3">
       <CriteriaAssociationsSection competencyName={competencyName} />
     </CompetencyAssociationsProvider>,
   )
