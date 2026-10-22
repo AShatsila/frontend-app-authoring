@@ -241,17 +241,11 @@ export interface PageOrderEntry {
   ruleGroupIds: number[];
 }
 
-/** The rendered order of course-level groups and their bottom-tier groups,
- * captured before a delete so the group that held focus can still be located
- * once it is gone from the refetched data.
- */
+/** The rendered group order, captured before a delete to locate the removed focus afterward. */
 export interface PageOrderSnapshot {
   /** What was rendered: the accessible course-level groups only. */
   entries: PageOrderEntry[];
-  /** Every course-level group that existed, rendered or not. One absent from
-   * `entries` is known to be inaccessible to the author; one absent from
-   * here is new.
-   */
+  /** Every course-level group that existed. One missing from `entries` is inaccessible. */
   knownCourseGroupIds: number[];
 }
 
@@ -276,11 +270,7 @@ const isRenderedOrNew = (snapshot: PageOrderSnapshot, courseGroupId: number) => 
   || snapshot.entries.some((entry) => entry.courseGroupId === courseGroupId)
 );
 
-/** Whether `freshIndex` holds a course-level group the author can see, or
- * may be able to once its course outline loads: one that was rendered before
- * the delete, or that is new since. When none, the panel shows its empty
- * state.
- */
+/** Whether `freshIndex` holds a course-level group that was rendered before the delete or is new since. */
 export function hasVisibleOrNewCourseGroup(
   snapshot: PageOrderSnapshot,
   freshIndex: CompetencyCriteriaGroupsIndex,
