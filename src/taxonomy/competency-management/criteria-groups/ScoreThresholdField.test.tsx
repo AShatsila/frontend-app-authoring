@@ -267,7 +267,14 @@ describe('<ScoreThresholdField />', () => {
     });
 
     it('marks the input invalid when the hint is an error', () => {
-      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} hint="Pick another." hintIsError />);
+      render(
+        <ScoreThresholdField
+          rulePayload={rulePayload70Percent}
+          onChange={jest.fn()}
+          hint="Pick another."
+          hintIsError
+        />,
+      );
 
       expect(screen.getByRole('textbox')).toBeInvalid();
       expect(screen.getByRole('textbox')).toHaveAccessibleDescription('Pick another.');
