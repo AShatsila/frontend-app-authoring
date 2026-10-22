@@ -120,10 +120,7 @@ export async function updateCompetencyCriteriaGroupOperator(
 }
 
 /**
- * Delete a group (`#709`). The backend archives or hard-deletes it, and
- * deleting a course-level group's last bottom-tier group also removes that
- * course-level group, so callers re-read the groups instead of using the
- * response body.
+ * Delete a group (`#709`). The delete can cascade to the parent, so callers refetch the groups.
  * @param tagId The competency (tag) the group belongs to.
  * @param groupId The group to delete.
  */
