@@ -162,6 +162,21 @@ describe('<CourseGroupList />', () => {
     expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
   });
 
+  it('keeps rendered course sections, not a spinner, while an outline query is loading', async () => {
+    const index = buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse);
+    renderList({
+      groupsQuery: loadedPopulatedGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index,
+      systemDefaultProfile,
+      accessibleCourseGroups: index.courseGroups,
+      areCourseOutlinesLoading: true,
+    });
+
+    expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
   it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', () => {
     const consumeKeyboardFocusRequest = jest.fn();
     renderList({

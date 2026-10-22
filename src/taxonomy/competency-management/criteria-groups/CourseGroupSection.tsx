@@ -169,6 +169,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
               <CriteriaGroupBox
                 group={group}
                 subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+                courseName={courseDisplayName}
                 canEdit={canEdit}
               />
             </Fragment>
@@ -178,6 +179,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
               {bottomTierGroups.length > 0 && <GroupConnector logicOperator={courseGroup.logicOperator} />}
               <CriteriaGroupBox
                 subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+                courseName={courseDisplayName}
                 canEdit={canEdit}
               />
             </Fragment>

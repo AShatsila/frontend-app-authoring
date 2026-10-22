@@ -289,6 +289,7 @@ const TestConsumer = () => {
       <div data-testid="duplicate-rejected">{String(ctx.placeholderDuplicateRejected)}</div>
       <div data-testid="groups-status">{ctx.groupsQuery.isSuccess ? 'groups-success' : 'groups-pending'}</div>
       <div data-testid="profile-status">{ctx.profileQuery.isSuccess ? 'profile-success' : 'profile-pending'}</div>
+      <div data-testid="outlines-loading">{String(ctx.areCourseOutlinesLoading)}</div>
       <div data-testid="accessible-course-group-ids">
         {ctx.accessibleCourseGroups.map((group) => group.courseKey).join(',')}
       </div>
@@ -463,6 +464,44 @@ describe('CompetencyAssociationsProvider', () => {
       // excluded entirely, never included at all.
       expect(screen.getByTestId('accessible-course-group-ids')).not.toHaveTextContent(courseB);
     });
+
+    it.each([
+      [200, true],
+      [403, false],
+      [500, false],
+    ])(
+      'reports outlines loading while the request is pending, and not loading after a %s',
+      async (status, accessible) => {
+        let respond: (value: [number, unknown]) => void = () => {};
+        axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+        axiosMock.onGet(profileUrl).reply(200, profileResponse);
+        axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(
+          () =>
+            new Promise((resolve) => {
+              respond = resolve;
+            }),
+        );
+        renderProvider();
+
+        await waitFor(() => {
+          expect(axiosMock.history.get.some((req) => req.url === getCourseOutlineIndexApiUrl(courseA))).toBe(true);
+        });
+        expect(screen.getByTestId('outlines-loading')).toHaveTextContent('true');
+
+        await act(async () => {
+          respond([status, status === 200 ? outlineFixture : {}]);
+        });
+
+        await waitFor(() => {
+          expect(screen.getByTestId('outlines-loading')).toHaveTextContent('false');
+        });
+        if (accessible) {
+          expect(screen.getByTestId('accessible-course-group-ids')).toHaveTextContent(courseA);
+        } else {
+          expect(screen.getByTestId('accessible-course-group-ids')).toBeEmptyDOMElement();
+        }
+      },
+    );
 
     it('excludes every course-level group when every course fails, leaving the list empty (same as no associations at all)', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
