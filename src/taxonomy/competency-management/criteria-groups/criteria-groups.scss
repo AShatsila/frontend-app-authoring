@@ -224,6 +224,20 @@
       white-space: nowrap;
       text-overflow: ellipsis;
     }
+
+    // Paragon's `Chip` has no warning variant, so the light variant's
+    // background token is retinted instead.
+    &--unavailable {
+      --pgn-color-chip-bg-light: var(--pgn-color-warning-200);
+
+      max-width: none;
+
+      .pgn__chip__label {
+        overflow: visible;
+        white-space: normal;
+        text-overflow: clip;
+      }
+    }
   }
 
   // A thin line - label - line row between two adjacent sibling bottom-tier

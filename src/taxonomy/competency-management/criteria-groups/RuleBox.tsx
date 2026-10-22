@@ -27,6 +27,8 @@ export interface RuleBoxProps {
   rule: EffectiveRule;
   criteria: CompetencyCriterion[];
   subsectionNamesByUsageKey: Record<string, string>;
+  /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
+  courseName?: string;
   canEdit?: boolean;
   getInlineValidationMessage?: (value: string) => string;
   /** Placeholder only: guidance under the score, such as "this score is taken". */
@@ -50,6 +52,7 @@ const RuleBox = ({
   rule,
   criteria,
   subsectionNamesByUsageKey,
+  courseName,
   canEdit = false,
   getInlineValidationMessage,
   hint,
@@ -124,6 +127,7 @@ const RuleBox = ({
           <CriterionChipList
             criteria={criteria}
             subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+            courseName={courseName}
             canEdit={canEdit}
           />
         )}

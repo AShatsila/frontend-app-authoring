@@ -23,6 +23,8 @@ export interface CriteriaGroupBoxProps {
    */
   group?: BottomTierCompetencyCriteriaGroup;
   subsectionNamesByUsageKey: Record<string, string>;
+  /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
+  courseName?: string;
   canEdit: boolean;
 }
 
@@ -35,7 +37,7 @@ export interface CriteriaGroupBoxProps {
  * button. It never scrolls itself into view: a selected rule box, real or
  * placeholder, does.
  */
-const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: CriteriaGroupBoxProps) => {
+const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdit }: CriteriaGroupBoxProps) => {
   const intl = useIntl();
   const {
     selection,
@@ -162,6 +164,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
             index={index}
             systemDefaultProfile={systemDefaultProfile}
             subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+            courseName={courseName}
             canEdit={canEdit}
           />
           {canEdit && (

@@ -147,6 +147,17 @@ describe('<CourseGroupSection />', () => {
     expect(screen.getByText('Subsection 2A')).toBeInTheDocument();
   });
 
+  it('names the course in the unavailable chip for a criterion missing from the outline', async () => {
+    axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+    const missingIndex = buildCompetencyCriteriaGroupsIndex({
+      ...response,
+      criteria: [{ ...response.criteria[0], objectId: 'sub-deleted' }],
+    });
+    renderSection({ index: missingIndex });
+
+    expect(await screen.findByText('Content unavailable in Demo Course')).toBeInTheDocument();
+  });
+
   it(
     'does not throw if its own outline fetch fails (defensive only)',
     async () => {
