@@ -250,6 +250,20 @@
     .pgn__chip__label {
       font-weight: 400;
     }
+
+    // Paragon's `Chip` has no warning variant, so the light variant's
+    // background token is retinted instead.
+    &--unavailable {
+      --pgn-color-chip-bg-light: var(--pgn-color-warning-200);
+
+      max-width: none;
+
+      .pgn__chip__label {
+        overflow: visible;
+        white-space: normal;
+        text-overflow: clip;
+      }
+    }
   }
 
   // Above the rule box's `.stretched-link::after` (z-index 1), so per-chip controls stay clickable.

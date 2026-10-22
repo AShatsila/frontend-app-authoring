@@ -17,6 +17,8 @@ export interface RuleBoxProps {
   rule: EffectiveRule;
   criteria: CompetencyCriterion[];
   subsectionNamesByUsageKey: Record<string, string>;
+  /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
+  courseName?: string;
   /** Whether the author can edit the score threshold. */
   canEdit?: boolean;
   /** Duplicate-score check for this box, used only when `canEdit`. */
@@ -34,6 +36,7 @@ const RuleBox = ({
   rule,
   criteria,
   subsectionNamesByUsageKey,
+  courseName,
   canEdit = false,
   getInlineValidationMessage,
   hint,
@@ -131,6 +134,7 @@ const RuleBox = ({
           <CriterionChipList
             criteria={criteria}
             subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+            courseName={courseName}
             canEdit={canEdit}
           />
         )}
