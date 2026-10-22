@@ -80,14 +80,8 @@ export interface CriteriaPlaceholder {
   rulePayload: GradeRulePayload | null;
 }
 
-/** A one-shot request for the browser's keyboard focus, left by a delete
- * because the menu button that had it is gone. Kept here, not in the cards,
- * since they can unmount and remount (or be collapsed) before the new target
- * renders. `group` names the bottom-tier group card that takes it;
- * `empty` is the "no associations" message. `expand` says whether a
- * collapsed course-level group holding the target should open for it: true
- * when focus moved there, false when the author's own focus stays where it
- * was and a section they collapsed is theirs to keep.
+/** One-shot keyboard focus target after a delete removed the focused menu button.
+ * `expand`: whether a collapsed section holding the target should open for it.
  */
 export type KeyboardFocusRequest = { kind: 'group'; groupId: number; expand: boolean; } | { kind: 'empty'; };
 
@@ -142,16 +136,11 @@ export interface CompetencyAssociationsContextValue {
    * `criterionIds` (`#759`), deriving the new focus key from the response.
    */
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
-  /** Deletes a bottom-tier or course-level group (`#709`), then moves focus
-   * per `focusTargetAfterRemoval` once the refetch lands. Dropped while
-   * another delete is in flight. A 404 counts as success; any other failure
-   * is a toast, with focus kept unless the refetch shows the group gone.
+  /** Deletes a group, then moves focus per `focusTargetAfterRemoval` once the refetch lands.
+   * A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
-  /** True while a delete request or its follow-up refetch is in flight;
-   * every delete control, and the content panel's subsection select,
-   * disable on it.
-   */
+  /** True until a delete's follow-up refetch lands. */
   isDeletingGroup: boolean;
   /** Discards the placeholder group without a request and focuses the last
    * saved group in its course-level group, or nothing when it has none.

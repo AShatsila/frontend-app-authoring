@@ -140,11 +140,8 @@ export const useUpdateCompetencyCriteriaRule = () => {
 };
 
 /**
- * Build the mutation to delete a group (`#709`). Invalidates that
- * competency's criteria-groups query on success and on failure alike, since
- * the group may already be gone (404) or the delete may have cascaded to its
- * parent. `onSettled` returns the invalidation promise so the mutation stays
- * pending until the refetch lands.
+ * Build the mutation to delete a group (`#709`). It refetches the groups on success and failure alike,
+ * and stays pending until that refetch lands.
  */
 export const useDeleteCompetencyCriteriaGroup = () => {
   const queryClient = useQueryClient();
