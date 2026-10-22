@@ -82,6 +82,19 @@ describe('<CourseGroupList />', () => {
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
+  it('renders a loading state, not the empty state, while a course outline is still loading', () => {
+    renderList({
+      groupsQuery: loadedPopulatedGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index: buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse),
+      systemDefaultProfile,
+      accessibleCourseGroups: [],
+      allVisibleCourseOutlinesResolved: false,
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+  });
+
   it('renders a failed state when the groups query errors', () => {
     renderList({ groupsQuery: erroredGroupsQuery, profileQuery: loadedProfileQuery });
     expect(screen.getByText('There was a problem loading this competency\'s associations. Please try again.'))
@@ -147,6 +160,21 @@ describe('<CourseGroupList />', () => {
     // its defensive fallback - enough to prove a real `CourseGroupSection`
     // was mounted.
     expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
+  });
+
+  it('keeps rendered course sections, not a spinner, while an outline query is loading', async () => {
+    const index = buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse);
+    renderList({
+      groupsQuery: loadedPopulatedGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index,
+      systemDefaultProfile,
+      accessibleCourseGroups: index.courseGroups,
+      allVisibleCourseOutlinesResolved: false,
+    });
+
+    expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', () => {

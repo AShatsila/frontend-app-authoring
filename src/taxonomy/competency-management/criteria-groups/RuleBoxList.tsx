@@ -15,6 +15,8 @@ export interface RuleBoxListProps {
   index: CompetencyCriteriaGroupsIndex;
   systemDefaultProfile: CompetencyRuleProfile;
   subsectionNamesByUsageKey: Record<string, string>;
+  /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
+  courseName?: string;
   /** Threaded down from `CriteriaGroupBox` (originally resolved by
    * `CourseGroupSection` via `canEditCourse`) - see `CriteriaGroupBoxProps.canEdit`.
    * Optional, defaulting to `false`, so every caller that predates this prop
@@ -43,6 +45,7 @@ const RuleBoxList = ({
   index,
   systemDefaultProfile,
   subsectionNamesByUsageKey,
+  courseName,
   canEdit = false,
 }: RuleBoxListProps) => {
   const intl = useIntl();
@@ -110,6 +113,7 @@ const RuleBoxList = ({
           rule={box.rule}
           criteria={box.criteria}
           subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+          courseName={courseName}
           canEdit={canEdit}
           getInlineValidationMessage={getInlineValidationMessage(box)}
         />
@@ -123,6 +127,7 @@ const RuleBoxList = ({
           rule={placeholderRule}
           criteria={[]}
           subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+          courseName={courseName}
           canEdit={canEdit}
           getInlineValidationMessage={getInlineValidationMessage(placeholderBox)}
           hint={placeholderHint || undefined}
