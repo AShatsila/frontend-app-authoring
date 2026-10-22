@@ -42,8 +42,16 @@
       border-radius: var(--pgn-size-card-border-radius) var(--pgn-size-card-border-radius) 0 0;
       padding: 10px 12px;
       cursor: pointer;
+      // Anchors `&__select-button`'s `.stretched-link` overlay to this band.
+      position: relative;
+    }
 
-      &:focus-visible {
+    &__select-button {
+      all: unset;
+      cursor: pointer;
+
+      // Outline the stretched `::after` overlay; the button's own box is near zero size.
+      &:focus-visible::after {
         outline: 2px solid $focused-accent-color;
         outline-offset: -2px;
       }
@@ -53,6 +61,17 @@
     // `LogicOperatorSelect`'s own `className` from `CriteriaGroupBox.tsx`.
     &__header-operator {
       font-weight: 700;
+
+      // Paragon's `Dropdown` has no `display` rule of its own, and would otherwise wrap onto its own line.
+      display: inline-block;
+
+      // Aligns the toggle's text baseline with the surrounding sentence text.
+      .dropdown-toggle {
+        vertical-align: baseline;
+        // Layers above `&__select-button`'s stretched overlay so clicks land here.
+        position: relative;
+        z-index: 1;
+      }
     }
 
     &__rules {
@@ -67,6 +86,7 @@
 
   .rule-box {
     cursor: pointer;
+    position: relative;
 
     &--focused {
       border-color: $focused-accent-color;
@@ -76,6 +96,26 @@
     &__body > * + * {
       margin-top: 8px;
     }
+
+    &__select-button {
+      all: unset;
+      cursor: pointer;
+
+      &:focus-visible::after {
+        outline: 2px solid $focused-accent-color;
+        outline-offset: -2px;
+      }
+    }
+  }
+
+  // `Form.Control` is block-level and full-width by default; keep it inline in "With a score of X% or higher".
+  .score-threshold-field__input {
+    display: inline-block;
+    width: 3.5em;
+    text-align: center;
+    // Layers above `.rule-box__select-button`'s stretched overlay so clicks land here.
+    position: relative;
+    z-index: 1;
   }
 
   // Each chip's own truncation - a long subsection name shows an ellipsis

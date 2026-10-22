@@ -1,4 +1,5 @@
-import { MenuItem, SelectMenu } from '@openedx/paragon';
+import { useId } from 'react';
+import { Dropdown } from '@openedx/paragon';
 import type { CompetencyGroupLogicOperator } from '../data/types';
 
 export interface LogicOperatorSelectLabels {
@@ -14,16 +15,12 @@ export interface LogicOperatorSelectProps {
    * control serves both contexts with different wording.
    */
   labels: LogicOperatorSelectLabels;
-  /** Omitted where only the value is read: renders plain, non-interactive
-   * text in that case. Passing it renders the interactive `SelectMenu`.
-   */
   onChange?: (value: CompetencyGroupLogicOperator) => void;
   className?: string;
 }
 
 /** Shared any/all (bottom-tier group) or Or/And (connector) control for how
- * a group's children combine. Read-only (plain text) unless `onChange` is
- * given.
+ * a group's children combine. Read-only unless `onChange` is given.
  */
 const LogicOperatorSelect = ({
   value,
@@ -32,19 +29,22 @@ const LogicOperatorSelect = ({
   className,
 }: LogicOperatorSelectProps) => {
   const label = value === 'AND' ? labels.and : labels.or;
+  const toggleId = useId();
 
   if (!onChange) {
     return <span className={className}>{label}</span>;
   }
 
   return (
-    <SelectMenu
-      className={className}
-      defaultMessage={label}
-    >
-      <MenuItem onClick={() => onChange('AND')}>{labels.and}</MenuItem>
-      <MenuItem onClick={() => onChange('OR')}>{labels.or}</MenuItem>
-    </SelectMenu>
+    <Dropdown className={className}>
+      <Dropdown.Toggle id={toggleId} variant="link" size="inline">
+        {label}
+      </Dropdown.Toggle>
+      <Dropdown.Menu>
+        <Dropdown.Item onClick={() => onChange('AND')}>{labels.and}</Dropdown.Item>
+        <Dropdown.Item onClick={() => onChange('OR')}>{labels.or}</Dropdown.Item>
+      </Dropdown.Menu>
+    </Dropdown>
   );
 };
 

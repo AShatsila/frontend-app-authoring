@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react';
+import { useIntl } from '@edx/frontend-platform/i18n';
 import { Card } from '@openedx/paragon';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
-import type { CompetencyCriterion, EffectiveRule } from '../data/types';
+import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
 import CriterionChipList from './CriterionChipList';
 import ScoreThresholdField from './ScoreThresholdField';
+import messages from './messages';
 
 export interface RuleBoxProps {
   /** The group this box belongs to, and this box's own rule key - together
@@ -20,6 +22,8 @@ export interface RuleBoxProps {
   rule: EffectiveRule;
   criteria: CompetencyCriterion[];
   subsectionNamesByUsageKey: Record<string, string>;
+  canEdit?: boolean;
+  getInlineValidationMessage?: (value: string) => string;
 }
 
 /** One rule box: the rule it's given, its chips, and focus/click behavior.
@@ -33,8 +37,11 @@ const RuleBox = ({
   rule,
   criteria,
   subsectionNamesByUsageKey,
+  canEdit = false,
+  getInlineValidationMessage,
 }: RuleBoxProps) => {
-  const { focus, focusRuleBox } = useCompetencyAssociations();
+  const intl = useIntl();
+  const { focus, focusRuleBox, updateRuleScore } = useCompetencyAssociations();
   const isFocused = focus?.groupId === groupId && focus?.ruleKey === ruleKey;
   const ref = useRef<HTMLDivElement>(null);
 
@@ -44,16 +51,9 @@ const RuleBox = ({
     }
   }, [isFocused]);
 
-  const handleClick: React.MouseEventHandler = () => {
-    focusRuleBox(groupId, ruleKey);
-  };
-
-  const handleKeyDown: React.KeyboardEventHandler = (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      focusRuleBox(groupId, ruleKey);
-    }
-  };
+  const handleScoreChange = (rulePayload: GradeRulePayload): Promise<void> => (
+    updateRuleScore(groupId, criteria.map((criterion) => criterion.id), rulePayload)
+  );
 
   return (
     // Interactive/focus/scroll semantics live on this wrapping `<div>`, not
@@ -62,15 +62,22 @@ const RuleBox = ({
     <div
       ref={ref}
       className={classNames('rule-box', { 'rule-box--focused': isFocused })}
-      role="button"
-      tabIndex={0}
-      aria-pressed={isFocused}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
     >
       <Card>
         <Card.Body className="rule-box__body">
-          <ScoreThresholdField rulePayload={rule.rulePayload} />
+          <button
+            type="button"
+            className="stretched-link rule-box__select-button"
+            aria-current={isFocused}
+            onClick={() => focusRuleBox(groupId, ruleKey)}
+          >
+            <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
+          </button>
+          <ScoreThresholdField
+            rulePayload={rule.rulePayload}
+            onChange={canEdit ? handleScoreChange : undefined}
+            getInlineValidationMessage={canEdit ? getInlineValidationMessage : undefined}
+          />
           <CriterionChipList criteria={criteria} subsectionNamesByUsageKey={subsectionNamesByUsageKey} />
         </Card.Body>
       </Card>

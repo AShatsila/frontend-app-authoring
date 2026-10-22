@@ -1,4 +1,9 @@
-import { initializeMocks, render, screen } from '@src/testUtils';
+import {
+  initializeMocks,
+  render,
+  screen,
+  userEvent,
+} from '@src/testUtils';
 import { MockCompetencyAssociationsProvider } from '../testHelpers';
 import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from '../data/types';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
@@ -67,7 +72,7 @@ describe('<RuleBoxList />', () => {
 
   it('renders two criteria sharing a rule as one box, and a different rule as a second box', () => {
     const index = buildCompetencyCriteriaGroupsIndex(response);
-    render(
+    const { container } = render(
       <MockCompetencyAssociationsProvider>
         <RuleBoxList
           groupId={10}
@@ -82,7 +87,7 @@ describe('<RuleBoxList />', () => {
       </MockCompetencyAssociationsProvider>,
     );
 
-    const boxes = screen.getAllByRole('button');
+    const boxes = container.querySelectorAll('.rule-box');
     expect(boxes).toHaveLength(2);
     // Box 1 (min criterion id 101) holds both Subsection A and B.
     expect(boxes[0]).toHaveTextContent('Subsection A');
@@ -95,7 +100,7 @@ describe('<RuleBoxList />', () => {
 
   it('marks only the box matching the context focus as focused', () => {
     const index = buildCompetencyCriteriaGroupsIndex(response);
-    render(
+    const { container } = render(
       <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: 'grade:lte:0.9:percent' } }}>
         <RuleBoxList
           groupId={10}
@@ -106,15 +111,16 @@ describe('<RuleBoxList />', () => {
       </MockCompetencyAssociationsProvider>,
     );
 
-    const boxes = screen.getAllByRole('button');
+    const boxes = container.querySelectorAll('.rule-box');
     expect(boxes[0].className).not.toContain('rule-box--focused');
     expect(boxes[1].className).toContain('rule-box--focused');
   });
 
   it('renders no box as focused, without throwing, when the focused key matches none rendered', () => {
     const index = buildCompetencyCriteriaGroupsIndex(response);
-    expect(() =>
-      render(
+    let container!: HTMLElement;
+    expect(() => {
+      ({ container } = render(
         <MockCompetencyAssociationsProvider
           value={{ focus: { groupId: 10, ruleKey: 'stale-key-that-matches-nothing' } }}
         >
@@ -125,11 +131,75 @@ describe('<RuleBoxList />', () => {
             subsectionNamesByUsageKey={{}}
           />
         </MockCompetencyAssociationsProvider>,
-      )
-    ).not.toThrow();
+      ));
+    }).not.toThrow();
 
-    screen.getAllByRole('button').forEach((box) => {
+    container.querySelectorAll('.rule-box').forEach((box) => {
       expect(box.className).not.toContain('rule-box--focused');
+    });
+  });
+
+  describe('duplicate-score validation (real getInlineValidationMessage, not mocked)', () => {
+    const duplicateCheckResponse: CompetencyCriteriaGroupsResponse = {
+      groups: [
+        {
+          id: 10,
+          parentId: null,
+          tagId: 42,
+          courseKey: null,
+          name: 'leaf',
+          ordering: 0,
+          logicOperator: 'AND',
+          archived: false,
+        },
+      ],
+      criteria: [
+        {
+          id: 201,
+          objectId: 'block-x',
+          groupId: 10,
+          ruleProfileId: null,
+          ruleTypeOverride: 'grade',
+          rulePayloadOverride: { op: 'gte', value: 0.6, scale: 'percent' },
+        },
+        {
+          id: 202,
+          objectId: 'block-y',
+          groupId: 10,
+          ruleProfileId: null,
+          ruleTypeOverride: 'grade',
+          rulePayloadOverride: { op: 'gte', value: 0.8, scale: 'percent' },
+        },
+      ],
+    };
+
+    const renderEditableBoxes = (updateRuleScore: jest.Mock) => {
+      const index = buildCompetencyCriteriaGroupsIndex(duplicateCheckResponse);
+      return render(
+        <MockCompetencyAssociationsProvider value={{ updateRuleScore }}>
+          <RuleBoxList
+            groupId={10}
+            index={index}
+            systemDefaultProfile={systemDefaultProfile}
+            subsectionNamesByUsageKey={{}}
+            canEdit
+          />
+        </MockCompetencyAssociationsProvider>,
+      );
+    };
+
+    it('refuses to save a score that would duplicate another box\'s own rule in the same group', async () => {
+      const user = userEvent.setup();
+      const updateRuleScore = jest.fn().mockResolvedValue(undefined);
+      renderEditableBoxes(updateRuleScore);
+
+      const [firstBoxInput] = screen.getAllByRole('textbox');
+      await user.clear(firstBoxInput);
+      await user.type(firstBoxInput, '80');
+      await user.keyboard('{Enter}');
+
+      expect(updateRuleScore).not.toHaveBeenCalled();
+      expect(screen.getByText('Another rule box in this group already uses this score.')).toBeInTheDocument();
     });
   });
 });
