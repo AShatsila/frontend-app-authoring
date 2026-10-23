@@ -44,6 +44,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     canEditCourse,
     competencyExternalId,
     isAssociating,
+    groupsIndex,
     isDeleting,
     removeAssociation,
     keyboardFocusRequest,
@@ -54,15 +55,19 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const isAssociated = associatedObjectIds.has(subsection.id);
   const canAssociate = status === 'success' && canEditCourse(courseId);
 
+  // An unassociated row holds the associate button and an associated one the remove button, so whichever is
+  // mounted takes a focus request.
   const associateButtonRef = useRef<HTMLButtonElement>(null);
+  const removeButtonRef = useRef<HTMLButtonElement>(null);
   const takesKeyboardFocus = keyboardFocusRequest?.kind === 'subsection'
     && keyboardFocusRequest.objectId === subsection.id;
   useEffect(() => {
-    if (takesKeyboardFocus && associateButtonRef.current) {
-      associateButtonRef.current.focus();
+    const target = isAssociated ? removeButtonRef.current : associateButtonRef.current;
+    if (takesKeyboardFocus && target) {
+      target.focus();
       consumeKeyboardFocusRequest();
     }
-  }, [takesKeyboardFocus, consumeKeyboardFocusRequest, isAssociated]);
+  }, [takesKeyboardFocus, consumeKeyboardFocusRequest, isAssociated, canAssociate]);
 
   const pillContent = (
     <>
@@ -90,6 +95,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
           <>
             <span className="course-search-browse__subsection-pill-divider" aria-hidden="true" />
             <IconButton
+              ref={removeButtonRef}
               src={Cancel}
               size="inline"
               invertColors
@@ -97,7 +103,13 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
                 subsectionName: subsection.displayName,
               })}
               disabled={isDeleting}
-              onClick={() => removeAssociation(subsection.id, 'browse')}
+              onClick={() => {
+                const criterion = [...(groupsIndex?.criteriaByGroupId.values() ?? [])].flat()
+                  .find((candidate) => candidate.objectId === subsection.id);
+                if (criterion) {
+                  removeAssociation(criterion.id, 'subsection');
+                }
+              }}
             />
           </>
         )}

@@ -136,21 +136,15 @@ const TestConsumer = () => {
     ['Delete group 10', () => ctx.deleteGroup(10)],
     ['Delete group 20', () => ctx.deleteGroup(20)],
     ['Remove placeholder group', () => ctx.removePlaceholderGroup()],
-    ['Remove existing-sub chip', () => ctx.removeAssociation('existing-sub', 'chip')],
-    ['Remove sub-a chip', () => ctx.removeAssociation('sub-a', 'chip')],
-    ['Remove sub-a from browse', () => ctx.removeAssociation('sub-a', 'browse')],
+    ['Remove existing-sub chip', () => ctx.removeAssociation(900, 'group')],
+    ['Remove sub-a chip', () => ctx.removeAssociation(901, 'group')],
+    ['Remove criterion 902', () => ctx.removeAssociation(902, 'group')],
+    ['Remove sub-a from browse', () => ctx.removeAssociation(901, 'subsection')],
     [
       'Remove sub-a twice',
       () => {
-        ctx.removeAssociation('sub-a', 'chip');
-        ctx.removeAssociation('sub-a', 'chip');
-      },
-    ],
-    [
-      'Remove sub-a then delete group 11',
-      () => {
-        ctx.removeAssociation('sub-a', 'chip');
-        ctx.deleteGroup(11);
+        ctx.removeAssociation(901, 'group');
+        ctx.removeAssociation(901, 'group');
       },
     ],
     ['Add placeholder rule box in group 10', () => ctx.addPlaceholderRuleBox(10)],
@@ -179,6 +173,11 @@ const TestConsumer = () => {
       <p>Status: {ctx.status}</p>
       <p>Has placeholder: {String(ctx.hasPlaceholder)}</p>
       <p>Deleting: {String(ctx.isDeleting)}</p>
+      <p>
+        Criterion ids: {JSON.stringify(
+          ctx.groupsIndex?.criteriaByGroupId && [...ctx.groupsIndex.criteriaByGroupId.values()].flat().map((c) => c.id),
+        )}
+      </p>
       <p>Keyboard request: {JSON.stringify(ctx.keyboardFocusRequest)}</p>
       <p>Duplicate rejected: {String(ctx.placeholderDuplicateRejected)}</p>
       <p>Placeholder: {JSON.stringify(ctx.placeholder)}</p>
@@ -1338,15 +1337,30 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
     });
 
-    it('treats a 404 as success: no toast', async () => {
+    it('treats a 404 as success when the refetch no longer has the criterion: no toast', async () => {
       axiosMock.onDelete(deleteUrl).reply(404);
       const reads = mockGroupsReads(twoBoxesInGroupResponse, afterRemovingSubAResponse);
+      renderProvider();
+      await waitForSuccess();
+      await click('Focus group 10');
+
+      await clickAndSettle('Remove sub-a chip', reads);
+
+      expect(mockShowToast).not.toHaveBeenCalled();
+      expect(screen.getByText('Criterion ids: [903]')).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 10, expand: false }))).toBeInTheDocument();
+    });
+
+    it('toasts on a 404 when the refetch still has the criterion', async () => {
+      axiosMock.onDelete(deleteUrl).reply(404);
+      const reads = mockGroupsReads(twoBoxesInGroupResponse, twoBoxesInGroupResponse);
       renderProvider();
       await waitForSuccess();
 
       await clickAndSettle('Remove sub-a chip', reads);
 
-      expect(mockShowToast).not.toHaveBeenCalled();
+      expectToast('Couldn\'t remove the association. The panel was refreshed.', ErrorIcon);
+      expect(screen.getByText('Criterion ids: [901,903]')).toBeInTheDocument();
     });
 
     it('toasts on a failure and requests no keyboard focus, since the association is still there', async () => {
@@ -1362,18 +1376,58 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });
 
-    it('drops a second call made before the first settles, so one request is sent', async () => {
+    it('toasts on a failure and still returns focus to the subsection row', async () => {
+      axiosMock.onDelete(deleteUrl).reply(500);
+      const reads = mockGroupsReads(twoBoxesInGroupResponse, twoBoxesInGroupResponse);
+      renderProvider();
+      await waitForSuccess();
+
+      await clickAndSettle('Remove sub-a from browse', reads);
+
+      expectToast('Couldn\'t remove the association. The panel was refreshed.', ErrorIcon);
+      expect(screen.getByText(keyboardRequest({ kind: 'subsection', objectId: 'sub-a' }))).toBeInTheDocument();
+    });
+
+    it('deletes the criterion with the given id when another group holds one for the same subsection', async () => {
+      const urlOf902 = apiUrls.deleteCompetencyCriterion(tagId, 902);
+      axiosMock.onDelete(urlOf902).reply(200, { id: 902 });
+      const sameSubsectionInTwoGroups = {
+        ...twoGroupsResponse,
+        criteria: [criterion(901, 'sub-a', 10), criterion(902, 'sub-a', 11)],
+      };
+      const reads = mockGroupsReads(sameSubsectionInTwoGroups, {
+        ...sameSubsectionInTwoGroups,
+        criteria: sameSubsectionInTwoGroups.criteria.slice(0, 1),
+      });
+      renderProvider();
+      await waitForSuccess();
+
+      await clickAndSettle('Remove criterion 902', reads);
+
+      expect(axiosMock.history.delete).toHaveLength(1);
+      expect(axiosMock.history.delete[0].url).toEqual(urlOf902);
+      expect(screen.getByText('Criterion ids: [901]')).toBeInTheDocument();
+    });
+
+    it('drops a second call made while the first is still deleting, so one request is sent', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, { id: 901 });
       const reads = mockGroupsReads(twoBoxesInGroupResponse, afterRemovingSubAResponse);
       renderProvider();
       await waitForSuccess();
+      await click('Remove sub-a chip');
+      expect(await screen.findByText('Deleting: true')).toBeInTheDocument();
 
-      await clickAndSettle('Remove sub-a twice', reads);
+      await click('Remove sub-a chip');
+      await waitFor(() => expect(groupsReads()).toHaveLength(2));
+      await act(async () => {
+        reads.release();
+      });
 
+      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expect(axiosMock.history.delete).toHaveLength(1);
     });
 
-    it('requests keyboard focus for the subsection row when the removal came from Browse Courses', async () => {
+    it('requests keyboard focus for the subsection row when the removal came from the content panel', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, { id: 901 });
       const reads = mockGroupsReads(twoBoxesInGroupResponse, afterRemovingSubAResponse);
       renderProvider();
@@ -1383,18 +1437,6 @@ describe('CompetencyAssociationsProvider', () => {
       await clickAndSettle('Remove sub-a from browse', reads);
 
       expect(screen.getByText(keyboardRequest({ kind: 'subsection', objectId: 'sub-a' }))).toBeInTheDocument();
-    });
-
-    it('blocks a group delete while a removal is in flight', async () => {
-      axiosMock.onDelete(deleteUrl).reply(200, { id: 901 });
-      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      renderProvider();
-      await waitForSuccess();
-
-      await clickAndSettle('Remove sub-a then delete group 11', reads);
-
-      expect(axiosMock.history.delete).toHaveLength(1);
-      expect(axiosMock.history.delete[0].url).toEqual(deleteUrl);
     });
   });
 

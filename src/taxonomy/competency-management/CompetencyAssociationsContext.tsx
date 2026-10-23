@@ -115,8 +115,11 @@ export interface CompetencyAssociationsContextBase {
   deleteGroup: (groupId: number) => void;
   /** True while any delete, or its refetch, is in flight. */
   isDeleting: boolean;
-  /** Deletes this subsection's criterion; keyboard focus returns to the group box (`'chip'`) or the row (`'browse'`). */
-  removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
+  /** Deletes the criterion with this id, and drops the call during another delete. Keyboard focus returns to the
+   * group box or the subsection row. When the group is removed with it, `deleteGroup`'s neighbor and empty-state
+   * logic applies.
+   */
+  removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => void;
   /** Discards the placeholder group without a request and focuses the last saved group in its course group. */
   removePlaceholderGroup: () => void;
   keyboardFocusRequest: KeyboardFocusRequest | null;
@@ -466,8 +469,6 @@ export const CompetencyAssociationsProvider = ({
   const { mutate: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
   const isDeleting = isGroupDeletePending || isCriterionDeletePending;
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the delete controls.
-  const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
   // respect a click made while the request was in flight.
   const focusRef = useRef(focus);
@@ -798,10 +799,9 @@ export const CompetencyAssociationsProvider = ({
   }, [queryClient, tagId, focusGroupAfterRemoval]);
 
   const deleteGroup = useCallback((groupId: number) => {
-    if (isDeleteInFlightRef.current || !groupsIndex) {
+    if (!groupsIndex) {
       return;
     }
-    isDeleteInFlightRef.current = true;
     const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
       onError: (deleteError) => {
@@ -811,38 +811,38 @@ export const CompetencyAssociationsProvider = ({
         }
       },
       onSettled: () => {
-        isDeleteInFlightRef.current = false;
         resolveFocusAfterDelete(groupId, snapshot);
       },
     });
   }, [groupsIndex, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveFocusAfterDelete, showToast, intl]);
 
-  const removeAssociation = useCallback((objectId: string, origin: 'chip' | 'browse') => {
-    const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === objectId);
-    if (isDeleteInFlightRef.current || !groupsIndex || !criterion) {
+  const removeAssociation = useCallback((criterionId: number, returnFocusTo: 'group' | 'subsection') => {
+    const criterion = groupsQuery.data?.criteria.find((c) => c.id === criterionId);
+    if (isDeleting || !groupsIndex || !criterion) {
       return;
     }
-    isDeleteInFlightRef.current = true;
     const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
-    const { groupId } = criterion;
-    mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
-      onError: (deleteError) => {
-        if (deleteError.response?.status !== 404) {
-          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage), undefined, undefined, ErrorIcon);
-        }
-      },
+    const { groupId, objectId } = criterion;
+    mutateDeleteCriterion({ tagId, criterionId }, {
       onSettled: () => {
-        isDeleteInFlightRef.current = false;
         resolveFocusAfterDelete(groupId, snapshot);
-        const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+        const dataAfterRemoval = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
           competencyQueryKeys.competencyCriteriaGroups(tagId),
         );
-        if (!freshData || freshData.criteria.some((c) => c.id === criterion.id)) {
+        if (!dataAfterRemoval) {
           return;
         }
-        if (origin === 'browse') {
+        // A 404 leaves the criterion gone, so a failure shows only when it is still there after the refetch.
+        if (dataAfterRemoval.criteria.some((c) => c.id === criterionId)) {
+          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage), undefined, undefined, ErrorIcon);
+          if (returnFocusTo === 'subsection') {
+            dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: { kind: 'subsection', objectId } });
+          }
+          return;
+        }
+        if (returnFocusTo === 'subsection') {
           dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: { kind: 'subsection', objectId } });
-        } else if (freshData.groups.some((group) => group.id === groupId)) {
+        } else if (dataAfterRemoval.groups.some((group) => group.id === groupId)) {
           dispatch({
             type: 'keyboardFocusRequested',
             keyboardFocusRequest: { kind: 'group', groupId, expand: false },
@@ -852,6 +852,7 @@ export const CompetencyAssociationsProvider = ({
     });
   }, [
     groupsQuery.data,
+    isDeleting,
     groupsIndex,
     accessibleCourseGroups,
     tagId,
