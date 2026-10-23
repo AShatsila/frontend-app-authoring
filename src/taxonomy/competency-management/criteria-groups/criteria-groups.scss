@@ -144,6 +144,9 @@
   // truncation properties land there, not on the chip's own root element.
   .criterion-chip {
     max-width: 160px;
+    // Layers above `.rule-box__select-button`'s stretched overlay so the remove icon gets the click.
+    position: relative;
+    z-index: 1;
 
     .pgn__chip__label {
       overflow: hidden;

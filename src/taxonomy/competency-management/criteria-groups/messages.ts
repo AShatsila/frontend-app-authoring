@@ -73,7 +73,7 @@ const messages = defineMessages({
   },
   removeCriterionButtonLabel: {
     id: 'course-authoring.competency-management.criteria-groups.remove-criterion-button-label',
-    defaultMessage: 'Remove {subsectionName}',
+    defaultMessage: 'Remove the association with {subsectionName}',
     description: 'Accessible label for the "x" icon on a rule box chip that removes the subsection\'s association '
       + 'with the competency. {subsectionName} is the name of the subsection.',
   },

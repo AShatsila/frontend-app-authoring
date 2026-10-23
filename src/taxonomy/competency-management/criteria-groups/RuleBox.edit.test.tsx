@@ -81,4 +81,25 @@ describe('<RuleBox /> editing (#794)', () => {
 
     expect(focusRuleBox).not.toHaveBeenCalled();
   });
+
+  it('shows each chip\'s remove button only when the author can edit', () => {
+    const { unmount } = render70PercentRuleBox({}, { canEdit: true });
+    expect(screen.getByRole('button', { name: 'Remove the association with Subsection A' })).toBeInTheDocument();
+    unmount();
+
+    render70PercentRuleBox({}, { canEdit: false });
+    expect(screen.queryByRole('button', { name: 'Remove the association with Subsection A' })).not.toBeInTheDocument();
+  });
+
+  it('removes the chip\'s criterion without selecting the rule box when its remove button is clicked', async () => {
+    const user = userEvent.setup();
+    const focusRuleBox = jest.fn();
+    const removeAssociation = jest.fn();
+    render70PercentRuleBox({ focusRuleBox, removeAssociation }, { canEdit: true });
+
+    await user.click(screen.getByRole('button', { name: 'Remove the association with Subsection A' }));
+
+    expect(removeAssociation).toHaveBeenCalledWith(1, 'group');
+    expect(focusRuleBox).not.toHaveBeenCalled();
+  });
 });

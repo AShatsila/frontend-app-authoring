@@ -131,8 +131,9 @@ export async function deleteCompetencyCriteriaGroup(tagId: number, groupId: numb
 }
 
 /**
- * Delete one criterion (`#710`). The server removes any group this empties,
- * cascading up through its ancestors, so callers re-read the groups.
+ * Delete one criterion (`#710`). A group this empties no longer appears in the
+ * criteria-groups GET (it may be archived), cascading up through its ancestors,
+ * so callers re-read the groups.
  * @param tagId The competency (tag) the criterion belongs to.
  * @param criterionId The criterion to delete.
  */
