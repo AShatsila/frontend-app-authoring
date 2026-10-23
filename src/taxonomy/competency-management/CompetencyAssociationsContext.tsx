@@ -146,10 +146,11 @@ export interface CompetencyAssociationsContextValue {
   deleteGroup: (groupId: number) => void;
   /** True while any delete, or its refetch, is in flight. */
   isDeleting: boolean;
-  /** Deletes this subsection's criterion; keyboard focus returns to the
-   * group box (`'chip'`) or the row (`'browse'`).
+  /** Deletes the criterion with this id; a call during another delete is dropped.
+   * Focus returns to the group box or the subsection row; when the group is
+   * removed with it, the neighbor/empty logic of `deleteGroup` applies.
    */
-  removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
+  removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => void;
   /** Discards the placeholder group without a request and selects the last
    * saved group in its course-level group, or nothing when it has none.
    */
@@ -305,8 +306,6 @@ export const CompetencyAssociationsProvider = ({
   const { mutate: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
   const isDeleting = isGroupDeletePending || isCriterionDeletePending;
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the delete controls.
-  const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the
   // latest selection and placeholder through refs to respect a click made
   // while the request was in flight.
@@ -599,47 +598,49 @@ export const CompetencyAssociationsProvider = ({
     setKeyboardFocusRequest(shouldRequestKeyboardFocus ? { kind: 'group', groupId, expand: true } : null);
   }, [systemDefaultProfile]);
 
-  const resolveSelectionAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
-    const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
-      competencyQueryKeys.competencyCriteriaGroups(tagId),
-    );
-    if (!freshData) {
-      return;
-    }
-    const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
-    const currentSelection = selectionRef.current;
-    const target = selectionTargetAfterRemoval(
-      snapshot,
-      freshIndex,
-      currentSelection,
-      placeholderRef.current.parentRuleGroupId,
-    );
-    // A failed or no-op delete leaves the menu button in the DOM, which
-    // keeps the browser's focus; only a vanished group strands it.
-    const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
-
-    if (target === 'keep-current') {
-      const selectedGroupId = currentSelection?.groupId ?? null;
-      const shouldReturnKeyboardFocusToSelection = isDeletedGroupGone && selectedGroupId !== null;
-      if (shouldReturnKeyboardFocusToSelection) {
-        setKeyboardFocusRequest({ kind: 'group', groupId: selectedGroupId, expand: false });
+  const resolveSelectionAfterDelete = useCallback(
+    (deletedGroupId: number, groupOrderBeforeDelete: PageOrderSnapshot) => {
+      const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+        competencyQueryKeys.competencyCriteriaGroups(tagId),
+      );
+      if (!freshData) {
+        return;
       }
-    } else if (target === null) {
-      const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex);
-      setSelection(null);
-      setDuplicateRejected(false);
-      setKeyboardFocusRequest(isPanelEmpty ? { kind: 'empty' } : null);
-    } else {
-      selectGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
-    }
-  }, [queryClient, tagId, selectGroupAfterRemoval]);
+      const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
+      const currentSelection = selectionRef.current;
+      const target = selectionTargetAfterRemoval(
+        groupOrderBeforeDelete,
+        freshIndex,
+        currentSelection,
+        placeholderRef.current.parentRuleGroupId,
+      );
+      // A failed or no-op delete leaves the menu button in the DOM, which
+      // keeps the browser's focus; only a vanished group strands it.
+      const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
+
+      if (target === 'keep-current') {
+        const selectedGroupId = currentSelection?.groupId ?? null;
+        const shouldReturnKeyboardFocusToSelection = isDeletedGroupGone && selectedGroupId !== null;
+        if (shouldReturnKeyboardFocusToSelection) {
+          setKeyboardFocusRequest({ kind: 'group', groupId: selectedGroupId, expand: false });
+        }
+      } else if (target === null) {
+        const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(groupOrderBeforeDelete, freshIndex);
+        setSelection(null);
+        setDuplicateRejected(false);
+        setKeyboardFocusRequest(isPanelEmpty ? { kind: 'empty' } : null);
+      } else {
+        selectGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
+      }
+    },
+    [queryClient, tagId, selectGroupAfterRemoval],
+  );
 
   const deleteGroup = useCallback((groupId: number) => {
-    if (isDeleteInFlightRef.current || !index) {
+    if (!index) {
       return;
     }
-    isDeleteInFlightRef.current = true;
-    const snapshot = snapshotPageOrder(index, accessibleCourseGroups);
+    const groupOrderBeforeDelete = snapshotPageOrder(index, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
       onError: (error) => {
         // 404: the group is already gone, which is what the author asked for.
@@ -648,63 +649,72 @@ export const CompetencyAssociationsProvider = ({
         }
       },
       onSettled: () => {
-        isDeleteInFlightRef.current = false;
-        resolveSelectionAfterDelete(groupId, snapshot);
+        resolveSelectionAfterDelete(groupId, groupOrderBeforeDelete);
       },
     });
   }, [index, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveSelectionAfterDelete, showToast, intl]);
 
-  const removeAssociation = useCallback((objectId: string, origin: 'chip' | 'browse') => {
-    const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === objectId);
-    if (isDeleteInFlightRef.current || !index || !criterion) {
+  // Rule boxes are derived from criteria, so removing a box's last chip leaves a selection key naming no box.
+  const moveSelectionOffVanishedRuleBox = useCallback((
+    groupId: number,
+    indexAfterRemoval: CompetencyCriteriaGroupsIndex,
+  ) => {
+    if (!systemDefaultProfile) {
       return;
     }
-    isDeleteInFlightRef.current = true;
-    const snapshot = snapshotPageOrder(index, accessibleCourseGroups);
-    const { groupId } = criterion;
-    mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
-      onError: (error) => {
-        if (error.response?.status !== 404) {
-          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
-        }
-      },
+    const remainingRuleKeys = ruleBoxesForGroup(groupId, indexAfterRemoval, systemDefaultProfile).map((box) => box.key);
+    setSelection((prev) => (
+      prev?.groupId === groupId && prev.ruleKey !== null && !remainingRuleKeys.includes(prev.ruleKey)
+        ? { groupId, ruleKey: remainingRuleKeys[0] ?? null }
+        : prev
+    ));
+  }, [systemDefaultProfile]);
+
+  const removeAssociation = useCallback((criterionId: number, returnFocusTo: 'group' | 'subsection') => {
+    const criterion = groupsQuery.data?.criteria.find((c) => c.id === criterionId);
+    if (isDeleting || !index || !criterion) {
+      return;
+    }
+    const groupOrderBeforeDelete = snapshotPageOrder(index, accessibleCourseGroups);
+    const { groupId, objectId } = criterion;
+    mutateDeleteCriterion({ tagId, criterionId }, {
       onSettled: () => {
-        isDeleteInFlightRef.current = false;
-        resolveSelectionAfterDelete(groupId, snapshot);
-        const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+        resolveSelectionAfterDelete(groupId, groupOrderBeforeDelete);
+        const dataAfterRemoval = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
           competencyQueryKeys.competencyCriteriaGroups(tagId),
         );
-        if (!freshData || freshData.criteria.some((c) => c.id === criterion.id)) {
+        if (!dataAfterRemoval) {
           return;
         }
-        const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
-        const groupSurvived = freshIndex.groupsById.has(groupId);
-        if (groupSurvived && systemDefaultProfile) {
-          // Rule boxes are derived from criteria, so removing a box's last chip
-          // leaves a focused key that names no box.
-          const keys = ruleBoxesForGroup(groupId, freshIndex, systemDefaultProfile).map((box) => box.key);
-          setSelection((prev) => (
-            prev?.groupId === groupId && prev.ruleKey !== null && !keys.includes(prev.ruleKey)
-              ? { groupId, ruleKey: keys[0] ?? null }
-              : prev
-          ));
+        if (dataAfterRemoval.criteria.some((c) => c.id === criterionId)) {
+          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
+          if (returnFocusTo === 'subsection') {
+            setKeyboardFocusRequest({ kind: 'subsection', objectId });
+          }
+          return;
         }
-        if (origin === 'browse') {
+        const indexAfterRemoval = buildCompetencyCriteriaGroupsIndex(dataAfterRemoval);
+        const isGroupStillPresent = indexAfterRemoval.groupsById.has(groupId);
+        if (isGroupStillPresent) {
+          moveSelectionOffVanishedRuleBox(groupId, indexAfterRemoval);
+        }
+        if (returnFocusTo === 'subsection') {
           setKeyboardFocusRequest({ kind: 'subsection', objectId });
-        } else if (groupSurvived) {
+        } else if (isGroupStillPresent) {
           setKeyboardFocusRequest({ kind: 'group', groupId, expand: false });
         }
       },
     });
   }, [
     groupsQuery.data,
+    isDeleting,
     index,
     accessibleCourseGroups,
     tagId,
     mutateDeleteCriterion,
     resolveSelectionAfterDelete,
+    moveSelectionOffVanishedRuleBox,
     queryClient,
-    systemDefaultProfile,
     showToast,
     intl,
   ]);
