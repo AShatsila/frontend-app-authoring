@@ -41,7 +41,7 @@ describe('<CriterionChipList />', () => {
   it('shows no remove button on a chip unless canEdit is set', () => {
     renderList({ criteria: [criterion(1, 'block-a', 10)], subsectionNamesByUsageKey: { 'block-a': 'Subsection A' } });
 
-    expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Remove the association/ })).not.toBeInTheDocument();
   });
 
   it('removes the association of the chip whose remove button is clicked', async () => {
@@ -56,10 +56,10 @@ describe('<CriterionChipList />', () => {
       { removeAssociation },
     );
 
-    await user.click(screen.getByRole('button', { name: 'Remove Subsection B' }));
+    await user.click(screen.getByRole('button', { name: 'Remove the association with Subsection B' }));
 
     expect(removeAssociation).toHaveBeenCalledTimes(1);
-    expect(removeAssociation).toHaveBeenCalledWith('block-b', 'chip');
+    expect(removeAssociation).toHaveBeenCalledWith(2, 'group');
   });
 
   it('takes the remove button out of the tab order while a delete is in flight', () => {
@@ -72,6 +72,7 @@ describe('<CriterionChipList />', () => {
       { isDeleting: true },
     );
 
-    expect(screen.getByRole('button', { name: 'Remove Subsection A' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('button', { name: 'Remove the association with Subsection A' }))
+      .toHaveAttribute('tabindex', '-1');
   });
 });

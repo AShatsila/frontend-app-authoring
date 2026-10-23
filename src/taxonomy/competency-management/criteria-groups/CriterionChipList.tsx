@@ -27,7 +27,7 @@ const CriterionChipList = ({ criteria, subsectionNamesByUsageKey, canEdit = fals
           displayName={subsectionNamesByUsageKey[criterion.objectId] ??
             intl.formatMessage(messages.unknownSubsectionLabel)}
           disabled={isDeleting}
-          onRemove={canEdit ? () => removeAssociation(criterion.objectId, 'chip') : undefined}
+          onRemove={canEdit ? () => removeAssociation(criterion.id, 'group') : undefined}
         />
       ))}
     </div>

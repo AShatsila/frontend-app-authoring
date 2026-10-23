@@ -7,7 +7,7 @@ import {
   userEvent,
   within,
 } from '@src/testUtils';
-import { MockCompetencyAssociationsProvider } from '../__mocks__';
+import { criterion, MockCompetencyAssociationsProvider, singleGroupResponse } from '../__mocks__';
 import type { MockCompetencyAssociationsOverrides } from '../__mocks__';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import CourseOutlineSubtree from './CourseOutlineSubtree';
@@ -355,14 +355,21 @@ describe('<CourseOutlineSubtree />', () => {
       const user = userEvent.setup();
       const removeAssociation = jest.fn();
       axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
-      renderSubtreeWithAssociations({ associatedObjectIds: new Set(['sub-1a']), removeAssociation });
+      renderSubtreeWithAssociations({
+        associatedObjectIds: new Set(['sub-1a']),
+        groupsIndex: buildCompetencyCriteriaGroupsIndex({
+          groups: singleGroupResponse.groups,
+          criteria: [criterion(77, 'sub-1a', 10)],
+        }),
+        removeAssociation,
+      });
       await expandFirstSection();
 
       await user.click(
         await screen.findByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }),
       );
 
-      expect(removeAssociation).toHaveBeenCalledWith('sub-1a', 'browse');
+      expect(removeAssociation).toHaveBeenCalledWith(77, 'subsection');
     });
 
     it('renders no remove button when the course cannot be edited', async () => {
@@ -381,6 +388,21 @@ describe('<CourseOutlineSubtree />', () => {
 
       expect(await screen.findByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }))
         .toBeDisabled();
+    });
+
+    it('focuses the remove button on a matching keyboard request while the row is still associated', async () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+      renderSubtreeWithAssociations({
+        associatedObjectIds: new Set(['sub-1a']),
+        keyboardFocusRequest: { kind: 'subsection', objectId: 'sub-1a' },
+        consumeKeyboardFocusRequest,
+      });
+      await expandFirstSection();
+
+      expect(await screen.findByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }))
+        .toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalled();
     });
 
     it('takes DOM focus on a matching subsection keyboard request, then consumes it', async () => {

@@ -176,8 +176,11 @@ export interface CompetencyAssociationsContextBase {
   isDeleting: boolean;
   /** Discards the placeholder group without a request and selects the last saved group in its course group. */
   discardPlaceholderGroup: () => void;
-  /** Deletes this subsection's criterion; keyboard focus returns to the group box (`'chip'`) or the row (`'browse'`). */
-  removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
+  /** Deletes the criterion with this id, and drops the call during another delete. Keyboard focus returns to the
+   * group box or the subsection row. When the group is removed with it, `deleteGroup`'s neighbor and empty-state
+   * logic applies.
+   */
+  removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => void;
   keyboardFocusRequest: KeyboardFocusRequest | null;
   /** Clears `keyboardFocusRequest` once the component it names has taken it. */
   consumeKeyboardFocusRequest: () => void;
@@ -1124,38 +1127,41 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
-  const removeAssociation = useCallback((objectId: string, origin: 'chip' | 'browse') => {
-    const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === objectId);
-    if (deleteInFlightGenerationRef.current === generation || !groupsIndex || !systemDefaultProfile || !criterion) {
+  const removeAssociation = useCallback((criterionId: number, returnFocusTo: 'group' | 'subsection') => {
+    const criterion = groupsQuery.data?.criteria.find((c) => c.id === criterionId);
+    if (isDeleting || !groupsIndex || !systemDefaultProfile || !criterion) {
       return;
     }
-    deleteInFlightGenerationRef.current = generation;
     const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
-    const { groupId } = criterion;
-    mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
-      onError: (deleteError) => {
-        if (deleteError.response?.status !== 404) {
-          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage), undefined, undefined, ErrorIcon);
-        }
-      },
+    const { groupId, objectId } = criterion;
+    mutateDeleteCriterion({ tagId, criterionId }, {
       onSettled: () => {
-        if (deleteInFlightGenerationRef.current === generation) {
-          deleteInFlightGenerationRef.current = null;
-        }
         resolveSelectionAfterDelete(groupId, snapshot, false, systemDefaultProfile);
-        const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+        const dataAfterRemoval = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
           competencyQueryKeys.competencyCriteriaGroups(tagId, listedCourseKeys),
         );
-        if (!freshData || freshData.criteria.some((c) => c.id === criterion.id)) {
+        if (!dataAfterRemoval) {
           return;
         }
-        if (origin === 'browse') {
+        // A 404 leaves the criterion gone, so a failure shows only when it is still there after the refetch.
+        if (dataAfterRemoval.criteria.some((c) => c.id === criterionId)) {
+          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage), undefined, undefined, ErrorIcon);
+          if (returnFocusTo === 'subsection') {
+            dispatch({
+              type: 'keyboardFocusRequested',
+              generation,
+              keyboardFocusRequest: { kind: 'subsection', objectId },
+            });
+          }
+          return;
+        }
+        if (returnFocusTo === 'subsection') {
           dispatch({
             type: 'keyboardFocusRequested',
             generation,
             keyboardFocusRequest: { kind: 'subsection', objectId },
           });
-        } else if (freshData.groups.some((group) => group.id === groupId)) {
+        } else if (dataAfterRemoval.groups.some((group) => group.id === groupId)) {
           dispatch({
             type: 'keyboardFocusRequested',
             generation,
@@ -1166,6 +1172,7 @@ export const CompetencyAssociationsProvider = ({
     });
   }, [
     groupsQuery.data,
+    isDeleting,
     groupsIndex,
     systemDefaultProfile,
     accessibleCourseGroups,
