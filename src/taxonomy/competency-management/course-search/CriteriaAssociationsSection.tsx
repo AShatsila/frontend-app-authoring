@@ -1,5 +1,6 @@
 import { useIntl } from '@edx/frontend-platform/i18n';
 
+import { LoadingSpinner } from '@src/generic/Loading';
 import { CourseGroupList } from '../criteria-groups';
 import messages from './messages';
 
@@ -8,6 +9,10 @@ export interface CriteriaAssociationsSectionProps {
    * Mastery For" line.
    */
   competencyName: string;
+  /** The status of the course list below this section. The groups are scoped
+   * to the listed courses, so they only render once that list has loaded.
+   */
+  courseListStatus: 'pending' | 'error' | 'success';
 }
 
 /** The associations section above "Courses & Content": the selected
@@ -19,7 +24,7 @@ export interface CriteriaAssociationsSectionProps {
  * label/mastery lines, which need `competencyName` directly since the
  * context doesn't track it.
  */
-const CriteriaAssociationsSection = ({ competencyName }: CriteriaAssociationsSectionProps) => {
+const CriteriaAssociationsSection = ({ competencyName, courseListStatus }: CriteriaAssociationsSectionProps) => {
   const intl = useIntl();
 
   return (
@@ -30,7 +35,12 @@ const CriteriaAssociationsSection = ({ competencyName }: CriteriaAssociationsSec
       <div className="course-search-browse__associations-mastery">
         {intl.formatMessage(messages.demonstrateMasteryForLabel, { competencyName })}
       </div>
-      <CourseGroupList />
+      {courseListStatus === 'pending' && (
+        <div className="d-flex justify-content-center py-3">
+          <LoadingSpinner size="sm" />
+        </div>
+      )}
+      {courseListStatus === 'success' && <CourseGroupList />}
     </div>
   );
 };

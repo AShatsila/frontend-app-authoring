@@ -41,6 +41,10 @@
     --pgn-size-search-field-border-radius: 6px;
   }
 
+  &__summary {
+    overflow-wrap: anywhere;
+  }
+
   // Plain layout wrapper holding the "Courses & Content" label and every
   // course row; each row is its own carded box (`&__group--course` below).
   &__container {
