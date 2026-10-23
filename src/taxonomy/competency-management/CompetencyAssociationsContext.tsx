@@ -149,10 +149,11 @@ export interface CompetencyAssociationsContextValue {
   deleteGroup: (groupId: number) => void;
   /** True while any delete, or its refetch, is in flight. */
   isDeleting: boolean;
-  /** Deletes this subsection's criterion; keyboard focus returns to the
-   * group box (`'chip'`) or the row (`'browse'`).
+  /** Deletes the criterion with this id; a call during another delete is dropped.
+   * Focus returns to the group box or the subsection row; when the group is
+   * removed with it, the neighbor/empty logic of `deleteGroup` applies.
    */
-  removeAssociation: (objectId: string, origin: 'chip' | 'browse') => void;
+  removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => void;
   /** Discards the placeholder group without a request and focuses the last
    * saved group in its course-level group, or nothing when it has none.
    */
@@ -618,7 +619,7 @@ export const CompetencyAssociationsProvider = ({
     setKeyboardFocusRequest(shouldRequestKeyboardFocus ? { kind: 'group', groupId, expand: true } : null);
   }, [systemDefaultProfile]);
 
-  const resolveFocusAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
+  const resolveFocusAfterDelete = useCallback((deletedGroupId: number, groupOrderBeforeDelete: PageOrderSnapshot) => {
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
       competencyQueryKeys.competencyCriteriaGroups(tagId),
     );
@@ -628,7 +629,7 @@ export const CompetencyAssociationsProvider = ({
     const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
     const currentFocus = focusRef.current;
     const target = focusTargetAfterRemoval(
-      snapshot,
+      groupOrderBeforeDelete,
       freshIndex,
       currentFocus,
       placeholderRef.current.parentRuleGroupId,
@@ -646,7 +647,9 @@ export const CompetencyAssociationsProvider = ({
       setFocus(null);
       setDuplicateRejected(false);
       setKeyboardFocusRequest(
-        isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex) ? { kind: 'empty' } : null,
+        isDeletedGroupGone && !hasVisibleOrNewCourseGroup(groupOrderBeforeDelete, freshIndex)
+          ? { kind: 'empty' }
+          : null,
       );
     } else {
       focusGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
@@ -658,7 +661,7 @@ export const CompetencyAssociationsProvider = ({
       return;
     }
     isDeleteInFlightRef.current = true;
-    const snapshot = snapshotPageOrder(index, accessibleCourseGroups);
+    const groupOrderBeforeDelete = snapshotPageOrder(index, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
       onError: (error) => {
         // 404: the group is already gone, which is what the author asked for.
@@ -668,49 +671,60 @@ export const CompetencyAssociationsProvider = ({
       },
       onSettled: () => {
         isDeleteInFlightRef.current = false;
-        resolveFocusAfterDelete(groupId, snapshot);
+        resolveFocusAfterDelete(groupId, groupOrderBeforeDelete);
       },
     });
   }, [index, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveFocusAfterDelete, showToast, intl]);
 
-  const removeAssociation = useCallback((objectId: string, origin: 'chip' | 'browse') => {
-    const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === objectId);
+  // Rule boxes are derived from criteria, so removing a box's last chip leaves a focus key naming no box.
+  const moveFocusOffVanishedRuleBox = useCallback((
+    groupId: number,
+    indexAfterRemoval: CompetencyCriteriaGroupsIndex,
+  ) => {
+    if (!systemDefaultProfile) {
+      return;
+    }
+    const remainingRuleKeys = ruleBoxesForGroup(groupId, indexAfterRemoval, systemDefaultProfile).map((box) => box.key);
+    setFocus((prev) => (
+      prev?.groupId === groupId && prev.ruleKey !== null && !remainingRuleKeys.includes(prev.ruleKey)
+        ? { groupId, ruleKey: remainingRuleKeys[0] ?? null }
+        : prev
+    ));
+  }, [systemDefaultProfile]);
+
+  const removeAssociation = useCallback((criterionId: number, returnFocusTo: 'group' | 'subsection') => {
+    const criterion = groupsQuery.data?.criteria.find((c) => c.id === criterionId);
     if (isDeleteInFlightRef.current || !index || !criterion) {
       return;
     }
     isDeleteInFlightRef.current = true;
-    const snapshot = snapshotPageOrder(index, accessibleCourseGroups);
-    const { groupId } = criterion;
-    mutateDeleteCriterion({ tagId, criterionId: criterion.id }, {
-      onError: (error) => {
-        if (error.response?.status !== 404) {
-          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
-        }
-      },
+    const groupOrderBeforeDelete = snapshotPageOrder(index, accessibleCourseGroups);
+    const { groupId, objectId } = criterion;
+    mutateDeleteCriterion({ tagId, criterionId }, {
       onSettled: () => {
         isDeleteInFlightRef.current = false;
-        resolveFocusAfterDelete(groupId, snapshot);
-        const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+        resolveFocusAfterDelete(groupId, groupOrderBeforeDelete);
+        const dataAfterRemoval = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
           competencyQueryKeys.competencyCriteriaGroups(tagId),
         );
-        if (!freshData || freshData.criteria.some((c) => c.id === criterion.id)) {
+        if (!dataAfterRemoval) {
           return;
         }
-        const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
-        const groupSurvived = freshIndex.groupsById.has(groupId);
-        if (groupSurvived && systemDefaultProfile) {
-          // Rule boxes are derived from criteria, so removing a box's last chip
-          // leaves a focused key that names no box.
-          const keys = ruleBoxesForGroup(groupId, freshIndex, systemDefaultProfile).map((box) => box.key);
-          setFocus((prev) => (
-            prev?.groupId === groupId && prev.ruleKey !== null && !keys.includes(prev.ruleKey)
-              ? { groupId, ruleKey: keys[0] ?? null }
-              : prev
-          ));
+        if (dataAfterRemoval.criteria.some((c) => c.id === criterionId)) {
+          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
+          if (returnFocusTo === 'subsection') {
+            setKeyboardFocusRequest({ kind: 'subsection', objectId });
+          }
+          return;
         }
-        if (origin === 'browse') {
+        const indexAfterRemoval = buildCompetencyCriteriaGroupsIndex(dataAfterRemoval);
+        const isGroupStillPresent = indexAfterRemoval.groupsById.has(groupId);
+        if (isGroupStillPresent) {
+          moveFocusOffVanishedRuleBox(groupId, indexAfterRemoval);
+        }
+        if (returnFocusTo === 'subsection') {
           setKeyboardFocusRequest({ kind: 'subsection', objectId });
-        } else if (groupSurvived) {
+        } else if (isGroupStillPresent) {
           setKeyboardFocusRequest({ kind: 'group', groupId, expand: false });
         }
       },
@@ -722,8 +736,8 @@ export const CompetencyAssociationsProvider = ({
     tagId,
     mutateDeleteCriterion,
     resolveFocusAfterDelete,
+    moveFocusOffVanishedRuleBox,
     queryClient,
-    systemDefaultProfile,
     showToast,
     intl,
   ]);
