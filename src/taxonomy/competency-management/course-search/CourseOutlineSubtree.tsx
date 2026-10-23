@@ -37,6 +37,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     associateSubsection,
     canEditCourse,
     competencyExternalId,
+    groupsQuery,
     index,
     systemDefaultProfile,
     isDeleting,
@@ -49,15 +50,19 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const isAssociated = associatedObjectIds.has(subsection.id);
   const canSelect = canEditCourse(courseId) && !!index && !!systemDefaultProfile;
 
+  // The row is a select button when unassociated and holds the remove icon
+  // button when associated; whichever is mounted takes the focus request.
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const removeButtonRef = useRef<HTMLButtonElement>(null);
   const takesKeyboardFocus = keyboardFocusRequest?.kind === 'subsection'
     && keyboardFocusRequest.objectId === subsection.id;
   useEffect(() => {
-    if (takesKeyboardFocus && buttonRef.current) {
-      buttonRef.current.focus();
+    const target = isAssociated ? removeButtonRef.current : buttonRef.current;
+    if (takesKeyboardFocus && target) {
+      target.focus();
       consumeKeyboardFocusRequest();
     }
-  }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
+  }, [takesKeyboardFocus, isAssociated, canSelect, consumeKeyboardFocusRequest]);
 
   const rowClassName = 'course-search-browse__subsection d-flex align-items-center justify-content-between';
   const rowContent = (
@@ -84,6 +89,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
           {isAssociated && canSelect ?
             (
               <IconButton
+                ref={removeButtonRef}
                 src={Cancel}
                 size="inline"
                 invertColors
@@ -91,7 +97,12 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
                   subsectionName: subsection.displayName,
                 })}
                 disabled={isDeleting}
-                onClick={() => removeAssociation(subsection.id, 'browse')}
+                onClick={() => {
+                  const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === subsection.id);
+                  if (criterion) {
+                    removeAssociation(criterion.id, 'subsection');
+                  }
+                }}
               />
             ) :
             (

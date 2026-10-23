@@ -154,6 +154,7 @@ export const useDeleteCompetencyCriteriaGroup = () => {
   });
 };
 
+// Invalidates on settle, not success: a failed delete may still have changed server state.
 export const useDeleteCompetencyCriterion = () => {
   const queryClient = useQueryClient();
   return useMutation<void, AxiosError, { tagId: number; criterionId: number; }>({

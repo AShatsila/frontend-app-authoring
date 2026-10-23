@@ -1,6 +1,6 @@
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Chip } from '@openedx/paragon';
-import { Close } from '@openedx/paragon/icons';
+import { Cancel } from '@openedx/paragon/icons';
 
 import messages from './messages';
 
@@ -23,7 +23,7 @@ const CriterionChip = ({ displayName, onRemove = undefined, disabled = false }: 
     <Chip
       variant="dark"
       className="criterion-chip mr-1"
-      iconAfter={onRemove ? Close : undefined}
+      iconAfter={onRemove ? Cancel : undefined}
       iconAfterAlt={onRemove
         ? intl.formatMessage(messages.removeCriterionButtonLabel, { subsectionName: displayName })
         : undefined}

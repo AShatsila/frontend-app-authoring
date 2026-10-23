@@ -1,6 +1,6 @@
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
-import type { CompetencyCriterion } from '../data/types';
+import { useCompetencyAssociations } from '@src/taxonomy/competency-management/CompetencyAssociationsContext';
+import type { CompetencyCriterion } from '@src/taxonomy/competency-management/data/types';
 import CriterionChip from './CriterionChip';
 import messages from './messages';
 
@@ -38,7 +38,7 @@ const CriterionChipList = ({ criteria, subsectionNamesByUsageKey, canEdit = fals
           displayName={subsectionNamesByUsageKey[criterion.objectId] ??
             intl.formatMessage(messages.unknownSubsectionLabel)}
           disabled={isDeleting}
-          onRemove={canEdit ? () => removeAssociation(criterion.objectId, 'chip') : undefined}
+          onRemove={canEdit ? () => removeAssociation(criterion.id, 'group') : undefined}
         />
       ))}
     </div>

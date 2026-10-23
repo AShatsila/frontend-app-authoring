@@ -1,6 +1,6 @@
 import { initializeMocks, render, screen, userEvent } from '@src/testUtils';
-import type { CompetencyCriterion } from '../data/types';
-import { MockCompetencyAssociationsProvider } from '../testHelpers';
+import type { CompetencyCriterion } from '@src/taxonomy/competency-management/data/types';
+import { MockCompetencyAssociationsProvider } from '@src/taxonomy/competency-management/testHelpers';
 import CriterionChipList from './CriterionChipList';
 
 const renderList = (
@@ -61,10 +61,10 @@ describe('<CriterionChipList />', () => {
   it('shows no remove button on a chip when the author can\'t edit', () => {
     renderList({ criteria: [buildCriterion()], subsectionNamesByUsageKey: { 'block-a': 'Subsection A' } });
 
-    expect(screen.queryByRole('button', { name: 'Remove Subsection A' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove the association with Subsection A' })).not.toBeInTheDocument();
   });
 
-  it('removes the clicked chip\'s association by its objectId', async () => {
+  it('removes the clicked chip\'s association by its criterion id', async () => {
     const user = userEvent.setup();
     const removeAssociation = jest.fn();
     renderList(
@@ -76,10 +76,10 @@ describe('<CriterionChipList />', () => {
       { removeAssociation },
     );
 
-    await user.click(screen.getByRole('button', { name: 'Remove Subsection B' }));
+    await user.click(screen.getByRole('button', { name: 'Remove the association with Subsection B' }));
 
     expect(removeAssociation).toHaveBeenCalledTimes(1);
-    expect(removeAssociation).toHaveBeenCalledWith('block-b', 'chip');
+    expect(removeAssociation).toHaveBeenCalledWith(2, 'group');
   });
 
   it('takes the remove button out of the tab order while a delete is in flight', () => {
@@ -92,6 +92,9 @@ describe('<CriterionChipList />', () => {
       { isDeleting: true },
     );
 
-    expect(screen.getByRole('button', { name: 'Remove Subsection A' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('button', { name: 'Remove the association with Subsection A' })).toHaveAttribute(
+      'tabindex',
+      '-1',
+    );
   });
 });
