@@ -38,6 +38,7 @@ import type {
 } from './data/types';
 import { courseKeyOfFocus, resolveCreateTarget } from './criterionTarget';
 import messages from './messages';
+import { usePlaceholderState } from './usePlaceholderState';
 import type { CompetencyCriteriaGroupsIndex } from './utils';
 import {
   associatedObjectIds,
@@ -203,19 +204,23 @@ export const CompetencyAssociationsProvider = ({
 
   const [prevTagId, setPrevTagId] = useState(tagId);
   const [focus, setFocus] = useState<CriteriaFocus | null>(null);
-  const [placeholder, setPlaceholder] = useState<CompetencyAssociationsContextValue['placeholder']>({
-    parentRuleGroupId: null,
-    logicOperator: 'OR',
-    rulePayload: null,
-  });
-  const [duplicateRejected, setDuplicateRejected] = useState(false);
+  const {
+    placeholder,
+    duplicateRejected,
+    setDuplicateRejected,
+    resetPlaceholderState,
+    addPlaceholderRuleBox,
+    addPlaceholderGroup,
+    setPlaceholderLogicOperator,
+    setPlaceholderRulePayload,
+    discardPlaceholder,
+  } = usePlaceholderState(setFocus);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   const hasRunInitialFocusRef = useRef(false);
   if (tagId !== prevTagId) {
     setPrevTagId(tagId);
     setFocus(null);
-    setPlaceholder({ parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null });
-    setDuplicateRejected(false);
+    resetPlaceholderState();
     hasRunInitialFocusRef.current = false;
   }
 
@@ -302,32 +307,6 @@ export const CompetencyAssociationsProvider = ({
 
   const focusRuleBox = useCallback((groupId: number, ruleKey: string) => {
     setFocus({ groupId, ruleKey });
-    setDuplicateRejected(false);
-  }, []);
-
-  const addPlaceholderRuleBox = useCallback((groupId: number) => {
-    setFocus({ groupId, ruleKey: null });
-    setPlaceholder((prev) => ({ ...prev, rulePayload: null }));
-    setDuplicateRejected(false);
-  }, []);
-
-  const addPlaceholderGroup = useCallback((parentRuleGroupId: number) => {
-    setFocus({ groupId: null, ruleKey: null });
-    setPlaceholder({ parentRuleGroupId, logicOperator: 'OR', rulePayload: null });
-    setDuplicateRejected(false);
-  }, []);
-
-  const setPlaceholderLogicOperator = useCallback((logicOperator: CompetencyGroupLogicOperator) => {
-    setPlaceholder((prev) => ({ ...prev, logicOperator }));
-  }, []);
-
-  const setPlaceholderRulePayload = useCallback((rulePayload: GradeRulePayload) => {
-    setPlaceholder((prev) => ({ ...prev, rulePayload }));
-    setDuplicateRejected(false);
-  }, []);
-
-  const discardPlaceholder = useCallback(() => {
-    setFocus(null);
     setDuplicateRejected(false);
   }, []);
 
