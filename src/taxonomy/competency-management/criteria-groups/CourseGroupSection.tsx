@@ -6,6 +6,7 @@ import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
+import { courseKeyOfFocus } from '../criterionTarget';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
 import { bottomTierGroupsForCourse } from '../utils';
 import AddControl from './AddControl';
@@ -67,11 +68,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
 
   const canEdit = canEditCourse(courseGroup.courseKey);
   const showPlaceholderGroup = focus?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
-  const containsFocus = !!focus && (
-    focus.groupId === null
-      ? showPlaceholderGroup
-      : index?.groupsById.get(focus.groupId)?.parentId === courseGroup.id
-  );
+  const containsFocus = !!index && courseKeyOfFocus(focus, placeholder, index) === courseGroup.courseKey;
   const holdsPlaceholderRuleBox = focus?.ruleKey === null
     && focus.groupId !== null
     && bottomTierGroups.some((group) => group.id === focus.groupId);
