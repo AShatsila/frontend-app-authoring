@@ -64,17 +64,19 @@ export interface CriteriaFocus {
   ruleKey: string | null;
 }
 
+/** The author's choices on the placeholder, kept apart from `focus`
+ * because the non-placeholder flows also write `focus`. `parentRuleGroupId`
+ * and `logicOperator` only matter while `focus.groupId === null`.
+ */
+export interface CriteriaPlaceholder {
+  parentRuleGroupId: number | null;
+  logicOperator: CompetencyGroupLogicOperator;
+  rulePayload: GradeRulePayload | null;
+}
+
 export interface CompetencyAssociationsContextValue {
   focus: CriteriaFocus | null;
-  /** The author's choices on the placeholder, kept apart from `focus`
-   * because the non-placeholder flows also write `focus`. `parentRuleGroupId`
-   * and `logicOperator` only matter while `focus.groupId === null`.
-   */
-  placeholder: {
-    parentRuleGroupId: number | null;
-    logicOperator: CompetencyGroupLogicOperator;
-    rulePayload: GradeRulePayload | null;
-  };
+  placeholder: CriteriaPlaceholder;
   /** Starts a placeholder rule box in the given real group, replacing any
    * existing placeholder.
    */
