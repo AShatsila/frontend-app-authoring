@@ -24,6 +24,8 @@ export interface CriteriaGroupBoxProps {
    */
   group?: BottomTierCompetencyCriteriaGroup;
   subsectionNamesByUsageKey: Record<string, string>;
+  /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
+  courseName?: string;
   canEdit: boolean;
 }
 
@@ -39,7 +41,7 @@ export interface CriteriaGroupBoxProps {
  * title/subtitle typography) nor any Paragon prop covers an inline-sentence
  * band like this one.
  */
-const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: CriteriaGroupBoxProps) => {
+const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdit }: CriteriaGroupBoxProps) => {
   const intl = useIntl();
   const {
     focus,
@@ -166,6 +168,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
               index={index}
               systemDefaultProfile={systemDefaultProfile}
               subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+              courseName={courseName}
               canEdit={canEdit}
             />
             {canEdit && (
