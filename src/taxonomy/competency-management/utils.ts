@@ -181,6 +181,17 @@ export function lastRealRuleKeyIn(
   return boxes.length ? boxes[boxes.length - 1].key : null;
 }
 
+/** The rule box to focus once the focused `vanishedKey` is gone from a surviving group: the nearest survivor above
+ * it in `keysBefore`, else the nearest below, else the first of `keysAfter`, else `null`.
+ */
+export function ruleKeyAfterRemoval(keysBefore: string[], vanishedKey: string, keysAfter: string[]): string | null {
+  const survives = (key: string) => keysAfter.includes(key);
+  const position = keysBefore.indexOf(vanishedKey);
+  const above = position === -1 ? undefined : keysBefore.slice(0, position).filter(survives).pop();
+  const below = position === -1 ? undefined : keysBefore.slice(position + 1).find(survives);
+  return above ?? below ?? keysAfter[0] ?? null;
+}
+
 /** Every bottom-tier group under the course-level group for the given
  * course, ordered per ADR 0002's `ordering` field ascending, `id` as
  * tie-break - the order `CourseGroupSection` renders its group cards in.

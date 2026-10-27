@@ -100,6 +100,26 @@ describe('<RuleBoxList />', () => {
     expect(boxes[1]).toHaveTextContent('With a score of 90% or lower');
   });
 
+  it('gives each saved box a menu button named after its own score, so two boxes in a group differ', () => {
+    const index = buildCompetencyCriteriaGroupsIndex(response);
+    render(
+      <MockCompetencyAssociationsProvider>
+        <RuleBoxList
+          groupId={10}
+          index={index}
+          systemDefaultProfile={systemDefaultProfile}
+          subsectionNamesByUsageKey={{}}
+          canEdit
+        />
+      </MockCompetencyAssociationsProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: 'More actions for the rule with a score of 70% or higher' }))
+      .toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More actions for the rule with a score of 90% or lower' }))
+      .toBeInTheDocument();
+  });
+
   it('marks only the box matching the context focus as focused', () => {
     const index = buildCompetencyCriteriaGroupsIndex(response);
     const { container } = render(
