@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import type { AxiosError } from 'axios';
 
 import { useUserPermissions } from '@src/authz/data/apiHooks';
@@ -159,6 +160,32 @@ export const useDeleteCompetencyCriterion = () => {
   const queryClient = useQueryClient();
   return useMutation<void, AxiosError, { tagId: number; criterionId: number; }>({
     mutationFn: ({ tagId, criterionId }) => api.deleteCompetencyCriterion(tagId, criterionId),
+    onSettled: (_data, _error, { tagId }) =>
+      queryClient.invalidateQueries({
+        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
+      }),
+  });
+};
+
+/**
+ * Deletes a rule box's criteria, one request at a time: removes a group only when a delete finds
+ * it empty, so concurrent deletes would each see the others' criteria and leave an empty group stored.
+ * Stops at the first failure; a 404 means the criterion is already gone, so it doesn't count as one.
+ */
+export const useDeleteCompetencyRuleBox = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, AxiosError, { tagId: number; criterionIds: number[]; }>({
+    mutationFn: async ({ tagId, criterionIds }) => {
+      for (const criterionId of criterionIds) {
+        try {
+          await api.deleteCompetencyCriterion(tagId, criterionId);
+        } catch (error) {
+          if (!isAxiosError(error) || error.response?.status !== 404) {
+            throw error;
+          }
+        }
+      }
+    },
     onSettled: (_data, _error, { tagId }) =>
       queryClient.invalidateQueries({
         queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),

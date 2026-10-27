@@ -118,6 +118,13 @@
       }
     }
 
+    // Lifts only the toggle above `&__select-button`'s overlay; lifting the `.dropdown` wrapper traps the open menu.
+    // Its own class, since Paragon gives an IconButton toggle no `.dropdown-toggle`.
+    &__menu-toggle {
+      position: relative;
+      z-index: 1;
+    }
+
     // Stands in for the chips on a placeholder box.
     &__placeholder-hint {
       border: 1px dashed $connector-line-color;

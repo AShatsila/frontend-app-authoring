@@ -272,6 +272,20 @@ describe('<CriteriaGroupBox />', () => {
       expect(deleteGroup).not.toHaveBeenCalled();
     });
 
+    it('gives the placeholder group\'s own rule box no menu, since the group\'s menu removes both', () => {
+      render(
+        <MockCompetencyAssociationsProvider
+          value={{ index, systemDefaultProfile, focus: { groupId: null, ruleKey: null } }}
+        >
+          <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByText('Select content below to add it here.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'More actions for this group' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /More actions for the (rule|new rule)/ })).not.toBeInTheDocument();
+    });
+
     it('takes keyboard focus on its select button when a request names it, then consumes the request', () => {
       const consumeKeyboardFocusRequest = jest.fn();
       renderBox({
@@ -280,6 +294,29 @@ describe('<CriteriaGroupBox />', () => {
       });
 
       expect(screen.getByRole('button', { name: 'By completing all of the following' })).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves focus in a text field, and still consumes the request', async () => {
+      const user = userEvent.setup();
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { rerender } = renderBox();
+      await user.click(screen.getByRole('textbox'));
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{
+            index,
+            systemDefaultProfile,
+            keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true },
+            consumeKeyboardFocusRequest,
+          }}
+        >
+          <CriteriaGroupBox group={group} subsectionNamesByUsageKey={{}} canEdit />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('textbox')).toHaveFocus();
       expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
     });
 

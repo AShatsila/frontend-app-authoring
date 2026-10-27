@@ -17,6 +17,7 @@ import {
   lastRealRuleKeyIn,
   nextUnusedScore,
   ruleBoxesForGroup,
+  ruleKeyAfterRemoval,
   ruleKeyOf,
   snapshotPageOrder,
   visibleCourseGroups,
@@ -220,6 +221,40 @@ describe('lastRealRuleKeyIn', () => {
   it('returns null for a group with no criteria', () => {
     const index = buildCompetencyCriteriaGroupsIndex(fixtureResponse);
     expect(lastRealRuleKeyIn(999, index, systemDefaultProfile)).toBeNull();
+  });
+});
+
+describe('ruleKeyAfterRemoval', () => {
+  it.each([
+    { name: 'the second of three', vanished: 'b', keysAfter: ['a', 'c'], expected: 'a' },
+    { name: 'the first of three', vanished: 'a', keysAfter: ['b', 'c'], expected: 'b' },
+    { name: 'the third of three', vanished: 'c', keysAfter: ['a', 'b'], expected: 'b' },
+  ])('prefers the box above, else below, when $name vanishes', ({ vanished, keysAfter, expected }) => {
+    expect(ruleKeyAfterRemoval(['a', 'b', 'c'], vanished, keysAfter)).toBe(expected);
+  });
+
+  it('prefers the box above over the first box and the box below when the third of four vanishes', () => {
+    expect(ruleKeyAfterRemoval(['a', 'b', 'c', 'd'], 'c', ['a', 'b', 'd'])).toBe('b');
+  });
+
+  it('skips a neighbour that vanished too and takes the nearest survivor above', () => {
+    expect(ruleKeyAfterRemoval(['a', 'b', 'c', 'd', 'e'], 'd', ['a', 'b', 'e'])).toBe('b');
+  });
+
+  it('takes the nearest survivor below, not the first box now, when none above survives', () => {
+    expect(ruleKeyAfterRemoval(['a', 'b', 'c', 'd', 'e'], 'b', ['x', 'd', 'e'])).toBe('d');
+  });
+
+  it('falls back to the first box now when every box it knew has gone but a new one is present', () => {
+    expect(ruleKeyAfterRemoval(['a', 'b'], 'b', ['x'])).toBe('x');
+  });
+
+  it('returns null when no box is left', () => {
+    expect(ruleKeyAfterRemoval(['a', 'b'], 'b', [])).toBeNull();
+  });
+
+  it('falls back to the first box now when the order before removal is unknown', () => {
+    expect(ruleKeyAfterRemoval([], 'b', ['x', 'y'])).toBe('x');
   });
 });
 
