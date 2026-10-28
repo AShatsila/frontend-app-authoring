@@ -6,6 +6,7 @@ import { ExpandMore } from '@openedx/paragon/icons';
 import type { IntlShape, MessageDescriptor } from 'react-intl';
 import type { GradeRulePayload } from '../data/types';
 import messages from './messages';
+import { parseScoreInput, percentOf } from './scoreInput';
 
 export interface ScoreThresholdFieldProps {
   rulePayload: GradeRulePayload;
@@ -28,7 +29,7 @@ export interface ScoreThresholdFieldProps {
 /** Which suffix follows the percentage for each comparison operator -
  * `null` for `eq`, which reads as an exact score with no suffix.
  */
-const SUFFIX_MESSAGE_BY_OP: Record<GradeRulePayload['op'], MessageDescriptor | null> = {
+export const SUFFIX_MESSAGE_BY_OP: Record<GradeRulePayload['op'], MessageDescriptor | null> = {
   gte: messages.scoreThresholdOrHigherSuffix,
   lte: messages.scoreThresholdOrLowerSuffix,
   eq: null,
@@ -42,9 +43,6 @@ export const formatScoreSummary = (intl: IntlShape, rulePayload: GradeRulePayloa
   });
   return suffixMessage ? `${percentText} ${intl.formatMessage(suffixMessage)}` : percentText;
 };
-
-/** `rulePayload.value` is a 0.0-1.0 fraction, not a 0-100 percentage. */
-const percentOf = (rulePayload: GradeRulePayload): string => String(Math.round(rulePayload.value * 100));
 
 /** Closed-state label for a rule's score threshold: "With a score of X% or higher"/"or lower"/
  * (no suffix, for an exact match). Read-only unless `onChange` is given. */
@@ -103,17 +101,16 @@ const ScoreThresholdField = ({
     if (saveInFlight.current) {
       return;
     }
-    const trimmedInput = inputValue.trim();
-    const numericPercent = Number(trimmedInput);
-    if (trimmedInput === '' || !Number.isFinite(numericPercent)) {
+    const parsed = parseScoreInput(inputValue, rulePayload);
+    if (parsed.kind === 'empty') {
       revertToLastPersisted();
       return;
     }
-    if (!Number.isInteger(numericPercent) || numericPercent < 0 || numericPercent > 100) {
+    if (parsed.kind === 'outOfRange') {
       setValidationMessage(intl.formatMessage(messages.scoreThresholdRangeValidationMessage));
       return;
     }
-    if (numericPercent === Math.round(rulePayload.value * 100)) {
+    if (parsed.kind === 'unchanged') {
       setValidationMessage('');
       return;
     }
@@ -123,7 +120,7 @@ const ScoreThresholdField = ({
       return;
     }
     setValidationMessage('');
-    const newRulePayload: GradeRulePayload = { ...rulePayload, value: numericPercent / 100 };
+    const newRulePayload = parsed.rulePayload;
     saveInFlight.current = true;
     setIsSaving(true);
     try {

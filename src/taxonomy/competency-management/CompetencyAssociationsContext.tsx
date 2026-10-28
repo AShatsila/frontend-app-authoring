@@ -132,12 +132,13 @@ export interface CompetencyAssociationsContextValue {
    * active competency.
    */
   associateSubsection: (objectId: string, courseId: string) => void;
-  /** Updates a bottom-tier group's any/all combining logic (`#760`); a
-   * rejected save is a no-op besides a failure toast.
+  /** Updates a bottom-tier group's any/all combining logic (`#760`). Resolves once the groups
+   * have refetched; rejects on failure, without a toast.
    */
-  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => void;
+  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => Promise<void>;
   /** Updates a rule box's score threshold across every criterion listed in
-   * `criterionIds` (`#759`), deriving the new selection key from the response.
+   * `criterionIds` (`#759`), deriving the new selection key from the response. Resolves once the
+   * groups have refetched; rejects on failure, without a toast.
    */
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
   /** Deletes a group, then moves selection per `selectionTargetAfterRemoval` once the refetch lands.
@@ -533,15 +534,11 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
-  const updateGroupOperator = useCallback((groupId: number, logicOperator: CompetencyGroupLogicOperator) => {
-    updateGroupOperatorMutation.mutate({ tagId, groupId, logicOperator }, {
-      onError: () => {
-        // No local rollback needed: `LogicOperatorSelect` always renders
-        // from `group.logicOperator`, which a rejected mutation never touches.
-        showToast(intl.formatMessage(messages.updateGroupOperatorFailedToastMessage));
-      },
-    });
-  }, [tagId, updateGroupOperatorMutation, showToast, intl]);
+  const updateGroupOperator = useCallback(
+    (groupId: number, logicOperator: CompetencyGroupLogicOperator): Promise<void> =>
+      updateGroupOperatorMutation.mutateAsync({ tagId, groupId, logicOperator }).then(() => undefined),
+    [tagId, updateGroupOperatorMutation],
+  );
 
   const updateRuleScore = useCallback((
     groupId: number,
@@ -573,14 +570,8 @@ export const CompetencyAssociationsProvider = ({
         if (updatedCriterion) {
           setSelection({ groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) });
         }
-      })
-      .catch((error) => {
-        showToast(intl.formatMessage(messages.updateRuleScoreFailedToastMessage));
-        // Re-thrown so ScoreThresholdField's own commit handler also sees
-        // the rejection and reverts its local input.
-        throw error;
       });
-  }, [index, systemDefaultProfile, tagId, updateRuleScoreMutation, showToast, intl]);
+  }, [index, systemDefaultProfile, tagId, updateRuleScoreMutation]);
 
   const consumeKeyboardFocusRequest = useCallback(() => setKeyboardFocusRequest(null), []);
 

@@ -337,12 +337,29 @@ const TestConsumer = () => {
       <button type="button" onClick={() => ctx.removeAssociation(902, 'group')}>remove-criterion-902</button>
       <button type="button" onClick={() => ctx.removeAssociation(901, 'subsection')}>remove-sub-a-subsection</button>
       <button type="button" onClick={() => ctx.removePlaceholderGroup()}>remove-placeholder-group</button>
-      <button type="button" onClick={() => ctx.updateGroupOperator(10, 'OR')}>update-group-operator</button>
       <button
         type="button"
         onClick={() => {
-          // Caught only to silence an unhandled-rejection warning; irrelevant to this consumer.
-          ctx.updateRuleScore(10, [900], { op: 'gte', value: 0.8, scale: 'percent' }).catch(() => {});
+          ctx.updateGroupOperator(10, 'OR').then(() => {
+            updateOutcomes.operator = 'resolved';
+          }, () => {
+            updateOutcomes.operator = 'rejected';
+          });
+        }}
+      >
+        update-group-operator
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          ctx.updateRuleScore(10, [900], { op: 'gte', value: 0.8, scale: 'percent' }).then(
+            () => {
+              updateOutcomes.score = 'resolved';
+            },
+            () => {
+              updateOutcomes.score = 'rejected';
+            },
+          );
         }}
       >
         update-rule-score
@@ -350,6 +367,9 @@ const TestConsumer = () => {
     </div>
   );
 };
+
+/** How the promises returned by the update buttons settled; reset before each test. */
+const updateOutcomes: { operator?: 'resolved' | 'rejected'; score?: 'resolved' | 'rejected'; } = {};
 
 const renderProvider = () =>
   render(
@@ -360,6 +380,8 @@ const renderProvider = () =>
 
 describe('CompetencyAssociationsProvider', () => {
   beforeEach(() => {
+    delete updateOutcomes.operator;
+    delete updateOutcomes.score;
     ({ axiosMock, mockShowToast } = initializeMocks());
   });
 
@@ -1353,7 +1375,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('shows a failure toast on rejection', async () => {
+    it('rejects without a toast', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -1363,11 +1385,8 @@ describe('CompetencyAssociationsProvider', () => {
 
       fireEvent.click(screen.getByText('update-group-operator'));
 
-      await waitFor(() => {
-        expect(mockShowToast).toHaveBeenCalledWith(
-          'There was a problem updating this group\'s logic. Please try again.',
-        );
-      });
+      await waitFor(() => expect(updateOutcomes.operator).toBe('rejected'));
+      expect(mockShowToast).not.toHaveBeenCalled();
     });
   });
 
@@ -1413,7 +1432,7 @@ describe('CompetencyAssociationsProvider', () => {
       },
     );
 
-    it('shows a failure toast on rejection, without changing selection', async () => {
+    it('rejects without a toast or a selection change', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -1425,11 +1444,8 @@ describe('CompetencyAssociationsProvider', () => {
 
       fireEvent.click(screen.getByText('update-rule-score'));
 
-      await waitFor(() => {
-        expect(mockShowToast).toHaveBeenCalledWith(
-          'There was a problem updating this rule\'s score. Please try again.',
-        );
-      });
+      await waitFor(() => expect(updateOutcomes.score).toBe('rejected'));
+      expect(mockShowToast).not.toHaveBeenCalled();
       expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
     });
   });

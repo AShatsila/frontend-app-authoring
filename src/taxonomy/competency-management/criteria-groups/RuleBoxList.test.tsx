@@ -195,11 +195,13 @@ describe('<RuleBoxList />', () => {
       const updateRuleScore = jest.fn().mockResolvedValue(undefined);
       renderEditableBoxes(updateRuleScore);
 
-      const [firstBoxInput] = screen.getAllByRole('textbox');
-      await user.clear(firstBoxInput);
-      await user.type(firstBoxInput, '80');
-      await user.keyboard('{Enter}');
+      await user.click(screen.getByRole('button', { name: /60%/ }));
+      const input = screen.getByRole('textbox');
+      await user.clear(input);
+      await user.type(input, '80');
+      await user.click(screen.getByRole('button', { name: 'Save' }));
 
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(updateRuleScore).not.toHaveBeenCalled();
       expect(screen.getByText('Another rule box in this group already uses this score.')).toBeInTheDocument();
     });
