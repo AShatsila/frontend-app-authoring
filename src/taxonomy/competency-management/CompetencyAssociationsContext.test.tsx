@@ -151,7 +151,13 @@ const TestConsumer = () => {
     ['Add placeholder group under course A', () => ctx.addPlaceholderGroup(1)],
     ['Set placeholder logic operator to AND', () => ctx.setPlaceholderLogicOperator('AND')],
     ['Set placeholder score', () => ctx.setPlaceholderRulePayload({ op: 'gte', value: 0.85, scale: 'percent' })],
-    ['Update group operator', () => ctx.updateGroupOperator(10, 'OR')],
+    [
+      'Update group operator',
+      // The rejection is covered by the no-toast assertion, so it is swallowed here to avoid an unhandled rejection.
+      () => {
+        ctx.updateGroupOperator(10, 'OR').catch(() => {});
+      },
+    ],
     [
       'Update rule score',
       // The rejection is covered by the toast assertion, so it is swallowed here to avoid an unhandled rejection.
@@ -1741,7 +1747,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('shows a failure toast on rejection', async () => {
+    it('rejects without a toast, leaving the failure to the confirmation dialog', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
@@ -1751,9 +1757,9 @@ describe('CompetencyAssociationsProvider', () => {
 
       await click('Update group operator');
 
-      await waitFor(() => {
-        expectToast('There was a problem updating this group\'s logic. Please try again.', ErrorIcon);
-      });
+      await waitFor(() => expect(axiosMock.history.patch).toHaveLength(1));
+      await flushEffects();
+      expect(mockShowToast).not.toHaveBeenCalled();
     });
   });
 
@@ -1800,7 +1806,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(await screen.findByText(focusOn(10, 'grade:gte:0.8:percent'))).toBeInTheDocument();
     });
 
-    it('shows a failure toast on rejection, without changing focus', async () => {
+    it('rejects without a toast, and without changing focus', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
@@ -1810,9 +1816,9 @@ describe('CompetencyAssociationsProvider', () => {
 
       await click('Update rule score');
 
-      await waitFor(() => {
-        expectToast('There was a problem updating this rule\'s score. Please try again.', ErrorIcon);
-      });
+      await waitFor(() => expect(axiosMock.history.patch).toHaveLength(1));
+      await flushEffects();
+      expect(mockShowToast).not.toHaveBeenCalled();
       expect(screen.getByText(focusOn(10, gteKey))).toBeInTheDocument();
     });
   });

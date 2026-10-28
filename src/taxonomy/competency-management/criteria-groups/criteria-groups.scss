@@ -224,7 +224,16 @@
   }
 
   .score-threshold-field__value {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--pgn-spacing-spacer-1);
     color: var(--pgn-color-info-600);
+  }
+
+  // The popover trigger layers above `.rule-box__select-button` so clicks land here.
+  .score-threshold-field--trigger {
+    position: relative;
+    z-index: 1;
   }
 
   // `display: block` from `Form.Control` would stretch this input across the whole rule box.

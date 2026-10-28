@@ -141,10 +141,11 @@ describe('<RuleBoxList />', () => {
 
     const typeInFirstBox = async (score: string) => {
       const user = userEvent.setup();
-      const [firstBoxInput] = screen.getAllByRole('textbox');
-      await user.clear(firstBoxInput);
-      await user.type(firstBoxInput, score);
-      await user.keyboard('{Enter}');
+      await user.click(screen.getByRole('button', { name: /60%/ }));
+      const input = screen.getByRole('textbox');
+      await user.clear(input);
+      await user.type(input, score);
+      await user.click(screen.getByRole('button', { name: 'Save' }));
     };
 
     it('refuses to save a score that duplicates another box\'s rule in the same group', async () => {
@@ -153,6 +154,7 @@ describe('<RuleBoxList />', () => {
 
       await typeInFirstBox('80');
 
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(updateRuleScore).not.toHaveBeenCalled();
       expect(screen.getByText('Another rule box in this group already uses this score.')).toBeInTheDocument();
     });
@@ -163,6 +165,7 @@ describe('<RuleBoxList />', () => {
 
       await typeInFirstBox('60');
 
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(updateRuleScore).not.toHaveBeenCalled();
       expect(screen.queryByText('Another rule box in this group already uses this score.')).not.toBeInTheDocument();
     });

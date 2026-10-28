@@ -10,6 +10,7 @@ import { Form } from '@openedx/paragon';
 import type { IntlShape } from 'react-intl';
 import type { GradeRulePayload } from '../data/types';
 import messages from './messages';
+import { parseScoreInput, percentOf } from './scoreInput';
 
 export interface ScoreThresholdFieldProps {
   rulePayload: GradeRulePayload;
@@ -42,9 +43,6 @@ export const formatScoreSummary = (intl: IntlShape, rulePayload: GradeRulePayloa
   });
   return summary;
 };
-
-/** `rulePayload.value` is a 0.0-1.0 fraction (openedx-core ADR 0002), not a 0-100 percentage. */
-const percentOf = (rulePayload: GradeRulePayload): string => String(Math.round(rulePayload.value * 100));
 
 /** Label stating a rule box's score threshold, for example "With a score of 70% or higher".
  * The percentage is editable when `onChange` is given.
@@ -86,17 +84,16 @@ const ScoreThresholdField = ({
     if (!onChange || saveInFlight.current) {
       return;
     }
-    const trimmedInput = inputValue.trim();
-    const numericPercent = Number(trimmedInput);
-    if (trimmedInput === '' || !Number.isFinite(numericPercent)) {
+    const parsed = parseScoreInput(inputValue, rulePayload);
+    if (parsed.kind === 'empty') {
       revertToLastPersisted();
       return;
     }
-    if (!Number.isInteger(numericPercent) || numericPercent < 0 || numericPercent > 100) {
+    if (parsed.kind === 'outOfRange') {
       setValidationMessage(intl.formatMessage(messages.scoreThresholdRangeValidationMessage));
       return;
     }
-    if (numericPercent === Math.round(rulePayload.value * 100)) {
+    if (parsed.kind === 'unchanged') {
       // Skipped so a blur with no edit does not re-send the rounded display value over the stored fraction.
       setValidationMessage('');
       return;
@@ -110,7 +107,7 @@ const ScoreThresholdField = ({
     saveInFlight.current = true;
     setIsSaving(true);
     try {
-      await onChange({ ...rulePayload, value: numericPercent / 100 });
+      await onChange(parsed.rulePayload);
     } catch {
       revertToLastPersisted();
     } finally {

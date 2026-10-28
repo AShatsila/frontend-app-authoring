@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Stack } from '@openedx/paragon';
@@ -6,13 +6,17 @@ import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
 import CriterionChipList from './CriterionChipList';
-import ScoreThresholdField from './ScoreThresholdField';
+import EditConfirmationModal from './EditConfirmationModal';
+import ScoreThresholdField, { formatScoreSummary } from './ScoreThresholdField';
+import ScoreThresholdPopover from './ScoreThresholdPopover';
 import messages from './messages';
 
 export interface RuleBoxProps {
   /** `null` only for the placeholder rule box in the placeholder group. */
   groupId: number | null;
-  /** `null` renders the not-yet-saved placeholder box: a hint instead of chips, and a score kept in the context. */
+  /** `null` renders the not-yet-saved placeholder box: a hint instead of chips, and a score kept in the context.
+   * A saved, editable box edits its score through `ScoreThresholdPopover` and an `EditConfirmationModal`.
+   */
   ruleKey: string | null;
   rule: EffectiveRule;
   criteria: CompetencyCriterion[];
@@ -45,6 +49,7 @@ const RuleBox = ({
   const intl = useIntl();
   const {
     focus,
+    competencyName,
     focusRuleBox,
     updateRuleScore,
     setPlaceholderRulePayload,
@@ -53,6 +58,8 @@ const RuleBox = ({
   const isFocused = focus?.groupId === groupId && focus?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [pendingRulePayload, setPendingRulePayload] = useState<GradeRulePayload | null>(null);
 
   useEffect(() => {
     if (isFocused) {
@@ -69,14 +76,27 @@ const RuleBox = ({
     }
   }, [isRejected]);
 
-  const handleScoreChange = (rulePayload: GradeRulePayload): Promise<void> => {
-    // With no criteria yet, the score stays in the context until content is picked.
-    if (isPlaceholder || groupId === null) {
-      setPlaceholderRulePayload(rulePayload);
-      return Promise.resolve();
-    }
-    return updateRuleScore(groupId, criteria.map((criterion) => criterion.id), rulePayload);
+  // With no criteria yet, the score stays in the context until content is picked.
+  const handlePlaceholderScoreChange = (rulePayload: GradeRulePayload): Promise<void> => {
+    setPlaceholderRulePayload(rulePayload);
+    return Promise.resolve();
   };
+
+  const handlePopoverClose = () => {
+    // The popover stays open under the confirmation dialog.
+    if (pendingRulePayload === null) {
+      setIsPopoverOpen(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    await updateRuleScore(groupId!, criteria.map((criterion) => criterion.id), pendingRulePayload!);
+    setPendingRulePayload(null);
+    setIsPopoverOpen(false);
+  };
+
+  const oldScore = formatScoreSummary(intl, rule.rulePayload);
+  const richText = { b: (chunks: ReactNode) => <span className="font-weight-bold">{chunks}</span> };
 
   const selectRuleBox = () => {
     if (groupId !== null && ruleKey !== null) {
@@ -104,14 +124,27 @@ const RuleBox = ({
                 <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
               </button>
             )}
-            <ScoreThresholdField
-              rulePayload={rule.rulePayload}
-              onChange={handleScoreChange}
-              getInlineValidationMessage={getInlineValidationMessage}
-              autoFocusSelect={autoFocusSelect}
-              hint={hint}
-              hintIsError={isRejected}
-            />
+            {isPlaceholder
+              ? (
+                <ScoreThresholdField
+                  rulePayload={rule.rulePayload}
+                  onChange={handlePlaceholderScoreChange}
+                  getInlineValidationMessage={getInlineValidationMessage}
+                  autoFocusSelect={autoFocusSelect}
+                  hint={hint}
+                  hintIsError={isRejected}
+                />
+              )
+              : (
+                <ScoreThresholdPopover
+                  rulePayload={rule.rulePayload}
+                  isOpen={isPopoverOpen}
+                  onOpen={() => setIsPopoverOpen(true)}
+                  onClose={handlePopoverClose}
+                  onSave={setPendingRulePayload}
+                  getInlineValidationMessage={getInlineValidationMessage}
+                />
+              )}
           </>
         )
         : (
@@ -138,6 +171,29 @@ const RuleBox = ({
             canEdit={canEdit}
           />
         )}
+      <EditConfirmationModal
+        isOpen={pendingRulePayload !== null}
+        title={intl.formatMessage(messages.scoreChangeConfirmationTitle, {
+          newScore: pendingRulePayload ? formatScoreSummary(intl, pendingRulePayload) : '',
+        })}
+        body={
+          <>
+            <p>
+              {intl.formatMessage(messages.scoreChangeConfirmationItemsText, { count: criteria.length, ...richText })}
+            </p>
+            <p>
+              {intl.formatMessage(messages.scoreChangeConfirmationFutureText, {
+                competencyName,
+                oldScore,
+                ...richText,
+              })}
+            </p>
+          </>
+        }
+        errorText={intl.formatMessage(messages.scoreChangeFailedText, { oldScore })}
+        onConfirm={handleConfirm}
+        onCancel={() => setPendingRulePayload(null)}
+      />
     </Stack>
   );
 };

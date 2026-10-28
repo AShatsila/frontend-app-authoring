@@ -141,10 +141,12 @@ export interface CompetencyAssociationsContextBase {
    * associated or the groups tree or default profile has not loaded.
    */
   associateSubsection: (objectId: string, courseId: string) => void;
-  /** Updates a bottom-tier group's any/all combining logic. A rejected save only shows a failure toast. */
-  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => void;
-  /** Updates a rule box's score threshold across `criterionIds`, keeping the box's current rule type.
-   * Rejects on failure so `ScoreThresholdField` can revert its local input.
+  /** Updates a bottom-tier group's any/all combining logic. Resolves once the groups have refetched, and rejects on
+   * failure without a toast, so the confirmation dialog can show the error.
+   */
+  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => Promise<void>;
+  /** Updates a rule box's score threshold across `criterionIds`, keeping the box's current rule type. Resolves once
+   * the groups have refetched, and rejects on failure without a toast.
    */
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
   isAssociating: boolean;
@@ -463,7 +465,7 @@ export const CompetencyAssociationsProvider = ({
   const profileQuery = useDefaultCompetencyRuleProfile();
   const { mutateAsync: createCriterion, isPending: isCreatePending, variables } = useCreateCompetencyCriterion();
   const isAssociating = isCreatePending && variables?.tagId === tagId;
-  const { mutate: updateGroupOperatorMutate } = useUpdateCompetencyCriteriaGroupOperator();
+  const { mutateAsync: updateGroupOperatorMutateAsync } = useUpdateCompetencyCriteriaGroupOperator();
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
   const { mutate: mutateDeleteGroup, isPending: isGroupDeletePending } = useDeleteCompetencyCriteriaGroup();
   const { mutate: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
@@ -691,14 +693,11 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
-  const updateGroupOperator = useCallback((groupId: number, logicOperator: CompetencyGroupLogicOperator) => {
-    updateGroupOperatorMutate({ tagId, groupId, logicOperator }, {
-      // `LogicOperatorSelect` renders from `group.logicOperator`, which a rejected mutation never touches.
-      onError: () => {
-        showToast(intl.formatMessage(messages.updateGroupOperatorFailedToastMessage), undefined, undefined, ErrorIcon);
-      },
-    });
-  }, [tagId, updateGroupOperatorMutate, showToast, intl]);
+  const updateGroupOperator = useCallback(
+    (groupId: number, logicOperator: CompetencyGroupLogicOperator): Promise<void> =>
+      updateGroupOperatorMutateAsync({ tagId, groupId, logicOperator }).then(() => undefined),
+    [tagId, updateGroupOperatorMutateAsync],
+  );
 
   const updateRuleScore = useCallback((
     groupId: number,
@@ -729,12 +728,8 @@ export const CompetencyAssociationsProvider = ({
             focus: { groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) },
           });
         }
-      })
-      .catch((updateError) => {
-        showToast(intl.formatMessage(messages.updateRuleScoreFailedToastMessage), undefined, undefined, ErrorIcon);
-        throw updateError;
       });
-  }, [groupsIndex, systemDefaultProfile, tagId, updateRuleScoreMutateAsync, showToast, intl]);
+  }, [groupsIndex, systemDefaultProfile, tagId, updateRuleScoreMutateAsync]);
 
   const consumeKeyboardFocusRequest = useCallback(() => {
     dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: null });
