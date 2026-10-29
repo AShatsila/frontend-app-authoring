@@ -7,7 +7,7 @@ import {
 import { buildMockCompetencyAssociationsContextValue, MockCompetencyAssociationsProvider } from '../testHelpers';
 import type {
   BottomTierCompetencyCriteriaGroup,
-  CompetencyCriteriaGroupsResponse,
+  CompetencyCriteriaTree,
   CompetencyRuleProfile,
   CourseCompetencyCriteriaGroup,
 } from '../data/types';
@@ -44,7 +44,7 @@ const group: BottomTierCompetencyCriteriaGroup = {
   archived: false,
 };
 
-const response: CompetencyCriteriaGroupsResponse = {
+const response: CompetencyCriteriaTree = {
   groups: [courseGroup, group],
   criteria: [
     {

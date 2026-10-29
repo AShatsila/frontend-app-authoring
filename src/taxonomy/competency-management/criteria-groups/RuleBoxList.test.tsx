@@ -7,7 +7,7 @@ import {
   within,
 } from '@src/testUtils';
 import { MockCompetencyAssociationsProvider } from '../testHelpers';
-import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile, GradeRulePayload } from '../data/types';
+import type { CompetencyCriteriaTree, CompetencyRuleProfile, GradeRulePayload } from '../data/types';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import RuleBoxList from './RuleBoxList';
 
@@ -21,7 +21,7 @@ const systemDefaultProfile: CompetencyRuleProfile = {
 
 // Group 10 holds two criteria sharing the default profile's rule (101, 102)
 // and one with a different override (103).
-const response: CompetencyCriteriaGroupsResponse = {
+const response: CompetencyCriteriaTree = {
   groups: [
     {
       id: 10,
@@ -142,7 +142,7 @@ describe('<RuleBoxList />', () => {
   });
 
   describe('duplicate-score validation (real getInlineValidationMessage, not mocked)', () => {
-    const duplicateCheckResponse: CompetencyCriteriaGroupsResponse = {
+    const duplicateCheckResponse: CompetencyCriteriaTree = {
       groups: [
         {
           id: 10,
@@ -207,7 +207,7 @@ describe('<RuleBoxList />', () => {
 
   describe('placeholder rule box (#671)', () => {
     // The real box's 75% differs from the placeholder's default 70%, so typing 75 is a real change.
-    const placeholderGroupResponse: CompetencyCriteriaGroupsResponse = {
+    const placeholderGroupResponse: CompetencyCriteriaTree = {
       groups: [
         {
           id: 10,
@@ -308,7 +308,7 @@ describe('<RuleBoxList />', () => {
       // `response`'s group 10 already holds the 70% default (gte) and 90% (lte).
       const renderDuplicate = (
         contextOverrides: Parameters<typeof MockCompetencyAssociationsProvider>['0']['value'] = {},
-        groupsResponse: CompetencyCriteriaGroupsResponse = response,
+        groupsResponse: CompetencyCriteriaTree = response,
       ) => (
         render(
           <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: null }, ...contextOverrides }}>
@@ -324,7 +324,7 @@ describe('<RuleBoxList />', () => {
       );
 
       // Every 5% step from 70 up to 100 is taken, so no stricter score is free.
-      const fullGroupResponse: CompetencyCriteriaGroupsResponse = {
+      const fullGroupResponse: CompetencyCriteriaTree = {
         ...response,
         criteria: [70, 75, 80, 85, 90, 95, 100].map((percent, i) => ({
           id: 300 + i,

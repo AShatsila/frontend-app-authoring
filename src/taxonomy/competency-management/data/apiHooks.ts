@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 
 import { useUserPermissions } from '@src/authz/data/apiHooks';
@@ -30,27 +31,30 @@ export const competencyQueryKeys = {
    */
   competency: (tagId: number | undefined) => [...competencyQueryKeys.all, 'competency', tagId],
   /** @param tagId ID of the competency (tag) */
-  competencyCriteriaGroups: (tagId: number | undefined) => [
+  competencyCriteriaGroups: (tagId: number | undefined, courseKeys?: string[]) => [
     ...competencyQueryKeys.competency(tagId),
     'criteriaGroups',
+    ...(courseKeys ? [courseKeys] : []),
   ],
   /** The studio-wide default rule profile - not scoped to any one competency. */
   defaultRuleProfile: () => [...competencyQueryKeys.all, 'defaultRuleProfile'],
 } satisfies Record<
   string,
-  Array<string | number | undefined> | ((...args: any[]) => Array<string | number | undefined>)
+  Array<string | number | undefined> | ((...args: any[]) => Array<string | number | string[] | undefined>)
 >;
 
 /**
  * Load a competency's existing criteria groups and criteria (`#681`).
  * @param tagId The id of the selected competency, or `undefined` while
  * none is selected yet - the query is disabled until a real id is available.
+ * @param courseKeys The listed courses' keys; `undefined` until reported (query disabled).
  */
-export const useCompetencyCriteriaGroups = (tagId: number | undefined) => (
+export const useCompetencyCriteriaGroups = (tagId: number | undefined, courseKeys: string[] | undefined) => (
   useQuery({
-    queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
-    queryFn: () => api.getCompetencyCriteriaGroups(tagId as number),
-    enabled: tagId !== undefined,
+    queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId, courseKeys),
+    queryFn: tagId !== undefined && courseKeys !== undefined
+      ? () => api.getCompetencyCriteriaGroups(tagId, courseKeys)
+      : skipToken,
   })
 );
 
@@ -63,9 +67,19 @@ export const useDefaultCompetencyRuleProfile = () => (
 );
 
 /**
- * Build the mutation to create a new criterion under a competency (`#665`).
- * Invalidates that competency's criteria-groups query on success so the new
- * criterion shows up without a manual refetch.
+ * Refresh every scoped criteria-groups entry of one competency after a write.
+ * The inactive entries (other course-list pages) are removed rather than only
+ * marked stale, so revisiting a page can't briefly show its pre-write counts.
+ * @returns The invalidation promise, which settles once the active refetch lands.
+ */
+const refreshCompetencyCriteriaGroups = (queryClient: QueryClient, tagId: number) => {
+  const queryKey = competencyQueryKeys.competencyCriteriaGroups(tagId);
+  queryClient.removeQueries({ queryKey, type: 'inactive' });
+  return queryClient.invalidateQueries({ queryKey });
+};
+
+/** Build the mutation to create a new criterion under a competency (`#665`),
+ * refreshing its criteria groups on success.
  */
 export const useCreateCompetencyCriterion = () => {
   const queryClient = useQueryClient();
@@ -77,17 +91,12 @@ export const useCreateCompetencyCriterion = () => {
     mutationFn: (
       { tagId, payload }: { tagId: number; payload: CreateCompetencyCriterionPayload; },
     ) => api.createCompetencyCriterion(tagId, payload),
-    onSuccess: (_data, { tagId }) =>
-      queryClient.invalidateQueries({
-        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
-      }),
+    onSuccess: (_data, { tagId }) => refreshCompetencyCriteriaGroups(queryClient, tagId),
   });
 };
 
-/**
- * Build the mutation to update a bottom-tier group's any/all combining
- * logic (`#760`). Invalidates that competency's criteria-groups query on
- * success so the new operator shows up without a manual refetch.
+/** Build the mutation to update a bottom-tier group's any/all combining
+ * logic (`#760`), refreshing the competency's criteria groups on success.
  */
 export const useUpdateCompetencyCriteriaGroupOperator = () => {
   const queryClient = useQueryClient();
@@ -103,18 +112,13 @@ export const useUpdateCompetencyCriteriaGroupOperator = () => {
         logicOperator: CompetencyGroupLogicOperator;
       },
     ) => api.updateCompetencyCriteriaGroupOperator(tagId, groupId, logicOperator),
-    onSuccess: (_data, { tagId }) =>
-      queryClient.invalidateQueries({
-        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
-      }),
+    onSuccess: (_data, { tagId }) => refreshCompetencyCriteriaGroups(queryClient, tagId),
   });
 };
 
-/**
- * Build the mutation to batch-update a rule box's score threshold (`#759`).
- * Invalidates that competency's criteria-groups query on success so the new score shows up
- * without a manual refetch. `tagId` is only used for that invalidation - the endpoint's own
- * URL isn't nested under a competency.
+/** Build the mutation to batch-update a rule box's score threshold (`#759`),
+ * refreshing the competency's criteria groups on success. `tagId` is only
+ * used for that refresh - the endpoint's own URL isn't nested under a competency.
  */
 export const useUpdateCompetencyCriteriaRule = () => {
   const queryClient = useQueryClient();
@@ -132,25 +136,19 @@ export const useUpdateCompetencyCriteriaRule = () => {
         rulePayload: GradeRulePayload;
       },
     ) => api.updateCompetencyCriteriaRule(groupId, criterionIds, ruleType, rulePayload),
-    onSuccess: (_data, { tagId }) =>
-      queryClient.invalidateQueries({
-        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
-      }),
+    onSuccess: (_data, { tagId }) => refreshCompetencyCriteriaGroups(queryClient, tagId),
   });
 };
 
-/**
- * Build the mutation to delete a group (`#709`). It refetches the groups on success and failure alike,
- * and stays pending until that refetch lands.
+/** Build the mutation to delete a group (`#709`). It refreshes the competency's
+ * criteria groups on success and failure alike, and stays pending until that
+ * refetch lands.
  */
 export const useDeleteCompetencyCriteriaGroup = () => {
   const queryClient = useQueryClient();
   return useMutation<void, AxiosError, { tagId: number; groupId: number; }>({
     mutationFn: ({ tagId, groupId }) => api.deleteCompetencyCriteriaGroup(tagId, groupId),
-    onSettled: (_data, _error, { tagId }) =>
-      queryClient.invalidateQueries({
-        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
-      }),
+    onSettled: (_data, _error, { tagId }) => refreshCompetencyCriteriaGroups(queryClient, tagId),
   });
 };
 
