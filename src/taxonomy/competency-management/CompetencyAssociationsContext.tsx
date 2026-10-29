@@ -36,7 +36,9 @@ import type {
   CreateCompetencyCriterionPayload,
   GradeRulePayload,
 } from './data/types';
+import { courseKeyOfFocus, resolveCreateTarget } from './criterionTarget';
 import messages from './messages';
+import { usePlaceholderState } from './usePlaceholderState';
 import type { CompetencyCriteriaGroupsIndex } from './utils';
 import {
   associatedObjectIds,
@@ -45,22 +47,58 @@ import {
   effectiveRuleOf,
   lastBottomTierGroupForCourse,
   lastRealRuleKeyIn,
-  ruleBoxesForGroup,
   ruleKeyOf,
   visibleCourseGroups,
 } from './utils';
 
 /** A rule box only means anything inside its own group, so `groupId` and
  * `ruleKey` are always written together (see `focusGroup`/`focusRuleBox`).
- * `ruleKey` is `null` when the focused group has no rule box yet.
+ *
+ * `groupId === null` means the focused group is a not-yet-saved placeholder
+ * group. `ruleKey === null` means a placeholder rule box is focused, inside
+ * the focused real group or inside the placeholder group. Only one
+ * placeholder can exist at a time, since `focus` has only one slot.
  */
 export interface CriteriaFocus {
-  groupId: number;
+  groupId: number | null;
   ruleKey: string | null;
+}
+
+/** The author's choices on the placeholder, kept apart from `focus`
+ * because the non-placeholder flows also write `focus`. `parentRuleGroupId`
+ * and `logicOperator` only matter while `focus.groupId === null`.
+ */
+export interface CriteriaPlaceholder {
+  parentRuleGroupId: number | null;
+  logicOperator: CompetencyGroupLogicOperator;
+  rulePayload: GradeRulePayload | null;
 }
 
 export interface CompetencyAssociationsContextValue {
   focus: CriteriaFocus | null;
+  placeholder: CriteriaPlaceholder;
+  /** Starts a placeholder rule box in the given real group, replacing any
+   * existing placeholder.
+   */
+  addPlaceholderRuleBox: (groupId: number) => void;
+  /** Starts a placeholder group under the given course-level group,
+   * replacing any existing placeholder.
+   */
+  addPlaceholderGroup: (parentRuleGroupId: number) => void;
+  /** Sets the placeholder group's own any/all combining logic. */
+  setPlaceholderLogicOperator: (logicOperator: CompetencyGroupLogicOperator) => void;
+  /** Sets the placeholder rule box's score, which is only persisted once
+   * content is associated.
+   */
+  setPlaceholderRulePayload: (rulePayload: GradeRulePayload) => void;
+  /** True after content was selected while the placeholder's score duplicated
+   * a box in its group; the request is not sent.
+   */
+  placeholderDuplicateRejected: boolean;
+  /** Drops the placeholder by clearing `focus`. */
+  discardPlaceholder: () => void;
+  /** Whether a placeholder exists, which disables both add controls. */
+  hasPlaceholder: boolean;
   /** Focuses a group and its last real rule box (`lastRealRuleKeyIn`). A
    * no-op when `groupId` is already focused, so re-clicking the group
    * heading doesn't discard a rule box the author had selected inside it.
@@ -166,11 +204,23 @@ export const CompetencyAssociationsProvider = ({
 
   const [prevTagId, setPrevTagId] = useState(tagId);
   const [focus, setFocus] = useState<CriteriaFocus | null>(null);
+  const {
+    placeholder,
+    duplicateRejected,
+    setDuplicateRejected,
+    resetPlaceholderState,
+    addPlaceholderRuleBox,
+    addPlaceholderGroup,
+    setPlaceholderLogicOperator,
+    setPlaceholderRulePayload,
+    discardPlaceholder,
+  } = usePlaceholderState(setFocus);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   const hasRunInitialFocusRef = useRef(false);
   if (tagId !== prevTagId) {
     setPrevTagId(tagId);
     setFocus(null);
+    resetPlaceholderState();
     hasRunInitialFocusRef.current = false;
   }
 
@@ -195,16 +245,15 @@ export const CompetencyAssociationsProvider = ({
     if (!index || !systemDefaultProfile) {
       return;
     }
-    const focusedGroup = focus ? index.groupsById.get(focus.groupId) : undefined;
-    const focusedCourseGroup = focusedGroup?.parentId != null ? index.groupsById.get(focusedGroup.parentId) : undefined;
-    if (focus !== null && focusedCourseGroup?.courseKey === courseId) {
+    if (focus !== null && courseKeyOfFocus(focus, placeholder, index) === courseId) {
       return;
     }
     const target = lastBottomTierGroupForCourse(index, courseId);
     if (target) {
+      setDuplicateRejected(false);
       setFocus({ groupId: target.id, ruleKey: lastRealRuleKeyIn(target.id, index, systemDefaultProfile) });
     }
-  }, [focus, index, systemDefaultProfile]);
+  }, [focus, placeholder, index, systemDefaultProfile]);
 
   // Every course-level group's course key, unfiltered - each must be
   // fetched to determine accessibility (see `accessibleCourseIds` below).
@@ -253,11 +302,15 @@ export const CompetencyAssociationsProvider = ({
       const ruleKey = (index && systemDefaultProfile) ? lastRealRuleKeyIn(groupId, index, systemDefaultProfile) : null;
       return { groupId, ruleKey };
     });
+    setDuplicateRejected(false);
   }, [index, systemDefaultProfile]);
 
   const focusRuleBox = useCallback((groupId: number, ruleKey: string) => {
     setFocus({ groupId, ruleKey });
+    setDuplicateRejected(false);
   }, []);
+
+  const hasPlaceholder = focus !== null && focus.ruleKey === null;
 
   // Runs at most once per competency: once groups, profile, and every
   // course-with-a-group's outline have resolved, focus the sole bottom-tier
@@ -320,32 +373,12 @@ export const CompetencyAssociationsProvider = ({
       return;
     }
 
-    let groupId: number | undefined;
-    let ruleTypeOverride: string | undefined;
-    let rulePayloadOverride: GradeRulePayload | undefined;
-
-    if (focus) {
-      const focusedGroup = index.groupsById.get(focus.groupId);
-      if (focusedGroup && focusedGroup.parentId !== null) {
-        const courseGroup = index.groupsById.get(focusedGroup.parentId);
-        if (courseGroup?.courseKey === courseId && focus.ruleKey !== null) {
-          const box = ruleBoxesForGroup(focus.groupId, index, systemDefaultProfile)
-            .find((candidate) => candidate.key === focus.ruleKey);
-          if (box) {
-            groupId = focus.groupId;
-            ruleTypeOverride = box.rule.ruleType;
-            rulePayloadOverride = box.rule.rulePayload;
-          }
-        }
-      }
+    const target = resolveCreateTarget(courseId, focus, placeholder, index, systemDefaultProfile);
+    if (target.kind === 'duplicate') {
+      setDuplicateRejected(true);
+      return;
     }
-
-    const payload: CreateCompetencyCriterionPayload = {
-      object_id: objectId,
-      ...(groupId !== undefined ? { group_id: groupId } : {}),
-      ...(ruleTypeOverride !== undefined ? { rule_type_override: ruleTypeOverride } : {}),
-      ...(rulePayloadOverride !== undefined ? { rule_payload_override: rulePayloadOverride } : {}),
-    };
+    const payload: CreateCompetencyCriterionPayload = { object_id: objectId, ...target.fields };
 
     createCriterion.mutate({ tagId, payload }, {
       onSuccess: (criterion) => {
@@ -353,6 +386,7 @@ export const CompetencyAssociationsProvider = ({
         // local tree: the groups query hasn't refetched yet, so the local
         // tree still doesn't know about this brand-new criterion (or
         // group) and would resolve a stale/`null` rule key.
+        setDuplicateRejected(false);
         setFocus({
           groupId: criterion.groupId,
           ruleKey: ruleKeyOf(criterion, systemDefaultProfile),
@@ -377,7 +411,7 @@ export const CompetencyAssociationsProvider = ({
         );
       },
     });
-  }, [associatedIds, index, systemDefaultProfile, focus, tagId, createCriterion, showToast, intl]);
+  }, [associatedIds, index, systemDefaultProfile, focus, placeholder, tagId, createCriterion, showToast, intl]);
 
   const updateGroupOperator = useCallback((groupId: number, logicOperator: CompetencyGroupLogicOperator) => {
     updateGroupOperatorMutation.mutate({ tagId, groupId, logicOperator }, {
@@ -430,6 +464,14 @@ export const CompetencyAssociationsProvider = ({
 
   const contextValue = useMemo<CompetencyAssociationsContextValue>(() => ({
     focus,
+    placeholder,
+    addPlaceholderRuleBox,
+    addPlaceholderGroup,
+    setPlaceholderLogicOperator,
+    setPlaceholderRulePayload,
+    discardPlaceholder,
+    hasPlaceholder,
+    placeholderDuplicateRejected: duplicateRejected,
     focusGroup,
     focusRuleBox,
     notifyCourseExpanded,
@@ -447,6 +489,14 @@ export const CompetencyAssociationsProvider = ({
     competencyExternalId,
   }), [
     focus,
+    placeholder,
+    addPlaceholderRuleBox,
+    addPlaceholderGroup,
+    setPlaceholderLogicOperator,
+    setPlaceholderRulePayload,
+    discardPlaceholder,
+    hasPlaceholder,
+    duplicateRejected,
     focusGroup,
     focusRuleBox,
     notifyCourseExpanded,

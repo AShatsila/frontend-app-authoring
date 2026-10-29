@@ -110,6 +110,46 @@ const messages = defineMessages({
     description: 'Visually hidden accessible label for the button that selects a rule box, stretched to cover '
       + 'the whole box - the box has no single short visible phrase of its own to reuse as this label.',
   },
+  defaultScoreTakenHint: {
+    id: 'course-authoring.competency-management.criteria-groups.default-score-taken-hint',
+    defaultMessage: 'Another rule in this group already uses {score}. Choose a different score.',
+    description: 'Guidance under a new, empty rule box whose score is already used by another rule in the same '
+      + 'group. "{score}" is the score as shown in the field, such as "75% or higher".',
+  },
+  useSuggestedScoreLink: {
+    id: 'course-authoring.competency-management.criteria-groups.use-suggested-score-link',
+    defaultMessage: 'Use {score}',
+    description: 'Link under the "score already used" guidance that applies the nearest unused score. '
+      + '"{score}" is that score as shown in the field, such as "80% or higher".',
+  },
+  addRuleButtonLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.add-rule-button-label',
+    defaultMessage: 'Rule',
+    description: 'Label for the button that adds a new, not-yet-saved rule box to a bottom-tier group.',
+  },
+  addRuleGroupButtonLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.add-rule-group-button-label',
+    defaultMessage: 'Rule Group',
+    description: 'Label for the button that adds a new, not-yet-saved bottom-tier group to a course-level group.',
+  },
+  addControlAccessiblePrefix: {
+    id: 'course-authoring.competency-management.criteria-groups.add-control-accessible-prefix',
+    defaultMessage: 'Add',
+    description: 'Visually hidden word placed before the "Rule" or "Rule Group" button label, so the '
+      + 'accessible name reads "Add Rule" while the visible label stays "Rule".',
+  },
+  addControlDisabledTooltip: {
+    id: 'course-authoring.competency-management.criteria-groups.add-control-disabled-tooltip',
+    defaultMessage: 'Fill in the empty box before adding another.',
+    description: 'Tooltip on a disabled "+ Rule"/"+ Rule Group" button, shown while a not-yet-saved placeholder '
+      + 'already exists elsewhere in the tree.',
+  },
+  placeholderRuleBoxHint: {
+    id: 'course-authoring.competency-management.criteria-groups.placeholder-rule-box-hint',
+    defaultMessage: 'Select content below to add it here.',
+    description: 'Hint text shown in place of chips on a not-yet-saved placeholder rule box, which has no '
+      + 'content associated with it yet.',
+  },
 });
 
 export default messages;

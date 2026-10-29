@@ -6,8 +6,10 @@ import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
+import { courseKeyOfFocus } from '../criterionTarget';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
 import { bottomTierGroupsForCourse } from '../utils';
+import AddControl from './AddControl';
 import CriteriaGroupBox from './CriteriaGroupBox';
 import GroupConnector from './GroupConnector';
 import messages from './messages';
@@ -18,7 +20,8 @@ export interface CourseGroupSectionProps {
 
 /** One accessible course-level group: its own header ("From within
  * **{course name}** ...") and its bottom-tier group cards, connected
- * pairwise by `GroupConnector`.
+ * pairwise by `GroupConnector`, plus its "+ Rule Group" control and, while
+ * one exists, the placeholder group as a last card.
  *
  * `CourseGroupList` only mounts this for a course already confirmed
  * accessible, so `useCourseOutlineIndex` below is normally reading an
@@ -29,7 +32,15 @@ export interface CourseGroupSectionProps {
  */
 const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const intl = useIntl();
-  const { focus, index, canEditCourse } = useCompetencyAssociations();
+  const {
+    index,
+    canEditCourse,
+    focus,
+    placeholder,
+    addPlaceholderGroup,
+    discardPlaceholder,
+    hasPlaceholder,
+  } = useCompetencyAssociations();
   const [isCollapsed, setIsCollapsed] = useState(false);
   // `refetchOnMount: false`: mirrors `CourseOutlineSubtree` - avoids a
   // wasted refetch of already-cached data on every mount.
@@ -55,7 +66,25 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   // states, before this component ever mounts.
   const bottomTierGroups = index ? bottomTierGroupsForCourse(index, courseGroup.courseKey) : [];
 
-  const containsFocus = !!focus && index?.groupsById.get(focus.groupId)?.parentId === courseGroup.id;
+  const canEdit = canEditCourse(courseGroup.courseKey);
+  const showPlaceholderGroup = focus?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
+  const containsFocus = !!index && courseKeyOfFocus(focus, placeholder, index) === courseGroup.courseKey;
+  const holdsPlaceholderRuleBox = focus?.ruleKey === null
+    && focus.groupId !== null
+    && bottomTierGroups.some((group) => group.id === focus.groupId);
+
+  const handleToggleCollapsed = () => {
+    // A collapsed section hides its placeholder, so it is dropped instead of lingering unseen.
+    if (!isCollapsed && (showPlaceholderGroup || holdsPlaceholderRuleBox)) {
+      discardPlaceholder();
+    }
+    setIsCollapsed((prev) => !prev);
+  };
+
+  const handleAddRuleGroupClick: React.MouseEventHandler = (event) => {
+    event.stopPropagation();
+    addPlaceholderGroup(courseGroup.id);
+  };
 
   const toggleLabel = isCollapsed
     ? intl.formatMessage(messages.expandCourseGroupButtonLabel)
@@ -73,7 +102,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
               aria-label={toggleLabel}
               aria-expanded={!isCollapsed}
               size="inline"
-              onClick={() => setIsCollapsed((prev) => !prev)}
+              onClick={handleToggleCollapsed}
             />
             <span>
               {intl.formatMessage(messages.fromWithinCourseLabel, {
@@ -91,10 +120,26 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
               <CriteriaGroupBox
                 group={group}
                 subsectionNamesByUsageKey={subsectionNamesByUsageKey}
-                canEdit={canEditCourse(courseGroup.courseKey)}
+                canEdit={canEdit}
               />
             </Fragment>
           ))}
+          {showPlaceholderGroup && (
+            <Fragment key="placeholder">
+              {bottomTierGroups.length > 0 && <GroupConnector logicOperator={courseGroup.logicOperator} />}
+              <CriteriaGroupBox
+                subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+                canEdit={canEdit}
+              />
+            </Fragment>
+          )}
+          {canEdit && (
+            <AddControl
+              label={intl.formatMessage(messages.addRuleGroupButtonLabel)}
+              disabled={hasPlaceholder}
+              onClick={handleAddRuleGroupClick}
+            />
+          )}
         </Card.Body>
       )}
     </Card>
