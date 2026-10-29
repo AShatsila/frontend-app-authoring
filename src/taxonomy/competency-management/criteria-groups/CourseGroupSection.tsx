@@ -1,12 +1,22 @@
-import { Fragment, useMemo, useState } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Card, IconButton } from '@openedx/paragon';
-import { ExpandLess, ExpandMore } from '@openedx/paragon/icons';
+import {
+  Card,
+  Dropdown,
+  Icon,
+  IconButton,
+} from '@openedx/paragon';
+import { ExpandLess, ExpandMore, MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
-import { courseKeyOfFocus } from '../criterionTarget';
+import { courseKeyOfSelection } from '../criterionTarget';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
 import { bottomTierGroupsForCourse } from '../utils';
 import AddControl from './AddControl';
@@ -35,11 +45,16 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const {
     index,
     canEditCourse,
-    focus,
+    selection,
     placeholder,
     addPlaceholderGroup,
     discardPlaceholder,
     hasPlaceholder,
+    competencyName,
+    deleteGroup,
+    isDeletingGroup,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   const [isCollapsed, setIsCollapsed] = useState(false);
   // `refetchOnMount: false`: mirrors `CourseOutlineSubtree` - avoids a
@@ -67,11 +82,29 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const bottomTierGroups = index ? bottomTierGroupsForCourse(index, courseGroup.courseKey) : [];
 
   const canEdit = canEditCourse(courseGroup.courseKey);
-  const showPlaceholderGroup = focus?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
-  const containsFocus = !!index && courseKeyOfFocus(focus, placeholder, index) === courseGroup.courseKey;
-  const holdsPlaceholderRuleBox = focus?.ruleKey === null
-    && focus.groupId !== null
-    && bottomTierGroups.some((group) => group.id === focus.groupId);
+  const showPlaceholderGroup = selection?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
+  const containsSelection = !!index && courseKeyOfSelection(selection, placeholder, index) === courseGroup.courseKey;
+  const holdsPlaceholderRuleBox = selection?.ruleKey === null
+    && selection.groupId !== null
+    && bottomTierGroups.some((group) => group.id === selection.groupId);
+
+  // A collapsed section has not mounted its cards: open it for the request, or drop the request.
+  const request = keyboardFocusRequest?.kind === 'group'
+      && bottomTierGroups.some((group) => group.id === keyboardFocusRequest.groupId)
+    ? keyboardFocusRequest
+    : null;
+  const holdsFocusRequestTarget = request !== null;
+  const requestExpandsSection = request?.expand === true;
+  useEffect(() => {
+    if (!holdsFocusRequestTarget || !isCollapsed) {
+      return;
+    }
+    if (requestExpandsSection) {
+      setIsCollapsed(false);
+    } else {
+      consumeKeyboardFocusRequest();
+    }
+  }, [holdsFocusRequestTarget, requestExpandsSection, isCollapsed, consumeKeyboardFocusRequest]);
 
   const handleToggleCollapsed = () => {
     // A collapsed section hides its placeholder, so it is dropped instead of lingering unseen.
@@ -91,7 +124,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     : intl.formatMessage(messages.collapseCourseGroupButtonLabel);
 
   return (
-    <Card className={classNames('course-group-section', { 'course-group-section--focused': containsFocus })}>
+    <Card className={classNames('course-group-section', { 'course-group-section--selected': containsSelection })}>
       <Card.Header
         size="sm"
         title={
@@ -111,6 +144,27 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
             </span>
           </div>
         }
+        actions={canEdit && (
+          <Dropdown>
+            <Dropdown.Toggle
+              id={`course-group-menu-toggle-${courseGroup.id}`}
+              as={IconButton}
+              src={MoreVert}
+              iconAs={Icon}
+              variant="primary"
+              aria-label={intl.formatMessage(messages.courseGroupMoreActionsLabel, {
+                courseName: courseDisplayName,
+              })}
+              size="inline"
+              disabled={isDeletingGroup}
+            />
+            <Dropdown.Menu>
+              <Dropdown.Item onClick={() => deleteGroup(courseGroup.id)}>
+                {intl.formatMessage(messages.removeFromCompetencyMenuItem, { competencyName })}
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown>
+        )}
       />
       {!isCollapsed && (
         <Card.Body className="course-group-section__body">

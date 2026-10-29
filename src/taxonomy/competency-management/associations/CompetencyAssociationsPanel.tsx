@@ -52,6 +52,7 @@ const CompetencyAssociationsPanel = ({ taxonomyId, taxonomyName }: CompetencyAss
           <div className="flex-grow-1">
             <CompetencyAssociationsProvider
               tagId={Number(selectedCompetency.id)}
+              competencyName={selectedCompetency.value}
               competencyExternalId={selectedCompetency.externalId ?? null}
             >
               <CourseSearchBrowse activeCompetency={selectedCompetency} />
@@ -71,6 +72,7 @@ const CompetencyAssociationsPanel = ({ taxonomyId, taxonomyName }: CompetencyAss
         <Col xs={12} lg={8}>
           <CompetencyAssociationsProvider
             tagId={Number(selectedCompetency.id)}
+            competencyName={selectedCompetency.value}
             competencyExternalId={selectedCompetency.externalId ?? null}
           >
             <CourseSearchBrowse activeCompetency={selectedCompetency} />

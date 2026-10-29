@@ -52,26 +52,26 @@ describe('<RuleBox />', () => {
     expect(screen.getByText('Subsection A')).toBeInTheDocument();
   });
 
-  it('calls focusRuleBox with its own groupId/ruleKey when the select button is clicked', () => {
-    const focusRuleBox = jest.fn();
-    const { container } = renderRuleBox({ focusRuleBox });
+  it('calls selectRuleBox with its own groupId/ruleKey when the select button is clicked', () => {
+    const selectRuleBox = jest.fn();
+    const { container } = renderRuleBox({ selectRuleBox });
 
     fireEvent.click(container.querySelector('.rule-box__select-button')!);
-    expect(focusRuleBox).toHaveBeenCalledWith(10, 'grade:gte:0.7:percent');
+    expect(selectRuleBox).toHaveBeenCalledWith(10, 'grade:gte:0.7:percent');
   });
 
-  it('does not call scrollIntoView when not the focused box', () => {
-    renderRuleBox({ focus: null });
+  it('does not call scrollIntoView when not the selected box', () => {
+    renderRuleBox({ selection: null });
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it('does not call scrollIntoView when a different box is focused', () => {
-    renderRuleBox({ focus: { groupId: 10, ruleKey: 'grade:lte:0.5:percent' } });
+  it('does not call scrollIntoView when a different box is selected', () => {
+    renderRuleBox({ selection: { groupId: 10, ruleKey: 'grade:lte:0.5:percent' } });
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it('scrolls itself into view when it is the focused box', () => {
-    renderRuleBox({ focus: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
+  it('scrolls itself into view when it is the selected box', () => {
+    renderRuleBox({ selection: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
   });
 });

@@ -19,13 +19,13 @@ export interface RuleBoxListProps {
 }
 
 /** Derives one bottom-tier group's rule boxes via `ruleBoxesForGroup` and
- * renders one `RuleBox` per box. Each `RuleBox` reads its own focus state
+ * renders one `RuleBox` per box. Each `RuleBox` reads its own selection state
  * from `CompetencyAssociationsContext` directly (given `groupId` and its
- * own box key to compare against), so no focus state is threaded through
+ * own box key to compare against), so no selection state is threaded through
  * here.
  *
  * Appends one not-yet-saved placeholder `RuleBox` last whenever this group is
- * the one currently focused with no real rule box selected.
+ * the one currently selected with no real rule box selected.
  */
 const RuleBoxList = ({
   groupId,
@@ -35,7 +35,7 @@ const RuleBoxList = ({
   canEdit = false,
 }: RuleBoxListProps) => {
   const intl = useIntl();
-  const { focus, placeholder, setPlaceholderRulePayload } = useCompetencyAssociations();
+  const { selection, placeholder, setPlaceholderRulePayload } = useCompetencyAssociations();
   // The placeholder group has no real rule boxes.
   // The score field remounts on every score change; only "+ Rule" and the suggestion link may move focus.
   const refocusAfterSuggestion = useRef(false);
@@ -57,7 +57,7 @@ const RuleBoxList = ({
   };
 
   // For the placeholder group (`groupId === null`) this holds whenever its card renders.
-  const showPlaceholder = focus?.groupId === groupId && focus?.ruleKey === null;
+  const showPlaceholder = selection?.groupId === groupId && selection?.ruleKey === null;
   const placeholderRule: EffectiveRule = {
     ruleType: systemDefaultProfile.ruleType,
     rulePayload: placeholder.rulePayload ?? systemDefaultProfile.rulePayload,

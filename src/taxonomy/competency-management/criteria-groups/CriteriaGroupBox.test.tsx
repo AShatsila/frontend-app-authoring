@@ -88,15 +88,15 @@ describe('<CriteriaGroupBox />', () => {
     expect(screen.getByText('Subsection A')).toBeInTheDocument();
   });
 
-  it('calls focusGroup with its own id when the select button is clicked', () => {
-    const focusGroup = jest.fn();
-    const { container } = renderBox({ focusGroup });
+  it('calls selectGroup with its own id when the select button is clicked', () => {
+    const selectGroup = jest.fn();
+    const { container } = renderBox({ selectGroup });
 
     fireEvent.click(container.querySelector('.criteria-group-box__select-button')!);
-    expect(focusGroup).toHaveBeenCalledWith(10);
+    expect(selectGroup).toHaveBeenCalledWith(10);
   });
 
-  it('shows aria-current false on both select buttons when nothing is focused', () => {
+  it('shows aria-current false on both select buttons when nothing is selected', () => {
     const { container } = renderBox();
     const groupSelectButton = container.querySelector('.criteria-group-box__select-button')!;
     const ruleBoxSelectButton = container.querySelector('.rule-box__select-button')!;
@@ -106,9 +106,9 @@ describe('<CriteriaGroupBox />', () => {
 
   it(
     'shows aria-current true on the group\'s select button and false on the rule box\'s when the group is '
-      + 'focused with no rule box focused',
+      + 'selected with no rule box selected',
     () => {
-      const { container } = renderBox({ focus: { groupId: 10, ruleKey: null } });
+      const { container } = renderBox({ selection: { groupId: 10, ruleKey: null } });
       const groupSelectButton = container.querySelector('.criteria-group-box__select-button')!;
       const ruleBoxSelectButton = container.querySelector('.rule-box__select-button')!;
       expect([groupSelectButton, ruleBoxSelectButton].map((el) => el.getAttribute('aria-current')))
@@ -126,35 +126,35 @@ describe('<CriteriaGroupBox />', () => {
     });
   });
 
-  it('clicking a rule box\'s own select button focuses only the rule box, not also the group', () => {
-    const focusGroup = jest.fn();
-    const focusRuleBox = jest.fn();
-    const { container } = renderBox({ focusGroup, focusRuleBox });
+  it('clicking a rule box\'s own select button selects only the rule box, not also the group', () => {
+    const selectGroup = jest.fn();
+    const selectRuleBox = jest.fn();
+    const { container } = renderBox({ selectGroup, selectRuleBox });
 
     fireEvent.click(container.querySelector('.rule-box__select-button')!);
 
-    expect(focusRuleBox).toHaveBeenCalledTimes(1);
-    expect(focusGroup).not.toHaveBeenCalled();
+    expect(selectRuleBox).toHaveBeenCalledTimes(1);
+    expect(selectGroup).not.toHaveBeenCalled();
   });
 
   it(
-    'scrolls its own placeholder rule box into view when focused with no rule box selected, not the group '
+    'scrolls its own placeholder rule box into view when selected with no rule box selected, not the group '
       + 'container itself',
     () => {
-      renderBox({ focus: { groupId: 10, ruleKey: null } });
+      renderBox({ selection: { groupId: 10, ruleKey: null } });
       // The placeholder rule box scrolls itself, so the container must not.
       expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
     },
   );
 
-  it('does not scroll the group container when a rule box within it is the focused one', () => {
-    renderBox({ focus: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
+  it('does not scroll the group container when a rule box within it is the selected one', () => {
+    renderBox({ selection: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
 
     // Only the rule box scrolls, not the container as well.
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
-  it('"+ Add Rule" on a non-focused card starts a placeholder rule box in that card\'s own group', async () => {
+  it('"+ Add Rule" on a non-selected card starts a placeholder rule box in that card\'s own group', async () => {
     const user = userEvent.setup();
     const addPlaceholderRuleBox = jest.fn();
     renderBox({ addPlaceholderRuleBox });
@@ -199,7 +199,7 @@ describe('<CriteriaGroupBox />', () => {
         value={{
           index,
           systemDefaultProfile,
-          focus: { groupId: null, ruleKey: null },
+          selection: { groupId: null, ruleKey: null },
           placeholder: { parentRuleGroupId: 1, logicOperator: 'AND', rulePayload: null },
           setPlaceholderLogicOperator,
           updateGroupOperator,
@@ -214,5 +214,84 @@ describe('<CriteriaGroupBox />', () => {
 
     expect(setPlaceholderLogicOperator).toHaveBeenCalledWith('OR');
     expect(updateGroupOperator).not.toHaveBeenCalled();
+  });
+
+  describe('group menu', () => {
+    const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole('button', { name: 'More actions for this group' }));
+    };
+
+    it('calls deleteGroup with its own id, without selecting the group, when Remove group is chosen', async () => {
+      const user = userEvent.setup();
+      const deleteGroup = jest.fn();
+      const selectGroup = jest.fn();
+      renderBox({ deleteGroup, selectGroup });
+
+      await openMenu(user);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
+
+      expect(deleteGroup).toHaveBeenCalledTimes(1);
+      expect(deleteGroup).toHaveBeenCalledWith(10);
+      expect(selectGroup).not.toHaveBeenCalled();
+    });
+
+    it('renders no menu when canEdit is false', () => {
+      renderBox({}, {}, false);
+
+      expect(screen.queryByRole('button', { name: 'More actions for this group' })).not.toBeInTheDocument();
+    });
+
+    it('disables the menu button while a delete is in flight', () => {
+      renderBox({ isDeletingGroup: true });
+
+      expect(screen.getByRole('button', { name: 'More actions for this group' })).toBeDisabled();
+    });
+
+    it('lets the placeholder group\'s menu discard it without calling deleteGroup', async () => {
+      const user = userEvent.setup();
+      const deleteGroup = jest.fn();
+      const removePlaceholderGroup = jest.fn();
+      render(
+        <MockCompetencyAssociationsProvider
+          value={{
+            index,
+            systemDefaultProfile,
+            selection: { groupId: null, ruleKey: null },
+            deleteGroup,
+            removePlaceholderGroup,
+          }}
+        >
+          <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      await openMenu(user);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
+
+      expect(removePlaceholderGroup).toHaveBeenCalledTimes(1);
+      expect(deleteGroup).not.toHaveBeenCalled();
+    });
+
+    it('takes keyboard focus on its select button when a request names it, then consumes the request', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(screen.getByRole('button', { name: 'By completing all of the following' })).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a keyboard focus request that names another group', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 99, expand: true },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(screen.getByRole('button', { name: 'By completing all of the following' })).not.toHaveFocus();
+      expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+    });
   });
 });
