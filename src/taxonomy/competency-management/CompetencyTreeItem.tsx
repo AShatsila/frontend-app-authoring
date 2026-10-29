@@ -34,7 +34,7 @@ export interface CompetencyTreeItemProps {
  * Because a group's nested `<ul>` lives inside the group's own `<li>`, the
  * `<li role="treeitem">` is given an explicit `aria-labelledby` pointing at
  * its own row. Without it, the treeitem's accessible name would be computed
- * from its entire subtree's text content, so focusing a top-level group would
+ * from its entire subtree's text content, so selecting a top-level group would
  * announce every descendant's name and Competency ID along with it.
  */
 const CompetencyTreeItem = ({

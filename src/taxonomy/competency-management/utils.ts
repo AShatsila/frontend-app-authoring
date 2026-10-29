@@ -241,7 +241,7 @@ export interface PageOrderEntry {
   ruleGroupIds: number[];
 }
 
-/** The rendered group order, captured before a delete to locate the removed focus afterward. */
+/** The rendered group order, captured before a delete to locate the removed selection afterward. */
 export interface PageOrderSnapshot {
   /** What was rendered: the accessible course-level groups only. */
   entries: PageOrderEntry[];
@@ -278,13 +278,13 @@ export function hasVisibleOrNewCourseGroup(
   return freshIndex.courseGroups.some((courseGroup) => isRenderedOrNew(snapshot, courseGroup.id));
 }
 
-/** Where focus goes after a delete, given the page order from before it and
- * the refetched data. Returns the id of the bottom-tier group to focus,
- * `'unchanged'` when focus needs no move, or `null` when nothing is left to
- * focus. In order:
+/** Where selection goes after a delete, given the page order from before it and
+ * the refetched data. Returns the id of the bottom-tier group to select,
+ * `'keep-current'` when the selection needs no move, or `null` when nothing is left to
+ * select. In order:
  *
- * 1. The focused group still exists (for the placeholder group, its
- *    course-level group still exists): `'unchanged'`.
+ * 1. The selected group still exists (for the placeholder group, its
+ *    course-level group still exists): `'keep-current'`.
  * 2. Its course-level group survives: the nearest surviving group above it
  *    in the snapshot, else the nearest below.
  * 3. Otherwise the last group of the nearest surviving course-level group
@@ -295,39 +295,39 @@ export function hasVisibleOrNewCourseGroup(
  *    new course's outline may still be loading.
  * 5. Otherwise `null`.
  *
- * Nothing focused before the delete is `'unchanged'`. A placeholder rule box
- * (`ruleKey === null` with a real `groupId`) is treated as focus on that
+ * Nothing selected before the delete is `'keep-current'`. A placeholder rule box
+ * (`ruleKey === null` with a real `groupId`) is treated as selection on that
  * group.
  */
-export function focusTargetAfterRemoval(
+export function selectionTargetAfterRemoval(
   snapshot: PageOrderSnapshot,
   freshIndex: CompetencyCriteriaGroupsIndex,
-  focus: { groupId: number | null; ruleKey: string | null; } | null,
+  selection: { groupId: number | null; ruleKey: string | null; } | null,
   placeholderParentId: number | null,
-): number | 'unchanged' | null {
-  if (focus === null) {
-    return 'unchanged';
+): number | 'keep-current' | null {
+  if (selection === null) {
+    return 'keep-current';
   }
   const survives = (id: number) => freshIndex.groupsById.has(id);
-  const focusedGroupId = focus.groupId;
+  const selectedGroupId = selection.groupId;
 
   let courseEntryPosition: number;
-  if (focusedGroupId === null) {
+  if (selectedGroupId === null) {
     if (placeholderParentId === null || survives(placeholderParentId)) {
-      return 'unchanged';
+      return 'keep-current';
     }
     courseEntryPosition = snapshot.entries.findIndex((entry) => entry.courseGroupId === placeholderParentId);
   } else {
-    if (survives(focusedGroupId)) {
-      return 'unchanged';
+    if (survives(selectedGroupId)) {
+      return 'keep-current';
     }
-    courseEntryPosition = snapshot.entries.findIndex((entry) => entry.ruleGroupIds.includes(focusedGroupId));
+    courseEntryPosition = snapshot.entries.findIndex((entry) => entry.ruleGroupIds.includes(selectedGroupId));
   }
 
   if (courseEntryPosition !== -1) {
     const entry = snapshot.entries[courseEntryPosition];
-    if (focusedGroupId !== null && survives(entry.courseGroupId)) {
-      const position = entry.ruleGroupIds.indexOf(focusedGroupId);
+    if (selectedGroupId !== null && survives(entry.courseGroupId)) {
+      const position = entry.ruleGroupIds.indexOf(selectedGroupId);
       const above = entry.ruleGroupIds.slice(0, position).filter(survives).pop();
       const below = entry.ruleGroupIds.slice(position + 1).find(survives);
       const sibling = above ?? below;
@@ -355,7 +355,7 @@ export function focusTargetAfterRemoval(
 
   for (const courseGroup of freshIndex.courseGroups) {
     // One that existed before was either handled by rules 2 and 3 or is
-    // inaccessible to the author, so focusing it would target nothing visible.
+    // inaccessible to the author, so selecting it would target nothing visible.
     if (snapshot.knownCourseGroupIds.includes(courseGroup.id)) {
       continue;
     }

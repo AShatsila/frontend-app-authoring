@@ -16,7 +16,7 @@ import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
-import { courseKeyOfFocus } from '../criterionTarget';
+import { courseKeyOfSelection } from '../criterionTarget';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
 import { bottomTierGroupsForCourse } from '../utils';
 import AddControl from './AddControl';
@@ -45,7 +45,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const {
     index,
     canEditCourse,
-    focus,
+    selection,
     placeholder,
     addPlaceholderGroup,
     discardPlaceholder,
@@ -82,11 +82,11 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const bottomTierGroups = index ? bottomTierGroupsForCourse(index, courseGroup.courseKey) : [];
 
   const canEdit = canEditCourse(courseGroup.courseKey);
-  const showPlaceholderGroup = focus?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
-  const containsFocus = !!index && courseKeyOfFocus(focus, placeholder, index) === courseGroup.courseKey;
-  const holdsPlaceholderRuleBox = focus?.ruleKey === null
-    && focus.groupId !== null
-    && bottomTierGroups.some((group) => group.id === focus.groupId);
+  const showPlaceholderGroup = selection?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
+  const containsSelection = !!index && courseKeyOfSelection(selection, placeholder, index) === courseGroup.courseKey;
+  const holdsPlaceholderRuleBox = selection?.ruleKey === null
+    && selection.groupId !== null
+    && bottomTierGroups.some((group) => group.id === selection.groupId);
 
   // A collapsed section has not mounted its cards: open it for the request, or drop the request.
   const request = keyboardFocusRequest?.kind === 'group'
@@ -124,7 +124,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     : intl.formatMessage(messages.collapseCourseGroupButtonLabel);
 
   return (
-    <Card className={classNames('course-group-section', { 'course-group-section--focused': containsFocus })}>
+    <Card className={classNames('course-group-section', { 'course-group-section--selected': containsSelection })}>
       <Card.Header
         size="sm"
         title={

@@ -28,19 +28,19 @@ export interface CriteriaGroupBoxProps {
 
 /** One bottom-tier group's "By completing any/all of the following"
  * bracket, plus its rule boxes and its own "+ Rule" control. The "By
- * completing..." band is the group's focus control; the rule boxes are
+ * completing..." band is the group's selection control; the rule boxes are
  * siblings of it, not descendants, so no interactive element contains another.
  * Without a real `group` (the not-yet-saved placeholder group), it reads its
  * any/all logic from the context's `placeholder` state and has no select
- * button. It never scrolls itself into view: a focused rule box, real or
+ * button. It never scrolls itself into view: a selected rule box, real or
  * placeholder, does.
  */
 const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: CriteriaGroupBoxProps) => {
   const intl = useIntl();
   const {
-    focus,
+    selection,
     placeholder,
-    focusGroup,
+    selectGroup,
     index,
     systemDefaultProfile,
     updateGroupOperator,
@@ -54,19 +54,20 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
 
-  // `null` identifies the placeholder group, matching `CriteriaFocus`.
+  // `null` identifies the placeholder group, matching `CriteriaSelection`.
   const groupId = group?.id ?? null;
-  const isFocused = focus?.groupId === groupId;
+  const isSelected = selection?.groupId === groupId;
   const logicOperator = group ? group.logicOperator : placeholder.logicOperator;
 
   const operatorLabel = logicOperator === 'AND'
     ? intl.formatMessage(messages.logicOperatorAllLabel)
     : intl.formatMessage(messages.logicOperatorAnyLabel);
   const selectButtonRef = useRef<HTMLButtonElement>(null);
-  // `preventScroll`: the focused rule box scrolls itself into view.
+  // `preventScroll`: the selected rule box scrolls itself into view.
   const takesKeyboardFocus = group !== undefined
     && keyboardFocusRequest?.kind === 'group'
     && keyboardFocusRequest.groupId === group.id;
+
   useEffect(() => {
     if (takesKeyboardFocus && selectButtonRef.current) {
       selectButtonRef.current.focus({ preventScroll: true });
@@ -92,7 +93,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     // Not itself interactive, since the rule boxes it contains are; the
     // group's own control is the header.
     <div
-      className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
+      className={classNames('criteria-group-box', { 'criteria-group-box--selected': isSelected })}
     >
       <div className="criteria-group-box__header-row d-flex align-items-center">
         <div className="criteria-group-box__header flex-grow-1">
@@ -107,8 +108,8 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
               ref={selectButtonRef}
               type="button"
               className="stretched-link criteria-group-box__select-button"
-              aria-current={isFocused}
-              onClick={() => focusGroup(group.id)}
+              aria-current={isSelected}
+              onClick={() => selectGroup(group.id)}
             >
               <span className="sr-only">
                 {intl.formatMessage(messages.criteriaGroupBoxLabel, { operator: operatorLabel })}

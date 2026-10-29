@@ -6,15 +6,15 @@ import {
 
 /** Builds a full `CompetencyAssociationsContextValue`, overriding only the
  * fields a given test cares about. Used by component tests below
- * `CompetencyAssociationsProvider` that want to control focus/data state
+ * `CompetencyAssociationsProvider` that want to control selection/data state
  * directly, without mocking every HTTP request the real provider would
- * otherwise issue - the provider's own data-fetching and focus mechanics
+ * otherwise issue - the provider's own data-fetching and selection mechanics
  * get their own dedicated coverage in `CompetencyAssociationsContext.test.tsx`.
  */
 export const buildMockCompetencyAssociationsContextValue = (
   overrides: Partial<CompetencyAssociationsContextValue> = {},
 ): CompetencyAssociationsContextValue => ({
-  focus: null,
+  selection: null,
   placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null },
   addPlaceholderRuleBox: jest.fn(),
   addPlaceholderGroup: jest.fn(),
@@ -23,8 +23,8 @@ export const buildMockCompetencyAssociationsContextValue = (
   discardPlaceholder: jest.fn(),
   hasPlaceholder: false,
   placeholderDuplicateRejected: false,
-  focusGroup: jest.fn(),
-  focusRuleBox: jest.fn(),
+  selectGroup: jest.fn(),
+  selectRuleBox: jest.fn(),
   notifyCourseExpanded: jest.fn(),
   associateSubsection: jest.fn(),
   updateGroupOperator: jest.fn(),
