@@ -38,7 +38,7 @@ import type {
   CreateCompetencyCriterionPayload,
   GradeRulePayload,
 } from './data/types';
-import { courseKeyOfFocus, resolveCreateTarget } from './criterionTarget';
+import { courseKeyOfSelection, resolveCreateTarget } from './criterionTarget';
 import messages from './messages';
 import { usePlaceholderState } from './usePlaceholderState';
 import type { CompetencyCriteriaGroupsIndex, PageOrderSnapshot } from './utils';
@@ -47,7 +47,7 @@ import {
   bottomTierGroupsForCourse,
   buildCompetencyCriteriaGroupsIndex,
   effectiveRuleOf,
-  focusTargetAfterRemoval,
+  selectionTargetAfterRemoval,
   hasVisibleOrNewCourseGroup,
   lastBottomTierGroupForCourse,
   lastRealRuleKeyIn,
@@ -58,21 +58,21 @@ import {
 } from './utils';
 
 /** A rule box only means anything inside its own group, so `groupId` and
- * `ruleKey` are always written together (see `focusGroup`/`focusRuleBox`).
+ * `ruleKey` are always written together (see `selectGroup`/`selectRuleBox`).
  *
- * `groupId === null` means the focused group is a not-yet-saved placeholder
- * group. `ruleKey === null` means a placeholder rule box is focused, inside
- * the focused real group or inside the placeholder group. Only one
- * placeholder can exist at a time, since `focus` has only one slot.
+ * `groupId === null` means the selected group is a not-yet-saved placeholder
+ * group. `ruleKey === null` means a placeholder rule box is selected, inside
+ * the selected real group or inside the placeholder group. Only one
+ * placeholder can exist at a time, since `selection` has only one slot.
  */
-export interface CriteriaFocus {
+export interface CriteriaSelection {
   groupId: number | null;
   ruleKey: string | null;
 }
 
-/** The author's choices on the placeholder, kept apart from `focus`
- * because the non-placeholder flows also write `focus`. `parentRuleGroupId`
- * and `logicOperator` only matter while `focus.groupId === null`.
+/** The author's choices on the placeholder, kept apart from `selection`
+ * because the non-placeholder flows also write `selection`. `parentRuleGroupId`
+ * and `logicOperator` only matter while `selection.groupId === null`.
  */
 export interface CriteriaPlaceholder {
   parentRuleGroupId: number | null;
@@ -80,13 +80,13 @@ export interface CriteriaPlaceholder {
   rulePayload: GradeRulePayload | null;
 }
 
-/** One-shot keyboard focus target after a delete removed the focused menu button.
- * `expand`: whether a collapsed section holding the target should open for it.
- */
+/** One-shot move of the browser's keyboard focus after a delete removes the ⋮ button that held it (focus would fall to <body>).
+ * `group` targets the newly selected group's select button, `empty` the empty-panel message;
+ * `expand` opens a collapsed section holding the target. */
 export type KeyboardFocusRequest = { kind: 'group'; groupId: number; expand: boolean; } | { kind: 'empty'; };
 
 export interface CompetencyAssociationsContextValue {
-  focus: CriteriaFocus | null;
+  selection: CriteriaSelection | null;
   placeholder: CriteriaPlaceholder;
   /** Starts a placeholder rule box in the given real group, replacing any
    * existing placeholder.
@@ -106,22 +106,22 @@ export interface CompetencyAssociationsContextValue {
    * a box in its group; the request is not sent.
    */
   placeholderDuplicateRejected: boolean;
-  /** Drops the placeholder by clearing `focus`. */
+  /** Drops the placeholder by clearing `selection`. */
   discardPlaceholder: () => void;
   /** Whether a placeholder exists, which disables both add controls. */
   hasPlaceholder: boolean;
-  /** Focuses a group and its last real rule box (`lastRealRuleKeyIn`). A
-   * no-op when `groupId` is already focused, so re-clicking the group
+  /** Selects a group and its last real rule box (`lastRealRuleKeyIn`). A
+   * no-op when `groupId` is already selected, so re-clicking the group
    * heading doesn't discard a rule box the author had selected inside it.
    */
-  focusGroup: (groupId: number) => void;
-  /** Focuses one specific rule box, and the group it belongs to, together. */
-  focusRuleBox: (groupId: number, ruleKey: string) => void;
+  selectGroup: (groupId: number) => void;
+  /** Selects one specific rule box, and the group it belongs to, together. */
+  selectRuleBox: (groupId: number, ruleKey: string) => void;
   /** Notify the provider that a course was expanded in the content panel.
    * Call only from that panel's own per-course chevron on expand, never on
    * collapse or from a page-level "Expand All". Feeds `canEditCourse` for a
-   * group-less course, and moves focus to the course's last bottom-tier group
-   * and its last rule box when focus is unset or on another course's group.
+   * group-less course, and moves selection to the course's last bottom-tier group
+   * and its last rule box when selection is unset or on another course's group.
    */
   notifyCourseExpanded: (courseId: string) => void;
   /** Associates a piece of course content (a gradable subsection) with the
@@ -133,16 +133,16 @@ export interface CompetencyAssociationsContextValue {
    */
   updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => void;
   /** Updates a rule box's score threshold across every criterion listed in
-   * `criterionIds` (`#759`), deriving the new focus key from the response.
+   * `criterionIds` (`#759`), deriving the new selection key from the response.
    */
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
-  /** Deletes a group, then moves focus per `focusTargetAfterRemoval` once the refetch lands.
+  /** Deletes a group, then moves selection per `selectionTargetAfterRemoval` once the refetch lands.
    * A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
   /** True until a delete's follow-up refetch lands. */
   isDeletingGroup: boolean;
-  /** Discards the placeholder group without a request and focuses the last
+  /** Discards the placeholder group without a request and selects the last
    * saved group in its course-level group, or nothing when it has none.
    */
   removePlaceholderGroup: () => void;
@@ -219,7 +219,7 @@ export interface CompetencyAssociationsProviderProps {
  *
  * Never remounted (no `key={tagId}`), so it doesn't reset
  * `CourseSearchBrowse`'s own state on competency change; instead it resets
- * its focus by comparing the incoming `tagId` against the previous render's
+ * its selection by comparing the incoming `tagId` against the previous render's
  * value, React's documented alternative to a remounting `key`. The expanded
  * courses persist, mirroring the content panel's own expansion state.
  */
@@ -233,11 +233,11 @@ export const CompetencyAssociationsProvider = ({
   const { showToast } = useToastContext();
 
   const [prevTagId, setPrevTagId] = useState(tagId);
-  const [focus, setFocus] = useState<CriteriaFocus | null>(null);
+  const [selection, setSelection] = useState<CriteriaSelection | null>(null);
   const [keyboardFocusRequest, setKeyboardFocusRequest] = useState<KeyboardFocusRequest | null>(null);
-  // Any focus write other than a delete's own drops a pending keyboard focus request.
-  const setFocusAndDropKeyboardRequest = useCallback((next: SetStateAction<CriteriaFocus | null>) => {
-    setFocus(next);
+  // Any selection write other than a delete's own drops a pending keyboard focus request.
+  const setSelectionAndDropKeyboardRequest = useCallback((next: SetStateAction<CriteriaSelection | null>) => {
+    setSelection(next);
     setKeyboardFocusRequest(null);
   }, []);
   const {
@@ -250,15 +250,15 @@ export const CompetencyAssociationsProvider = ({
     setPlaceholderLogicOperator,
     setPlaceholderRulePayload,
     discardPlaceholder,
-  } = usePlaceholderState(setFocusAndDropKeyboardRequest);
+  } = usePlaceholderState(setSelectionAndDropKeyboardRequest);
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
-  const hasRunInitialFocusRef = useRef(false);
+  const hasRunInitialSelectionRef = useRef(false);
   if (tagId !== prevTagId) {
     setPrevTagId(tagId);
-    setFocus(null);
+    setSelection(null);
     resetPlaceholderState();
     setKeyboardFocusRequest(null);
-    hasRunInitialFocusRef.current = false;
+    hasRunInitialSelectionRef.current = false;
   }
 
   const groupsQuery = useCompetencyCriteriaGroups(tagId);
@@ -268,13 +268,11 @@ export const CompetencyAssociationsProvider = ({
   const updateRuleScoreMutation = useUpdateCompetencyCriteriaRule();
   const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the delete menus.
-  const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the
-  // latest focus and placeholder through refs to respect a click made
+  // latest selection and placeholder through refs to respect a click made
   // while the request was in flight.
-  const focusRef = useRef(focus);
-  focusRef.current = focus;
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
   const placeholderRef = useRef(placeholder);
   placeholderRef.current = placeholder;
 
@@ -293,20 +291,20 @@ export const CompetencyAssociationsProvider = ({
     if (!index || !systemDefaultProfile) {
       return;
     }
-    if (focus !== null && courseKeyOfFocus(focus, placeholder, index) === courseId) {
+    if (selection !== null && courseKeyOfSelection(selection, placeholder, index) === courseId) {
       return;
     }
     const target = lastBottomTierGroupForCourse(index, courseId);
     if (target) {
       setKeyboardFocusRequest(null);
       setDuplicateRejected(false);
-      setFocus({ groupId: target.id, ruleKey: lastRealRuleKeyIn(target.id, index, systemDefaultProfile) });
+      setSelection({ groupId: target.id, ruleKey: lastRealRuleKeyIn(target.id, index, systemDefaultProfile) });
     }
-  }, [focus, placeholder, index, systemDefaultProfile]);
+  }, [selection, placeholder, index, systemDefaultProfile]);
 
   // Every course-level group's course key, unfiltered - each must be
   // fetched to determine accessibility (see `accessibleCourseIds` below).
-  // Also feeds the initial-focus gate and, unioned with `expandedCourseIds`,
+  // Also feeds the initial-selection gate and, unioned with `expandedCourseIds`,
   // `canEditCourse`'s permission check.
   const courseIdsWithGroups = useMemo(
     () => (index ? index.courseGroups.map((courseGroup) => courseGroup.courseKey) : []),
@@ -340,10 +338,10 @@ export const CompetencyAssociationsProvider = ({
     [index, accessibleCourseIds],
   );
 
-  const focusGroup = useCallback((groupId: number) => {
-    setFocus((prev) => {
+  const selectGroup = useCallback((groupId: number) => {
+    setSelection((prev) => {
       if (prev?.groupId === groupId) {
-        // No-op: clicking the group already in focus must not re-resolve
+        // No-op: clicking the group already selected must not re-resolve
         // its default rule box, or it would silently throw away whichever
         // rule box the author had selected inside it.
         return prev;
@@ -355,36 +353,36 @@ export const CompetencyAssociationsProvider = ({
     setDuplicateRejected(false);
   }, [index, systemDefaultProfile]);
 
-  const focusRuleBox = useCallback((groupId: number, ruleKey: string) => {
-    setFocus({ groupId, ruleKey });
+  const selectRuleBox = useCallback((groupId: number, ruleKey: string) => {
+    setSelection({ groupId, ruleKey });
     setKeyboardFocusRequest(null);
     setDuplicateRejected(false);
   }, []);
 
-  const hasPlaceholder = focus !== null && focus.ruleKey === null;
+  const hasPlaceholder = selection !== null && selection.ruleKey === null;
 
   // Runs at most once per competency: once groups, profile, and every
-  // course-with-a-group's outline have resolved, focus the sole bottom-tier
+  // course-with-a-group's outline have resolved, select the sole bottom-tier
   // group if exactly one exists among *accessible* course-level groups (an
-  // inaccessible one isn't rendered, so it must never be auto-focus
+  // inaccessible one isn't rendered, so it must never be auto-select
   // eligible). Independent of `expandedCourseIds`, which must not delay
-  // this gate. A click that sets focus first beats this auto-focus; the
+  // this gate. A click that sets the selection first beats this auto-select; the
   // effect still marks itself as run, it just skips writing.
   useEffect(() => {
-    if (hasRunInitialFocusRef.current) {
+    if (hasRunInitialSelectionRef.current) {
       return;
     }
     if (!groupsQuery.isSuccess || !profileQuery.isSuccess || !allVisibleCourseOutlinesResolved || !index) {
       return;
     }
-    hasRunInitialFocusRef.current = true;
-    if (focus !== null) {
+    hasRunInitialSelectionRef.current = true;
+    if (selection !== null) {
       return;
     }
     const allBottomTierGroups = accessibleCourseGroups
       .flatMap((courseGroup) => bottomTierGroupsForCourse(index, courseGroup.courseKey));
     if (allBottomTierGroups.length === 1) {
-      focusGroup(allBottomTierGroups[0].id);
+      selectGroup(allBottomTierGroups[0].id);
     }
   }, [
     groupsQuery.isSuccess,
@@ -392,13 +390,13 @@ export const CompetencyAssociationsProvider = ({
     allVisibleCourseOutlinesResolved,
     index,
     accessibleCourseGroups,
-    focus,
-    focusGroup,
+    selection,
+    selectGroup,
   ]);
 
   // `canEditCourse`'s course list: every course with a group plus every
   // course expanded in the content panel (even group-less). Must not feed
-  // the initial-focus gate above.
+  // the initial-selection gate above.
   const courseIdsForPermissions = useMemo(() => {
     const ids = new Set(expandedCourseIds);
     courseIdsWithGroups.forEach((courseId) => ids.add(courseId));
@@ -424,7 +422,7 @@ export const CompetencyAssociationsProvider = ({
       return;
     }
 
-    const target = resolveCreateTarget(courseId, focus, placeholder, index, systemDefaultProfile);
+    const target = resolveCreateTarget(courseId, selection, placeholder, index, systemDefaultProfile);
     if (target.kind === 'duplicate') {
       setDuplicateRejected(true);
       return;
@@ -438,7 +436,7 @@ export const CompetencyAssociationsProvider = ({
         // tree still doesn't know about this brand-new criterion (or
         // group) and would resolve a stale/`null` rule key.
         setDuplicateRejected(false);
-        setFocus({
+        setSelection({
           groupId: criterion.groupId,
           ruleKey: ruleKeyOf(criterion, systemDefaultProfile),
         });
@@ -462,7 +460,7 @@ export const CompetencyAssociationsProvider = ({
         );
       },
     });
-  }, [associatedIds, index, systemDefaultProfile, focus, placeholder, tagId, createCriterion, showToast, intl]);
+  }, [associatedIds, index, systemDefaultProfile, selection, placeholder, tagId, createCriterion, showToast, intl]);
 
   const updateGroupOperator = useCallback((groupId: number, logicOperator: CompetencyGroupLogicOperator) => {
     updateGroupOperatorMutation.mutate({ tagId, groupId, logicOperator }, {
@@ -499,10 +497,10 @@ export const CompetencyAssociationsProvider = ({
       .then((updatedCriteria) => {
         // From the response, not the request: a "reset to default" edit can
         // echo back a shared profile reference instead of the sent values,
-        // so the new focus key has to come from what was actually persisted.
+        // so the new selection key has to come from what was actually persisted.
         const [updatedCriterion] = updatedCriteria;
         if (updatedCriterion) {
-          setFocus({ groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) });
+          setSelection({ groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) });
         }
       })
       .catch((error) => {
@@ -515,10 +513,8 @@ export const CompetencyAssociationsProvider = ({
 
   const consumeKeyboardFocusRequest = useCallback(() => setKeyboardFocusRequest(null), []);
 
-  // Unlike `focusGroup`, lands on the group's first rule box, and the rule
-  // key is `null` for a group with none, which focuses a placeholder rule
-  // box, as `focusGroup` does.
-  const focusGroupAfterRemoval = useCallback((
+  // Selects the group's FIRST rule box (per the ticket); `selectGroup` selects the last.
+  const selectGroupAfterRemoval = useCallback((
     groupId: number,
     freshIndex: CompetencyCriteriaGroupsIndex,
     shouldRequestKeyboardFocus: boolean,
@@ -526,12 +522,12 @@ export const CompetencyAssociationsProvider = ({
     const ruleKey = systemDefaultProfile
       ? (ruleBoxesForGroup(groupId, freshIndex, systemDefaultProfile)[0]?.key ?? null)
       : null;
-    setFocus({ groupId, ruleKey });
+    setSelection({ groupId, ruleKey });
     setDuplicateRejected(false);
     setKeyboardFocusRequest(shouldRequestKeyboardFocus ? { kind: 'group', groupId, expand: true } : null);
   }, [systemDefaultProfile]);
 
-  const resolveFocusAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
+  const resolveSelectionAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
       competencyQueryKeys.competencyCriteriaGroups(tagId),
     );
@@ -539,38 +535,37 @@ export const CompetencyAssociationsProvider = ({
       return;
     }
     const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
-    const currentFocus = focusRef.current;
-    const target = focusTargetAfterRemoval(
+    const currentSelection = selectionRef.current;
+    const target = selectionTargetAfterRemoval(
       snapshot,
       freshIndex,
-      currentFocus,
+      currentSelection,
       placeholderRef.current.parentRuleGroupId,
     );
     // A failed or no-op delete leaves the menu button in the DOM, which
     // keeps the browser's focus; only a vanished group strands it.
     const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
 
-    if (target === 'unchanged') {
-      const focusedGroupId = currentFocus?.groupId ?? null;
-      if (isDeletedGroupGone && focusedGroupId !== null) {
-        setKeyboardFocusRequest({ kind: 'group', groupId: focusedGroupId, expand: false });
+    if (target === 'keep-current') {
+      const selectedGroupId = currentSelection?.groupId ?? null;
+      const shouldReturnKeyboardFocusToSelection = isDeletedGroupGone && selectedGroupId !== null;
+      if (shouldReturnKeyboardFocusToSelection) {
+        setKeyboardFocusRequest({ kind: 'group', groupId: selectedGroupId, expand: false });
       }
     } else if (target === null) {
-      setFocus(null);
+      const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex);
+      setSelection(null);
       setDuplicateRejected(false);
-      setKeyboardFocusRequest(
-        isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex) ? { kind: 'empty' } : null,
-      );
+      setKeyboardFocusRequest(isPanelEmpty ? { kind: 'empty' } : null);
     } else {
-      focusGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
+      selectGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
     }
-  }, [queryClient, tagId, focusGroupAfterRemoval]);
+  }, [queryClient, tagId, selectGroupAfterRemoval]);
 
   const deleteGroup = useCallback((groupId: number) => {
-    if (isDeleteInFlightRef.current || !index) {
+    if (!index) {
       return;
     }
-    isDeleteInFlightRef.current = true;
     const snapshot = snapshotPageOrder(index, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
       onError: (error) => {
@@ -580,11 +575,10 @@ export const CompetencyAssociationsProvider = ({
         }
       },
       onSettled: () => {
-        isDeleteInFlightRef.current = false;
-        resolveFocusAfterDelete(groupId, snapshot);
+        resolveSelectionAfterDelete(groupId, snapshot);
       },
     });
-  }, [index, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveFocusAfterDelete, showToast, intl]);
+  }, [index, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveSelectionAfterDelete, showToast, intl]);
 
   const removePlaceholderGroup = useCallback(() => {
     const { parentRuleGroupId } = placeholder;
@@ -593,15 +587,15 @@ export const CompetencyAssociationsProvider = ({
       ? lastBottomTierGroupForCourse(index, parentGroup.courseKey)
       : null;
     if (index && lastGroup) {
-      focusGroupAfterRemoval(lastGroup.id, index, true);
+      selectGroupAfterRemoval(lastGroup.id, index, true);
     } else {
-      setFocus(null);
+      setSelection(null);
       setKeyboardFocusRequest(null);
     }
-  }, [placeholder, index, focusGroupAfterRemoval]);
+  }, [placeholder, index, selectGroupAfterRemoval]);
 
   const contextValue = useMemo<CompetencyAssociationsContextValue>(() => ({
-    focus,
+    selection,
     placeholder,
     addPlaceholderRuleBox,
     addPlaceholderGroup,
@@ -610,8 +604,8 @@ export const CompetencyAssociationsProvider = ({
     discardPlaceholder,
     hasPlaceholder,
     placeholderDuplicateRejected: duplicateRejected,
-    focusGroup,
-    focusRuleBox,
+    selectGroup,
+    selectRuleBox,
     notifyCourseExpanded,
     associateSubsection,
     updateGroupOperator,
@@ -632,7 +626,7 @@ export const CompetencyAssociationsProvider = ({
     competencyExternalId,
     competencyName,
   }), [
-    focus,
+    selection,
     placeholder,
     addPlaceholderRuleBox,
     addPlaceholderGroup,
@@ -641,8 +635,8 @@ export const CompetencyAssociationsProvider = ({
     discardPlaceholder,
     hasPlaceholder,
     duplicateRejected,
-    focusGroup,
-    focusRuleBox,
+    selectGroup,
+    selectRuleBox,
     notifyCourseExpanded,
     associateSubsection,
     updateGroupOperator,

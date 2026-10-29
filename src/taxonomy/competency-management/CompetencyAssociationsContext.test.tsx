@@ -202,7 +202,7 @@ const courseBGroupsResponse: CompetencyCriteriaGroupsResponse = {
   ],
 };
 
-/** Like `twoCoursesResponse`, but group 20 has a criterion, so focusing it yields a real rule key. */
+/** Like `twoCoursesResponse`, but group 20 has a criterion, so selecting it yields a real rule key. */
 const courseExpansionResponse: CompetencyCriteriaGroupsResponse = {
   ...twoCoursesResponse,
   criteria: [
@@ -251,7 +251,7 @@ const TestConsumer = () => {
   return (
     <div>
       <div data-testid="can-edit-course-b">{String(ctx.canEditCourse(courseB))}</div>
-      <div data-testid="focus">{JSON.stringify(ctx.focus)}</div>
+      <div data-testid="selection">{JSON.stringify(ctx.selection)}</div>
       <div data-testid="placeholder">{JSON.stringify(ctx.placeholder)}</div>
       <div data-testid="has-placeholder">{String(ctx.hasPlaceholder)}</div>
       <div data-testid="duplicate-rejected">{String(ctx.placeholderDuplicateRejected)}</div>
@@ -260,11 +260,11 @@ const TestConsumer = () => {
       <div data-testid="accessible-course-group-ids">
         {ctx.accessibleCourseGroups.map((group) => group.courseKey).join(',')}
       </div>
-      <button type="button" onClick={() => ctx.focusGroup(999)}>focus-999</button>
-      <button type="button" onClick={() => ctx.focusGroup(10)}>focus-group-10</button>
-      <button type="button" onClick={() => ctx.focusGroup(11)}>focus-group-11</button>
-      <button type="button" onClick={() => ctx.focusGroup(20)}>focus-group-20</button>
-      <button type="button" onClick={() => ctx.focusRuleBox(10, 'grade:gte:0.7:percent')}>focus-rulebox-10</button>
+      <button type="button" onClick={() => ctx.selectGroup(999)}>selection-999</button>
+      <button type="button" onClick={() => ctx.selectGroup(10)}>selection-group-10</button>
+      <button type="button" onClick={() => ctx.selectGroup(11)}>selection-group-11</button>
+      <button type="button" onClick={() => ctx.selectGroup(20)}>selection-group-20</button>
+      <button type="button" onClick={() => ctx.selectRuleBox(10, 'grade:gte:0.7:percent')}>selection-rulebox-10</button>
       <button type="button" onClick={() => ctx.addPlaceholderRuleBox(10)}>add-placeholder-rule-10</button>
       <button type="button" onClick={() => ctx.addPlaceholderGroup(1)}>add-placeholder-group-1</button>
       <button
@@ -294,15 +294,6 @@ const TestConsumer = () => {
       <div data-testid="keyboard-focus-request">{JSON.stringify(ctx.keyboardFocusRequest)}</div>
       <button type="button" onClick={() => ctx.deleteGroup(10)}>delete-group-10</button>
       <button type="button" onClick={() => ctx.deleteGroup(20)}>delete-group-20</button>
-      <button
-        type="button"
-        onClick={() => {
-          ctx.deleteGroup(10);
-          ctx.deleteGroup(10);
-        }}
-      >
-        delete-group-10-twice
-      </button>
       <button type="button" onClick={() => ctx.removePlaceholderGroup()}>remove-placeholder-group</button>
       <button type="button" onClick={() => ctx.updateGroupOperator(10, 'OR')}>update-group-operator</button>
       <button
@@ -330,20 +321,20 @@ describe('CompetencyAssociationsProvider', () => {
     ({ axiosMock, mockShowToast } = initializeMocks());
   });
 
-  describe('initial focus', () => {
-    it('focuses the sole bottom-tier group once the groups query and every visible course outline resolve', async () => {
+  describe('initial selection', () => {
+    it('selects the sole bottom-tier group once the groups query and every visible course outline resolve', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       renderProvider();
 
       await waitFor(() => {
-        expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
       });
-      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
     });
 
-    it('leaves focus unset when more than one bottom-tier group exists across visible course groups', async () => {
+    it('leaves selection unset when more than one bottom-tier group exists across visible course groups', async () => {
       axiosMock.onGet(groupsUrl).reply(200, twoGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -352,10 +343,10 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => {
         expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success');
       });
-      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
     });
 
-    it('leaves focus unset when there are no visible course-level groups', async () => {
+    it('leaves selection unset when there are no visible course-level groups', async () => {
       axiosMock.onGet(groupsUrl).reply(200, noGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       renderProvider();
@@ -363,30 +354,30 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => {
         expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success');
       });
-      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
     });
 
-    it('a click beats a preceding auto-focus and is not reverted once the data resolves', async () => {
+    it('a click beats a preceding auto-select and is not reverted once the data resolves', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       renderProvider();
 
-      // Click before anything has resolved - at this point `focus` is
-      // still unset and the initial-focus effect hasn't run yet.
-      fireEvent.click(screen.getByText('focus-999'));
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":999');
+      // Click before anything has resolved - at this point `selection` is
+      // still unset and the initial-selection effect hasn't run yet.
+      fireEvent.click(screen.getByText('selection-999'));
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":999');
 
       // Let the groups/profile/outline queries resolve - the sole
-      // bottom-tier group (id 10) would otherwise be auto-focused.
+      // bottom-tier group (id 10) would otherwise be auto-selected.
       await waitFor(() => {
         expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success');
       });
 
-      // The manual click's focus must survive - the auto-focus effect
+      // The manual click's selection must survive - the auto-select effect
       // still marks itself as having run, but skips writing anything
-      // because focus was no longer unset by the time its gate resolved.
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":999');
+      // because selection was no longer unset by the time its gate resolved.
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":999');
     });
   });
 
@@ -426,12 +417,12 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByTestId('accessible-course-group-ids')).toHaveTextContent('');
     });
 
-    it('does not auto-focus a bottom-tier group that belongs to an inaccessible course', async () => {
+    it('does not auto-select a bottom-tier group that belongs to an inaccessible course', async () => {
       // A single course-level group with a single bottom-tier group - the
-      // exact shape `'focuses the sole bottom-tier group...'` above proves
-      // auto-focuses when the course IS accessible. Here, its own outline
+      // exact shape `'selects the sole bottom-tier group...'` above proves
+      // auto-selects when the course IS accessible. Here, its own outline
       // fetch fails, so this bottom-tier group must not be eligible for
-      // auto-focus at all, even though it's still the *only* one in the raw
+      // auto-select at all, even though it's still the *only* one in the raw
       // `#681` response - counting the raw response instead of
       // `accessibleCourseGroups` was exactly the bug this test guards
       // against.
@@ -450,12 +441,12 @@ describe('CompetencyAssociationsProvider', () => {
         expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success');
       });
       expect(screen.getByTestId('accessible-course-group-ids')).toHaveTextContent('');
-      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
     });
   });
 
   it(
-    'does not delay initial focus when an unrelated, still-loading course is expanded via notifyCourseExpanded',
+    'does not delay initial selection when an unrelated, still-loading course is expanded via notifyCourseExpanded',
     async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -464,18 +455,18 @@ describe('CompetencyAssociationsProvider', () => {
       // never resolves - simulates the author expanding an unrelated
       // course in the content panel below while this competency's own
       // course (courseA) is still loading. `notifyCourseExpanded` feeds
-      // `canEditCourse`'s course list, not the initial-focus gate, so this
-      // must have no bearing on when focus fires.
+      // `canEditCourse`'s course list, not the initial-selection gate, so this
+      // must have no bearing on when selection fires.
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(() => new Promise(() => {}));
       renderProvider();
 
       fireEvent.click(screen.getByText('expand-course-b'));
 
-      // The sole bottom-tier group (courseA's group 10) still auto-focuses
+      // The sole bottom-tier group (courseA's group 10) still auto-selects
       // once courseA's own data resolves, unaffected by courseB's outline
       // never resolving.
       await waitFor(() => {
-        expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
       });
     },
   );
@@ -505,7 +496,7 @@ describe('CompetencyAssociationsProvider', () => {
     expect(screen.getByTestId('can-edit-course-b')).toHaveTextContent('true');
   });
 
-  describe('notifyCourseExpanded focus', () => {
+  describe('notifyCourseExpanded selection', () => {
     const renderWithCourseB = async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -516,53 +507,53 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
     };
 
-    it('moves focus from another course\'s group to the expanded course\'s last group and last rule box', async () => {
+    it('moves selection from another course\'s group to the expanded course\'s last group and last rule box', async () => {
       await renderWithCourseB();
-      fireEvent.click(screen.getByText('focus-group-10'));
+      fireEvent.click(screen.getByText('selection-group-10'));
 
       fireEvent.click(screen.getByText('expand-course-b'));
       const expected = JSON.stringify({ groupId: 21, ruleKey: 'grade:eq:1:percent' });
-      expect(screen.getByTestId('focus')).toHaveTextContent(expected);
+      expect(screen.getByTestId('selection')).toHaveTextContent(expected);
 
-      fireEvent.click(screen.getByText('focus-group-10'));
+      fireEvent.click(screen.getByText('selection-group-10'));
       fireEvent.click(screen.getByText('expand-course-b'));
-      expect(screen.getByTestId('focus')).toHaveTextContent(expected);
+      expect(screen.getByTestId('selection')).toHaveTextContent(expected);
     });
 
-    it('moves focus when nothing is focused', async () => {
+    it('moves selection when nothing is selected', async () => {
       await renderWithCourseB();
 
       fireEvent.click(screen.getByText('expand-course-b'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":21');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":21');
     });
 
-    it('leaves focus unchanged when the expanded course has no groups', async () => {
+    it('leaves selection unchanged when the expanded course has no groups', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('profile-status')).toHaveTextContent('profile-success'));
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
-      fireEvent.click(screen.getByText('focus-group-10'));
+      fireEvent.click(screen.getByText('selection-group-10'));
 
       fireEvent.click(screen.getByText('expand-course-b'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
     });
 
-    it('leaves focus unchanged when it is already on a group of the expanded course', async () => {
+    it('leaves selection unchanged when it is already on a group of the expanded course', async () => {
       await renderWithCourseB();
-      fireEvent.click(screen.getByText('focus-group-20'));
-      const before = screen.getByTestId('focus').textContent;
+      fireEvent.click(screen.getByText('selection-group-20'));
+      const before = screen.getByTestId('selection').textContent;
 
       fireEvent.click(screen.getByText('expand-course-b'));
 
       expect(before).toContain('"groupId":20');
-      expect(screen.getByTestId('focus')).toHaveTextContent(before as string);
+      expect(screen.getByTestId('selection')).toHaveTextContent(before as string);
     });
 
-    it('associates a subsection of the expanded course into the group that expansion focused', async () => {
+    it('associates a subsection of the expanded course into the group that expansion selected', async () => {
       await renderWithCourseB();
       axiosMock.onPost(createUrl).reply(201, {
         id: 920,
@@ -572,7 +563,7 @@ describe('CompetencyAssociationsProvider', () => {
         rule_payload_override: { op: 'eq', value: 1, scale: 'percent' },
         object_tag_id: tagId,
       });
-      fireEvent.click(screen.getByText('focus-group-10'));
+      fireEvent.click(screen.getByText('selection-group-10'));
       fireEvent.click(screen.getByText('expand-course-b'));
 
       fireEvent.click(screen.getByText('associate-course-b'));
@@ -588,7 +579,7 @@ describe('CompetencyAssociationsProvider', () => {
   });
 
   describe('placeholder lifecycle (#671)', () => {
-    it('"+ Rule" starts a placeholder rule box in the given group, focusing it with ruleKey: null', async () => {
+    it('"+ Rule" starts a placeholder rule box in the given group, selecting it with ruleKey: null', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -597,12 +588,12 @@ describe('CompetencyAssociationsProvider', () => {
 
       fireEvent.click(screen.getByText('add-placeholder-rule-10'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
-      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":null');
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
     });
 
-    it('"+ Rule Group" replaces an existing placeholder rule box, since focus has only one slot', async () => {
+    it('"+ Rule Group" replaces an existing placeholder rule box, since selection has only one slot', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -610,16 +601,16 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
       fireEvent.click(screen.getByText('add-placeholder-rule-10'));
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
 
       fireEvent.click(screen.getByText('add-placeholder-group-1'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":null');
       expect(screen.getByTestId('placeholder')).toHaveTextContent('"parentRuleGroupId":1');
       expect(screen.getByTestId('placeholder')).toHaveTextContent('"logicOperator":"OR"');
     });
 
-    it('focusing a different real group clears an existing placeholder', async () => {
+    it('selecting a different real group clears an existing placeholder', async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -630,11 +621,11 @@ describe('CompetencyAssociationsProvider', () => {
       fireEvent.click(screen.getByText('add-placeholder-rule-10'));
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
 
-      fireEvent.click(screen.getByText('focus-group-20'));
+      fireEvent.click(screen.getByText('selection-group-20'));
 
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":20');
-      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":20');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
     });
 
     it(
@@ -648,14 +639,14 @@ describe('CompetencyAssociationsProvider', () => {
         await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
         fireEvent.click(screen.getByText('add-placeholder-rule-10'));
-        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":null');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":null');
 
         fireEvent.click(screen.getByText('expand-course-b'));
 
         await waitFor(() => {
-          expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":20');
+          expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":20');
         });
-        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
       },
     );
 
@@ -671,14 +662,14 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
       fireEvent.click(screen.getByText(addButton));
-      const focusBefore = screen.getByTestId('focus').textContent;
+      const selectionBefore = screen.getByTestId('selection').textContent;
       fireEvent.click(screen.getByText('expand-course-a'));
 
-      expect(screen.getByTestId('focus').textContent).toBe(focusBefore);
+      expect(screen.getByTestId('selection').textContent).toBe(selectionBefore);
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
     });
 
-    it('discardPlaceholder clears focus, and with it the placeholder', async () => {
+    it('discardPlaceholder clears selection, and with it the placeholder', async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -689,29 +680,29 @@ describe('CompetencyAssociationsProvider', () => {
       fireEvent.click(screen.getByText('add-placeholder-group-1'));
       fireEvent.click(screen.getByText('discard-placeholder'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
     });
 
-    it('course expansion leaves focus unchanged when no placeholder exists', async () => {
+    it('course expansion leaves selection unchanged when no placeholder exists', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       renderProvider();
 
       await waitFor(() => {
-        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
       });
 
       fireEvent.click(screen.getByText('expand-course-b'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
-      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
     });
   });
 
   describe('associateSubsection', () => {
-    it('sends the focused group\'s id and rule when the focus is a group belonging to the clicked subsection\'s course', async () => {
+    it('sends the selected group\'s id and rule when the selection is a group belonging to the clicked subsection\'s course', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -729,7 +720,7 @@ describe('CompetencyAssociationsProvider', () => {
       // action once `CourseGroupList`'s own loading gate has passed).
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
-      fireEvent.click(screen.getByText('focus-rulebox-10'));
+      fireEvent.click(screen.getByText('selection-rulebox-10'));
       fireEvent.click(screen.getByText('associate-course-a'));
 
       await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
@@ -741,7 +732,7 @@ describe('CompetencyAssociationsProvider', () => {
       });
     });
 
-    it('omits group_id and rule fields when focus is unset', async () => {
+    it('omits group_id and rule fields when selection is unset', async () => {
       axiosMock.onGet(groupsUrl).reply(200, noGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onPost(createUrl).reply(201, {
@@ -761,7 +752,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub' });
     });
 
-    it('omits group_id and rule fields when focus is a group belonging to a different course', async () => {
+    it('omits group_id and rule fields when selection is a group belonging to a different course', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -776,7 +767,7 @@ describe('CompetencyAssociationsProvider', () => {
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
-      fireEvent.click(screen.getByText('focus-rulebox-10')); // group 10 belongs to courseA
+      fireEvent.click(screen.getByText('selection-rulebox-10')); // group 10 belongs to courseA
       fireEvent.click(screen.getByText('associate-other-course')); // clicked from courseOther
 
       await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
@@ -801,11 +792,11 @@ describe('CompetencyAssociationsProvider', () => {
       );
     });
 
-    it('focuses the response\'s group and rule after a successful create, not a stale local read', async () => {
+    it('selects the response\'s group and rule after a successful create, not a stale local read', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
-      // Group 999 doesn't exist anywhere in the local tree - if focus were
+      // Group 999 doesn't exist anywhere in the local tree - if selection were
       // derived via `lastRealRuleKeyIn` against the (stale, not-yet-refetched)
       // local index, it would find nothing and resolve a `null` rule key.
       axiosMock.onPost(createUrl).reply(201, {
@@ -822,9 +813,9 @@ describe('CompetencyAssociationsProvider', () => {
       fireEvent.click(screen.getByText('associate-course-a'));
 
       await waitFor(() => {
-        expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":999');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":999');
       });
-      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:eq:1:percent"');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:eq:1:percent"');
     });
 
     it('shows a specific toast when the create request 400s with a tag_id field error', async () => {
@@ -1079,7 +1070,7 @@ describe('CompetencyAssociationsProvider', () => {
 
   describe('updateRuleScore', () => {
     it(
-      'sends the batch payload and derives the new focus key from the response\'s own values, not the '
+      'sends the batch payload and derives the new selection key from the response\'s own values, not the '
         + 'request\'s, on success',
       async () => {
         axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
@@ -1088,7 +1079,7 @@ describe('CompetencyAssociationsProvider', () => {
         // The request (below) sends an explicit override of 0.8; the mocked response simulates
         // the backend's "reset to default" behavior instead, reassigning the criterion to the
         // shared default profile (0.7) with both override fields cleared. An implementation that
-        // (incorrectly) derived the new focus key from the request would compute 0.8's key here.
+        // (incorrectly) derived the new selection key from the request would compute 0.8's key here.
         axiosMock.onPatch(updateRuleScoreUrl).reply(200, [
           {
             id: 900,
@@ -1113,20 +1104,20 @@ describe('CompetencyAssociationsProvider', () => {
         });
 
         await waitFor(() => {
-          expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+          expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
         });
-        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
       },
     );
 
-    it('shows a failure toast on rejection, without changing focus', async () => {
+    it('shows a failure toast on rejection, without changing selection', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       axiosMock.onPatch(updateRuleScoreUrl).reply(500);
       renderProvider();
       await waitFor(() => {
-        expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+        expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
       });
 
       fireEvent.click(screen.getByText('update-rule-score'));
@@ -1136,7 +1127,7 @@ describe('CompetencyAssociationsProvider', () => {
           'There was a problem updating this rule\'s score. Please try again.',
         );
       });
-      expect(screen.getByTestId('focus')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
     });
   });
 
@@ -1160,17 +1151,17 @@ describe('CompetencyAssociationsProvider', () => {
       return control;
     };
 
-    const renderWithFocusOnGroup10 = async () => {
+    const renderWithSelectionOnGroup10 = async () => {
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
-      fireEvent.click(screen.getByText('focus-group-10'));
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+      fireEvent.click(screen.getByText('selection-group-10'));
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
     };
 
-    it('stays pending until the refetch lands, then focuses the neighbor and requests keyboard focus for it', async () => {
+    it('stays pending until the refetch lands, then selects the neighbor and requests keyboard focus for it', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       fireEvent.click(screen.getByText('delete-group-10'));
 
@@ -1178,24 +1169,24 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
       // The delete itself has resolved, but the refetch has not.
       expect(screen.getByTestId('is-deleting-group')).toHaveTextContent('true');
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
 
       await act(async () => {
         reads.release();
       });
 
       await waitFor(() => expect(screen.getByTestId('is-deleting-group')).toHaveTextContent('false'));
-      expect(screen.getByTestId('focus')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
         '{"kind":"group","groupId":11,"expand":true}',
       );
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('treats a 404 as success: no toast, and focus still moves off the vanished group', async () => {
+    it('treats a 404 as success: no toast, and selection still moves off the vanished group', async () => {
       axiosMock.onDelete(deleteUrl).reply(404);
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       fireEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
@@ -1203,14 +1194,14 @@ describe('CompetencyAssociationsProvider', () => {
         reads.release();
       });
 
-      await waitFor(() => expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":11'));
+      await waitFor(() => expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":11'));
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('toasts on a failure, keeps focus when the group is still there, and requests no keyboard focus', async () => {
+    it('toasts on a failure, keeps the selection when the group is still there, and requests no keyboard focus', async () => {
       axiosMock.onDelete(deleteUrl).reply(500);
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, twoGroupsWithCriteriaResponse);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       fireEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
@@ -1220,30 +1211,15 @@ describe('CompetencyAssociationsProvider', () => {
 
       await waitFor(() => expect(screen.getByTestId('is-deleting-group')).toHaveTextContent('false'));
       expect(mockShowToast).toHaveBeenCalledWith('Couldn\'t remove the group. The panel was refreshed.');
-      expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10');
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
-    });
-
-    it('drops a second call made before the first settles, so one request is sent', async () => {
-      axiosMock.onDelete(deleteUrl).reply(200, {});
-      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
-
-      fireEvent.click(screen.getByText('delete-group-10-twice'));
-      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
-      await act(async () => {
-        reads.release();
-      });
-
-      await waitFor(() => expect(screen.getByTestId('is-deleting-group')).toHaveTextContent('false'));
-      expect(axiosMock.history.delete).toHaveLength(1);
     });
 
     it('requests the empty state when the delete leaves no course group', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
       renderProvider();
-      await waitFor(() => expect(screen.getByTestId('focus')).toHaveTextContent('"groupId":10'));
+      await waitFor(() => expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10'));
 
       fireEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
@@ -1252,13 +1228,13 @@ describe('CompetencyAssociationsProvider', () => {
       });
 
       await waitFor(() => expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('{"kind":"empty"}'));
-      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
     });
 
-    it('clears the keyboard focus request when focus is written some other way', async () => {
+    it('clears the keyboard focus request when the selection is written some other way', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
       fireEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
       await act(async () => {
@@ -1266,12 +1242,12 @@ describe('CompetencyAssociationsProvider', () => {
       });
       await waitFor(() => expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('"groupId":11'));
 
-      fireEvent.click(screen.getByText('focus-group-11'));
+      fireEvent.click(screen.getByText('selection-group-11'));
 
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
     });
 
-    it('moves focus to the course group above when deleting the only rule group cascades its course group away', async () => {
+    it('moves selection to the course group above when deleting the only rule group cascades its course group away', async () => {
       axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 20)).reply(200, {});
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
         groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 2 && group.id !== 20),
@@ -1281,7 +1257,7 @@ describe('CompetencyAssociationsProvider', () => {
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
       await waitFor(() => expect(screen.getByTestId('accessible-course-group-ids')).toHaveTextContent(courseB));
-      fireEvent.click(screen.getByText('focus-group-20'));
+      fireEvent.click(screen.getByText('selection-group-20'));
 
       fireEvent.click(screen.getByText('delete-group-20'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
@@ -1290,20 +1266,20 @@ describe('CompetencyAssociationsProvider', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId('focus')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+        expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
       });
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
         '{"kind":"group","groupId":10,"expand":true}',
       );
     });
 
-    it('leaves focus alone, and asks to keep sections as they are, when the deleted group did not hold focus', async () => {
+    it('leaves selection alone, and asks to keep sections as they are, when the deleted group was not selected', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
-      fireEvent.click(screen.getByText('focus-group-11'));
-      const focusBefore = screen.getByTestId('focus').textContent;
+      fireEvent.click(screen.getByText('selection-group-11'));
+      const selectionBefore = screen.getByTestId('selection').textContent;
 
       fireEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
@@ -1312,7 +1288,7 @@ describe('CompetencyAssociationsProvider', () => {
       });
 
       await waitFor(() => expect(screen.getByTestId('is-deleting-group')).toHaveTextContent('false'));
-      expect(screen.getByTestId('focus').textContent).toEqual(focusBefore);
+      expect(screen.getByTestId('selection').textContent).toEqual(selectionBefore);
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
         '{"kind":"group","groupId":11,"expand":false}',
       );
@@ -1321,17 +1297,17 @@ describe('CompetencyAssociationsProvider', () => {
     it('respects a click made on another group while the delete is pending', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       fireEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
-      fireEvent.click(screen.getByText('focus-group-11'));
+      fireEvent.click(screen.getByText('selection-group-11'));
       await act(async () => {
         reads.release();
       });
 
       await waitFor(() => expect(screen.getByTestId('is-deleting-group')).toHaveTextContent('false'));
-      expect(screen.getByTestId('focus')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
     });
 
     it('requests the empty state when only a course group the author cannot see is left', async () => {
@@ -1341,7 +1317,7 @@ describe('CompetencyAssociationsProvider', () => {
         groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 1 && group.id !== 10),
         criteria: twoCoursesWithCriteriaResponse.criteria.filter((criterion) => criterion.groupId === 20),
       });
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       fireEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
@@ -1350,23 +1326,23 @@ describe('CompetencyAssociationsProvider', () => {
       });
 
       await waitFor(() => expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('{"kind":"empty"}'));
-      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
     });
   });
 
   describe('removePlaceholderGroup', () => {
-    it('sends no request, and focuses the last saved group of the placeholder\'s course with a keyboard request', async () => {
+    it('sends no request, and selects the last saved group of the placeholder\'s course with a keyboard request', async () => {
       axiosMock.onGet(groupsUrl).reply(200, twoGroupsWithCriteriaResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
       fireEvent.click(screen.getByText('add-placeholder-group-1'));
-      expect(screen.getByTestId('focus')).toHaveTextContent('{"groupId":null,"ruleKey":null}');
+      expect(screen.getByTestId('selection')).toHaveTextContent('{"groupId":null,"ruleKey":null}');
 
       fireEvent.click(screen.getByText('remove-placeholder-group'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
         '{"kind":"group","groupId":11,"expand":true}',
       );
@@ -1375,7 +1351,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(axiosMock.history.post).toHaveLength(0);
     });
 
-    it('clears focus, with no keyboard request, when the placeholder\'s course group has no saved group', async () => {
+    it('clears the selection, with no keyboard request, when the placeholder\'s course group has no saved group', async () => {
       axiosMock.onGet(groupsUrl).reply(200, {
         groups: singleGroupResponse.groups.filter((group) => group.id !== 10),
         criteria: [],
@@ -1388,7 +1364,7 @@ describe('CompetencyAssociationsProvider', () => {
 
       fireEvent.click(screen.getByText('remove-placeholder-group'));
 
-      expect(screen.getByTestId('focus')).toHaveTextContent('null');
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
     });
   });

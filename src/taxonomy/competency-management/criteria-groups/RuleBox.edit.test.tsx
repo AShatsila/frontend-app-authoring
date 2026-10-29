@@ -74,13 +74,13 @@ describe('<RuleBox /> editing (#794)', () => {
     },
   );
 
-  it('does not call focusRuleBox when the score input itself is clicked', async () => {
+  it('does not call selectRuleBox when the score input itself is clicked', async () => {
     const user = userEvent.setup();
-    const focusRuleBox = jest.fn();
-    render70PercentRuleBox({ focusRuleBox }, { canEdit: true });
+    const selectRuleBox = jest.fn();
+    render70PercentRuleBox({ selectRuleBox }, { canEdit: true });
 
     await user.click(screen.getByRole('textbox'));
 
-    expect(focusRuleBox).not.toHaveBeenCalled();
+    expect(selectRuleBox).not.toHaveBeenCalled();
   });
 });
