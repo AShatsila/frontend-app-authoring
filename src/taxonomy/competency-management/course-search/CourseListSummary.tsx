@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
 import { useIntl } from '@edx/frontend-platform/i18n';
-import moment from 'moment';
 
 import messages from './messages';
 
@@ -25,7 +24,6 @@ const truncateSearchTerm = (search: string) => {
     : search;
 };
 
-const formatSummaryDate = (date: Date) => moment(date).format('MM-DD-YYYY');
 
 const strong = (chunks: ReactNode) => <strong>{chunks}</strong>;
 
@@ -45,6 +43,7 @@ const CourseListSummary = ({
   totalAssociationCount,
 }: CourseListSummaryProps) => {
   const intl = useIntl();
+  const formatSummaryDate = (date: Date) => intl.formatDate(date, { year: 'numeric', month: '2-digit', day: '2-digit' });
 
   let message = messages.coursesSummary;
   if (search && startDate && endDate) {
@@ -60,7 +59,7 @@ const CourseListSummary = ({
   }
 
   return (
-    <p className="course-search-browse__summary small mt-2 mb-0">
+    <p className="mb-0">
       {intl.formatMessage(message, {
         listedCount,
         totalCount,

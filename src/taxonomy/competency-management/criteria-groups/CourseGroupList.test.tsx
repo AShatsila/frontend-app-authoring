@@ -1,6 +1,15 @@
 import type { UseQueryResult } from '@tanstack/react-query';
-import { initializeMocks, render, screen } from '@src/testUtils';
-import { buildMockCompetencyAssociationsContextValue, MockCompetencyAssociationsProvider } from '../testHelpers';
+import {
+  initializeMocks,
+  render,
+  screen,
+  within,
+} from '@src/testUtils';
+import {
+  buildMockCompetencyAssociationsContextValue,
+  byTextContent,
+  MockCompetencyAssociationsProvider,
+} from '../testHelpers';
 import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from '../data/types';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import CourseGroupList from './CourseGroupList';
@@ -94,7 +103,8 @@ describe('<CourseGroupList />', () => {
   it('renders a loading state, not the empty state, while the groups query waits for course keys', () => {
     renderList({ groupsQuery: awaitingCourseKeysGroupsQuery, profileQuery: loadedProfileQuery });
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Test Competency yet.'))).not
+      .toBeInTheDocument();
   });
 
   it('renders a loading state while the default-rule-profile query is still loading, even if groups already loaded', () => {
@@ -112,7 +122,8 @@ describe('<CourseGroupList />', () => {
       areCourseOutlinesLoading: true,
     });
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Test Competency yet.'))).not
+      .toBeInTheDocument();
   });
 
   it('renders a failed state when the groups query errors', () => {
@@ -144,8 +155,8 @@ describe('<CourseGroupList />', () => {
       systemDefaultProfile,
       accessibleCourseGroups: [],
     });
-    expect(screen.getByText('No content associated.')).toBeInTheDocument();
-    expect(screen.getByText('Make content selections to associate this competency with course content.'))
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.'))).toBeInTheDocument();
+    expect(screen.getByText('Make content selections to create competency criteria associations.'))
       .toBeInTheDocument();
   });
 
@@ -162,7 +173,7 @@ describe('<CourseGroupList />', () => {
         // check, so it must render identically to no associations at all.
         accessibleCourseGroups: [],
       });
-      expect(screen.getByText('No content associated.')).toBeInTheDocument();
+      expect(screen.getByText(byTextContent('No content associated with Test Competency yet.'))).toBeInTheDocument();
     },
   );
 
@@ -190,7 +201,8 @@ describe('<CourseGroupList />', () => {
       </MockCompetencyAssociationsProvider>,
     );
 
-    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.')).parentElement)
+      .toHaveFocus();
     expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
   });
 
@@ -216,7 +228,8 @@ describe('<CourseGroupList />', () => {
       systemDefaultProfile,
       accessibleCourseGroups: index.courseGroups,
     });
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Test Competency yet.'))).not
+      .toBeInTheDocument();
     // The outline isn't mocked here, so it degrades to the raw course id via
     // its defensive fallback - enough to prove a real `CourseGroupSection`
     // was mounted.
@@ -235,7 +248,8 @@ describe('<CourseGroupList />', () => {
       consumeKeyboardFocusRequest,
     });
 
-    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.')).parentElement)
+      .toHaveFocus();
     expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
   });
 
@@ -248,14 +262,16 @@ describe('<CourseGroupList />', () => {
       accessibleCourseGroups: [],
     });
 
-    expect(screen.getByText('No content associated.').parentElement).not.toHaveFocus();
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.')).parentElement).not
+      .toHaveFocus();
   });
 
   describe('the empty state when no associations are in the listed courses', () => {
-    const noAssociationsMessage = 'No content associated.';
-    const noAssociationsPromptMessage = 'Make content selections to associate this competency with course content.';
+    const noAssociationsMessage = 'No content associated with Test Competency yet.';
+    const noAssociationsPromptMessage = 'Make content selections to create competency criteria associations.';
+    const outOfViewMessage = 'No content associated with Test Competency in the courses listed here.';
 
-    /** The component ignores the counts, so the empty arrays here needn't agree with them. */
+    /** Only the counts decide the message, so the empty arrays here needn't agree with them. */
     const buildCountsResponse = (criteriaCount: number, totalCriteriaCount: number) => ({
       ...emptyGroupsResponse,
       criteriaCount,
@@ -275,20 +291,30 @@ describe('<CourseGroupList />', () => {
         ...overrides,
       });
 
+    it('says "no content associated" only when the competency has no associations anywhere', () => {
+      renderEmptyList(buildCountsResponse(0, 0));
+      const firstLine = screen.getByText(byTextContent(noAssociationsMessage));
+      expect(firstLine).toBeInTheDocument();
+      expect(within(firstLine).getByText('Test Competency', { selector: 'strong' })).toBeInTheDocument();
+      expect(screen.getByText(noAssociationsPromptMessage)).toBeInTheDocument();
+    });
+
     it.each([
-      { criteriaCount: 0, totalCriteriaCount: 0 },
       // Some of the competency's criteria are in courses not listed.
       { criteriaCount: 0, totalCriteriaCount: 1 },
       { criteriaCount: 1, totalCriteriaCount: 3 },
       // The listed courses hold every criterion, but none of those courses is accessible.
       { criteriaCount: 2, totalCriteriaCount: 2 },
     ])(
-      'shows the no-associations messages when criteriaCount is $criteriaCount of totalCriteriaCount '
-        + '$totalCriteriaCount',
+      'says none are in the listed courses, never "no content associated", when $criteriaCount of '
+        + '$totalCriteriaCount associations are in them',
       ({ criteriaCount, totalCriteriaCount }) => {
         renderEmptyList(buildCountsResponse(criteriaCount, totalCriteriaCount));
-        expect(screen.getByText(noAssociationsMessage)).toBeInTheDocument();
+        const firstLine = screen.getByText(byTextContent(outOfViewMessage));
+        expect(firstLine).toBeInTheDocument();
+        expect(within(firstLine).getByText('Test Competency', { selector: 'strong' })).toBeInTheDocument();
         expect(screen.getByText(noAssociationsPromptMessage)).toBeInTheDocument();
+        expect(screen.queryByText(byTextContent(noAssociationsMessage))).not.toBeInTheDocument();
       },
     );
 
@@ -301,7 +327,8 @@ describe('<CourseGroupList />', () => {
       { state: 'the default-rule-profile query errored', overrides: { profileQuery: erroredProfileQuery } },
     ])('shows no empty state while $state', ({ overrides }) => {
       renderEmptyList(buildCountsResponse(1, 3), overrides);
-      expect(screen.queryByText(noAssociationsMessage)).not.toBeInTheDocument();
+      expect(screen.queryByText(byTextContent(noAssociationsMessage))).not.toBeInTheDocument();
+      expect(screen.queryByText(byTextContent(outOfViewMessage))).not.toBeInTheDocument();
       expect(screen.queryByText(noAssociationsPromptMessage)).not.toBeInTheDocument();
     });
   });

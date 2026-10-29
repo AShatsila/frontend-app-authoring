@@ -773,6 +773,33 @@ describe('CompetencyAssociationsProvider', () => {
 
       expect(screen.getByTestId('focus')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
     });
+
+    it('ignores a kept focus whose group is out of scope: a create in a listed course sends no group fields', async () => {
+      axiosMock.onGet(groupsUrl).reply((config) => [
+        200,
+        config.params.course_keys === courseOther ? noGroupsResponse : singleGroupResponse,
+      ]);
+      axiosMock.onPost(createUrl).reply(201, {
+        id: 903,
+        group_id: 30,
+        rule_profile_id: 1,
+        rule_type_override: null,
+        rule_payload_override: null,
+        object_tag_id: tagId,
+      });
+      const { rerender } = renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      fireEvent.click(screen.getByText('focus-rulebox-10')); // group 10 belongs to courseA
+
+      rerender(providerTree({ reportedCourseKeys: [courseOther] }));
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      expect(screen.getByTestId('focus')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+
+      fireEvent.click(screen.getByText('associate-other-course'));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'new-sub' });
+    });
   });
 
   describe('associateSubsection', () => {

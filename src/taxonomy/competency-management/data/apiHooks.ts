@@ -67,12 +67,9 @@ export const useDefaultCompetencyRuleProfile = () => (
 );
 
 /**
- * Refresh every criteria-groups page of one competency after a write. Each
- * course-list page is its own scoped cache entry, and only marking an
- * inactive page stale would let revisiting it briefly render that page's
- * cached, pre-write `totalCriteriaCount` until the refetch lands. Removing
- * the inactive entries makes a revisit fetch fresh, and the active entry
- * still refetches through the invalidation.
+ * Refresh every scoped criteria-groups entry of one competency after a write.
+ * The inactive entries (other course-list pages) are removed rather than only
+ * marked stale, so revisiting a page can't briefly show its pre-write counts.
  * @returns The invalidation promise, which settles once the active refetch lands.
  */
 const refreshCompetencyCriteriaGroups = (queryClient: QueryClient, tagId: number) => {
@@ -81,11 +78,8 @@ const refreshCompetencyCriteriaGroups = (queryClient: QueryClient, tagId: number
   return queryClient.invalidateQueries({ queryKey });
 };
 
-/**
- * Build the mutation to create a new criterion under a competency (`#665`).
- * Refreshes that competency's criteria-groups queries on success (see
- * `refreshCompetencyCriteriaGroups`) so the new criterion shows up without a
- * manual refetch.
+/** Build the mutation to create a new criterion under a competency (`#665`),
+ * refreshing its criteria groups on success.
  */
 export const useCreateCompetencyCriterion = () => {
   const queryClient = useQueryClient();
@@ -101,11 +95,8 @@ export const useCreateCompetencyCriterion = () => {
   });
 };
 
-/**
- * Build the mutation to update a bottom-tier group's any/all combining
- * logic (`#760`). Refreshes that competency's criteria-groups queries on
- * success (see `refreshCompetencyCriteriaGroups`) so the new operator shows
- * up without a manual refetch.
+/** Build the mutation to update a bottom-tier group's any/all combining
+ * logic (`#760`), refreshing the competency's criteria groups on success.
  */
 export const useUpdateCompetencyCriteriaGroupOperator = () => {
   const queryClient = useQueryClient();
@@ -125,11 +116,9 @@ export const useUpdateCompetencyCriteriaGroupOperator = () => {
   });
 };
 
-/**
- * Build the mutation to batch-update a rule box's score threshold (`#759`).
- * Refreshes that competency's criteria-groups queries on success (see `refreshCompetencyCriteriaGroups`)
- * so the new score shows up without a manual refetch. `tagId` is only used for that refresh - the
- * endpoint's own URL isn't nested under a competency.
+/** Build the mutation to batch-update a rule box's score threshold (`#759`),
+ * refreshing the competency's criteria groups on success. `tagId` is only
+ * used for that refresh - the endpoint's own URL isn't nested under a competency.
  */
 export const useUpdateCompetencyCriteriaRule = () => {
   const queryClient = useQueryClient();
@@ -151,9 +140,8 @@ export const useUpdateCompetencyCriteriaRule = () => {
   });
 };
 
-/**
- * Build the mutation to delete a group (`#709`). It refreshes the groups (see
- * `refreshCompetencyCriteriaGroups`) on success and failure alike, and stays pending until that
+/** Build the mutation to delete a group (`#709`). It refreshes the competency's
+ * criteria groups on success and failure alike, and stays pending until that
  * refetch lands.
  */
 export const useDeleteCompetencyCriteriaGroup = () => {

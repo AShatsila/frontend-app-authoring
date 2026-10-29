@@ -158,6 +158,10 @@ export interface CompetencyAssociationsContextValue {
   canEditCourse: (courseId: string) => boolean;
   groupsQuery: UseQueryResult<CompetencyCriteriaGroupsResponse>;
   profileQuery: UseQueryResult<CompetencyRuleProfile>;
+  /** True until both `groupsQuery` and `profileQuery` have data, which
+   * includes the time before any course keys are given, when `groupsQuery` is
+   * disabled. The content panel disables subsection selection on it.
+   */
   isLoadingAssociations: boolean;
   /** Built from `groupsQuery.data`; `undefined` until that query resolves. */
   index: CompetencyCriteriaGroupsIndex | undefined;
@@ -182,13 +186,13 @@ export interface CompetencyAssociationsContextValue {
    * has none.
    */
   competencyExternalId: string | null;
-  /** Reports the course keys the course list shows; call only once its query
-   * has succeeded. A report that changes the keys discards an unsaved
+  /** Tells the provider which course keys the course list shows; call only
+   * once its query has succeeded. A change in the keys discards an unsaved
    * placeholder.
    */
   notifyCoursesDisplayed: (courseKeys: string[]) => void;
-  /** The course keys last reported through `notifyCoursesDisplayed`, which
-   * `groupsQuery` is scoped to; `undefined` until the first report. Until it
+  /** The course keys last given to `notifyCoursesDisplayed`, which
+   * `groupsQuery` is scoped to; `undefined` until the first call. Until it
    * matches the course list's own keys, `groupsQuery.data` describes the
    * previously listed courses.
    */
@@ -277,8 +281,14 @@ export const CompetencyAssociationsProvider = ({
     hasRunInitialFocusRef.current = false;
   }
 
-  // Drops the placeholder when the listed courses change, as its course may be
-  // gone. Updating `prevDisplayedCourseKeys` makes this run once per change.
+  // Drops an unsaved placeholder when the listed courses change, even when its
+  // course stays listed (#683 leaves that open). Its course is only known
+  // through the previous scope's index, and the new response can differ from
+  // it, so the placeholder would need re-validating either way; a discard is
+  // the predictable outcome. A saved focus is kept: `resolveCreateTarget` and
+  // `notifyCourseExpanded` ignore a focus whose group is out of scope, the
+  // cards don't highlight it, and it shows again once its page is listed.
+  // Updating `prevDisplayedCourseKeys` makes this run once per change.
   if (displayedCourseKeys !== prevDisplayedCourseKeys) {
     setPrevDisplayedCourseKeys(displayedCourseKeys);
     const isFirstReport = prevDisplayedCourseKeys === undefined;
@@ -566,6 +576,10 @@ export const CompetencyAssociationsProvider = ({
   }, [systemDefaultProfile]);
 
   const resolveFocusAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
+    // Reads the keys from its closure on purpose, unlike focus and placeholder:
+    // `snapshot` describes the page the delete started on. If the author paged
+    // meanwhile, the refresh removed that page's entry, so this returns and
+    // leaves focus alone rather than repairing it against another page's groups.
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
       competencyQueryKeys.competencyCriteriaGroups(tagId, displayedCourseKeys),
     );
