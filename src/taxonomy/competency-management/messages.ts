@@ -56,26 +56,11 @@ const messages = defineMessages({
       + 'new criterion because an ancestor or descendant competency already has criteria in the same course '
       + '(a 400 response with a "tag_id" field error).',
   },
-  deleteGroupFailedToastMessage: {
-    id: 'course-authoring.competency-management.delete-group-failed-toast-message',
-    defaultMessage: 'Couldn\'t remove the group. The panel was refreshed.',
-    description: 'Toast shown when removing a course group or rule group fails.',
-  },
-  removeAssociationFailedToastMessage: {
-    id: 'course-authoring.competency-management.remove-association-failed-toast-message',
-    defaultMessage: 'Couldn\'t remove the association. The panel was refreshed.',
-    description: 'Toast shown when removing one subsection\'s association with a competency fails.',
-  },
-  deleteRuleBoxFailedToastMessage: {
-    id: 'course-authoring.competency-management.delete-rule-box-failed-toast-message',
-    defaultMessage: 'Couldn\'t remove the rule. The panel was refreshed.',
-    description: 'Toast shown when removing a rule box fails before any of its content was removed.',
-  },
-  deleteRuleBoxPartiallyFailedToastMessage: {
-    id: 'course-authoring.competency-management.delete-rule-box-partially-failed-toast-message',
-    defaultMessage: 'Some of the rule\'s content couldn\'t be removed. The panel was refreshed.',
-    description: 'Toast shown when removing a rule box stops partway, so some of its content was removed and the '
-      + 'rest is still shown.',
+  removalFailedAfterCancelToastMessage: {
+    id: 'course-authoring.competency-management.removal-failed-after-cancel-toast-message',
+    defaultMessage: 'The removal you confirmed didn\'t go through. The panel was refreshed.',
+    description: 'Toast shown when a removal fails after the author already dismissed its confirmation dialog, so '
+      + 'the dialog\'s own error alert is no longer on screen.',
   },
   updateGroupOperatorFailedToastMessage: {
     id: 'course-authoring.competency-management.update-group-operator-failed-toast-message',

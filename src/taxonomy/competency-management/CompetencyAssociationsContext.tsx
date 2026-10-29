@@ -12,6 +12,7 @@ import { Error as ErrorIcon, InfoOutline } from '@openedx/paragon/icons';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 
 import { getCourseOutlineIndex } from '@src/course-outline/data';
 // Bypasses the public barrel deliberately: this is the same query key
@@ -43,7 +44,13 @@ import type {
 import { courseKeyOfSelection, resolveCreateTarget } from './criterionTarget';
 import messages from './messages';
 import { usePlaceholderState } from './usePlaceholderState';
-import type { CompetencyCriteriaGroupsIndex, PageOrderSnapshot } from './utils';
+import { useRemovalConfirmation } from './useRemovalConfirmation';
+import type {
+  CompetencyCriteriaGroupsIndex,
+  PageOrderSnapshot,
+  RemovalSummary,
+  RemovalTarget,
+} from './utils';
 import {
   associatedObjectIds,
   bottomTierGroupsForCourse,
@@ -90,6 +97,13 @@ export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
   | { kind: 'empty'; }
   | { kind: 'subsection'; objectId: string; };
+
+/** A removal awaiting confirmation. */
+export interface PendingRemoval {
+  target: RemovalTarget;
+  summary: RemovalSummary;
+  failure: 'nothing-removed' | 'partly-removed' | null;
+}
 
 export interface CompetencyAssociationsContextValue {
   selection: CriteriaSelection | null;
@@ -142,23 +156,20 @@ export interface CompetencyAssociationsContextValue {
    * `criterionIds` (`#759`), deriving the new selection key from the response.
    */
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
-  /** Deletes a group, then moves selection per `selectionTargetAfterRemoval` once the refetch lands.
-   * A 404 counts as success; any other failure shows a toast.
-   */
-  deleteGroup: (groupId: number) => void;
   /** True while any delete, or its refetch, is in flight. */
   isDeleting: boolean;
-  /** Deletes the criterion with this id; a call during another delete is dropped.
-   * Focus returns to the group box or the subsection row; when the group is
-   * removed with it, the neighbor/empty logic of `deleteGroup` applies.
+  /** The removal awaiting confirmation, or `null` while no dialog is open. */
+  pendingRemoval: PendingRemoval | null;
+  /** Opens the confirmation for one removal without sending a request. Ignored while a delete is in flight, or when
+   * the loaded data no longer has the target.
    */
-  removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => void;
-  /** Deletes every criterion the saved rule box shows now; a call during another delete is dropped.
-   * Only a selection on this box moves: to the box above it, else below, else the group's first box; when its
-   * group goes too, `deleteGroup`'s rule applies. Success or failure, keyboard focus is treated as lost, since the
-   * run disabled the box's ⋮. A failure's toast says whether some of the box's content was already removed.
+  requestRemoval: (target: RemovalTarget) => void;
+  /** Runs the pending removal. Closes the dialog on success, and on failure leaves it open with `failure` set so a
+   * second call retries. Ignored while a delete is in flight.
    */
-  deleteRuleBox: (groupId: number, ruleKey: string) => void;
+  confirmRemoval: () => Promise<void>;
+  /** Closes the confirmation without a request. */
+  cancelRemoval: () => void;
   /** Discards the placeholder group without a request and selects the last
    * saved group in its course-level group, or nothing when it has none.
    */
@@ -271,6 +282,7 @@ export const CompetencyAssociationsProvider = ({
   const [prevTagId, setPrevTagId] = useState(tagId);
   const [selection, setSelection] = useState<CriteriaSelection | null>(null);
   const [keyboardFocusRequest, setKeyboardFocusRequest] = useState<KeyboardFocusRequest | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval | null>(null);
   // Any selection write other than a delete's own drops a pending keyboard focus request.
   const setSelectionAndDropKeyboardRequest = useCallback((next: SetStateAction<CriteriaSelection | null>) => {
     setSelection(next);
@@ -304,6 +316,7 @@ export const CompetencyAssociationsProvider = ({
     setPendingExpandedCourseId(null);
     resetPlaceholderState();
     setKeyboardFocusRequest(null);
+    setPendingRemoval(null);
     hasRunInitialSelectionRef.current = false;
   }
 
@@ -312,9 +325,9 @@ export const CompetencyAssociationsProvider = ({
   const createCriterion = useCreateCompetencyCriterion();
   const updateGroupOperatorMutation = useUpdateCompetencyCriteriaGroupOperator();
   const updateRuleScoreMutation = useUpdateCompetencyCriteriaRule();
-  const { mutate: mutateDeleteGroup, isPending: isGroupDeletePending } = useDeleteCompetencyCriteriaGroup();
-  const { mutate: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
-  const { mutate: mutateDeleteRuleBox, isPending: isRuleBoxDeletePending } = useDeleteCompetencyRuleBox();
+  const { mutateAsync: mutateDeleteGroup, isPending: isGroupDeletePending } = useDeleteCompetencyCriteriaGroup();
+  const { mutateAsync: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
+  const { mutateAsync: mutateDeleteRuleBox, isPending: isRuleBoxDeletePending } = useDeleteCompetencyRuleBox();
   const isDeleting = isGroupDeletePending || isCriterionDeletePending || isRuleBoxDeletePending;
   const queryClient = useQueryClient();
   // A delete's settle callback runs after the refetch, so it reads the
@@ -610,9 +623,9 @@ export const CompetencyAssociationsProvider = ({
   }, [systemDefaultProfile]);
 
   /** Moves selection and keyboard focus once a delete settles, from the refetched data and the latest selection.
-   * Focus is lost when the deleted group is gone (its controls unmounted), or when `triggerLosesFocus` says so:
-   * the caller's menu returned focus to its ⋮ toggle, which the delete disabled, so the browser dropped it to <body>.
-   * Only `deleteRuleBox` sets it, so a failed group delete or chip removal requests no focus.
+   * Focus is lost when the deleted group is gone (its controls unmounted), or when `triggerLosesFocus` says so.
+   * Only `deleteRuleBox` sets it, and only on success: the dialog that held focus has closed while the group stays.
+   * A failure keeps the dialog open, so it requests no focus.
    * - `'keep-current'`: selection stays. Lost focus goes to the selected group without expanding it, else to the
    *   deleted group if it survives, else, with nothing selected and no visible course group left, to the empty state.
    * - `null`: selection is cleared. Lost focus goes to the empty state when no visible course group is left.
@@ -660,25 +673,28 @@ export const CompetencyAssociationsProvider = ({
     [queryClient, tagId, selectGroupAfterRemoval],
   );
 
-  const deleteGroup = useCallback((groupId: number) => {
+  const deleteGroup = useCallback(async (groupId: number): Promise<void> => {
     if (!index) {
       return;
     }
     const groupOrderBeforeDelete = snapshotPageOrder(index, accessibleCourseGroups);
-    mutateDeleteGroup({ tagId, groupId }, {
-      onError: (error) => {
-        // 404: the group is already gone, which is what the author asked for.
-        if (error.response?.status !== 404) {
-          showToast(intl.formatMessage(messages.deleteGroupFailedToastMessage));
-        }
-      },
-      onSettled: () => {
-        if (latestCompetencyVisitIdRef.current !== competencyVisitId) {
-          return;
-        }
+    try {
+      await mutateDeleteGroup({ tagId, groupId });
+    } catch (error) {
+      const dataAfterDelete = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+        competencyQueryKeys.competencyCriteriaGroups(tagId),
+      );
+      const isGroupGone = dataAfterDelete !== undefined
+        && !dataAfterDelete.groups.some((group) => group.id === groupId);
+      // A 404 or an absent group is the outcome the author asked for.
+      if ((!isAxiosError(error) || error.response?.status !== 404) && !isGroupGone) {
+        throw error;
+      }
+    } finally {
+      if (latestCompetencyVisitIdRef.current === competencyVisitId) {
         resolveSelectionAfterDelete(groupId, groupOrderBeforeDelete);
-      },
-    });
+      }
+    }
   }, [
     index,
     accessibleCourseGroups,
@@ -686,8 +702,7 @@ export const CompetencyAssociationsProvider = ({
     competencyVisitId,
     mutateDeleteGroup,
     resolveSelectionAfterDelete,
-    showToast,
-    intl,
+    queryClient,
   ]);
 
   // Rule boxes are derived from criteria, so removing a box's last chip leaves a selection key naming no box.
@@ -708,44 +723,50 @@ export const CompetencyAssociationsProvider = ({
     ));
   }, [systemDefaultProfile]);
 
-  const removeAssociation = useCallback((criterionId: number, returnFocusTo: 'group' | 'subsection') => {
+  // Focus returns to the group box or the subsection row; when the group goes with it, `selectionTargetAfterRemoval`
+  // picks the neighbor.
+  const removeAssociation = useCallback(async (
+    criterionId: number,
+    returnFocusTo: 'group' | 'subsection',
+  ): Promise<void> => {
     const criterion = groupsQuery.data?.criteria.find((c) => c.id === criterionId);
     if (isDeleting || !index || !criterion) {
       return;
     }
     const groupOrderBeforeDelete = snapshotPageOrder(index, accessibleCourseGroups);
     const { groupId, objectId } = criterion;
-    mutateDeleteCriterion({ tagId, criterionId }, {
-      onSettled: () => {
-        if (latestCompetencyVisitIdRef.current !== competencyVisitId) {
-          return;
-        }
+    try {
+      await mutateDeleteCriterion({ tagId, criterionId });
+    } catch (error) {
+      const isStillListed = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+        competencyQueryKeys.competencyCriteriaGroups(tagId),
+      )?.criteria.some((c) => c.id === criterionId) ?? true;
+      if (isStillListed) {
+        throw error;
+      }
+    } finally {
+      if (latestCompetencyVisitIdRef.current === competencyVisitId) {
         resolveSelectionAfterDelete(groupId, groupOrderBeforeDelete);
-        const dataAfterRemoval = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
-          competencyQueryKeys.competencyCriteriaGroups(tagId),
-        );
-        if (!dataAfterRemoval) {
-          return;
-        }
-        if (dataAfterRemoval.criteria.some((c) => c.id === criterionId)) {
-          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage));
-          if (returnFocusTo === 'subsection') {
-            setKeyboardFocusRequest({ kind: 'subsection', objectId });
-          }
-          return;
-        }
-        const indexAfterRemoval = buildCompetencyCriteriaGroupsIndex(dataAfterRemoval);
-        const isGroupStillPresent = indexAfterRemoval.groupsById.has(groupId);
-        if (isGroupStillPresent) {
-          moveSelectionOffVanishedRuleBox(groupId, indexAfterRemoval);
-        }
-        if (returnFocusTo === 'subsection') {
-          setKeyboardFocusRequest({ kind: 'subsection', objectId });
-        } else if (isGroupStillPresent) {
-          setKeyboardFocusRequest({ kind: 'group', groupId, expand: false });
-        }
-      },
-    });
+      }
+    }
+    if (latestCompetencyVisitIdRef.current !== competencyVisitId) {
+      return;
+    }
+    const dataAfterRemoval = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+      competencyQueryKeys.competencyCriteriaGroups(tagId),
+    );
+    if (dataAfterRemoval) {
+      const indexAfterRemoval = buildCompetencyCriteriaGroupsIndex(dataAfterRemoval);
+      const isGroupStillPresent = indexAfterRemoval.groupsById.has(groupId);
+      if (isGroupStillPresent) {
+        moveSelectionOffVanishedRuleBox(groupId, indexAfterRemoval);
+      }
+      if (returnFocusTo === 'subsection') {
+        setKeyboardFocusRequest({ kind: 'subsection', objectId });
+      } else if (isGroupStillPresent) {
+        setKeyboardFocusRequest({ kind: 'group', groupId, expand: false });
+      }
+    }
   }, [
     groupsQuery.data,
     isDeleting,
@@ -757,51 +778,36 @@ export const CompetencyAssociationsProvider = ({
     resolveSelectionAfterDelete,
     moveSelectionOffVanishedRuleBox,
     queryClient,
-    showToast,
-    intl,
   ]);
 
-  const deleteRuleBox = useCallback((groupId: number, ruleKey: string) => {
+  // Only a selection on this box moves: to the box above it, else below, else the group's first box; when its group
+  // goes too, `deleteGroup`'s rule applies.
+  const deleteRuleBox = useCallback(async (groupId: number, criterionIds: number[]): Promise<void> => {
     if (isDeleting || !index || !systemDefaultProfile) {
       return;
     }
-    const boxesBeforeDelete = ruleBoxesForGroup(groupId, index, systemDefaultProfile);
-    const box = boxesBeforeDelete.find((candidate) => candidate.key === ruleKey);
-    if (!box) {
-      return;
-    }
-    const ruleKeysBeforeDelete = boxesBeforeDelete.map((candidate) => candidate.key);
+    const ruleKeysBeforeDelete = ruleBoxesForGroup(groupId, index, systemDefaultProfile).map((box) => box.key);
     const groupOrderBeforeDelete = snapshotPageOrder(index, accessibleCourseGroups);
-    // Content added at this score after the click is not sent, so it survives the delete.
-    const criterionIds = box.criteria.map((criterion) => criterion.id);
-    mutateDeleteRuleBox({ tagId, criterionIds }, {
-      onSettled: (_data, error) => {
-        if (latestCompetencyVisitIdRef.current !== competencyVisitId) {
-          return;
-        }
-        // Focus is lost even when the box survives: its ⋮ toggle was disabled for the run.
-        resolveSelectionAfterDelete(groupId, groupOrderBeforeDelete, true);
+    let isDeleted = false;
+    try {
+      // Exactly the criteria the dialog listed; content added to the box since then is not sent.
+      await mutateDeleteRuleBox({ tagId, criterionIds });
+      isDeleted = true;
+    } finally {
+      if (latestCompetencyVisitIdRef.current === competencyVisitId) {
+        // On success the dialog closes and the ⋮ loses focus; on failure the dialog stays open.
+        resolveSelectionAfterDelete(groupId, groupOrderBeforeDelete, isDeleted);
         const dataAfterDelete = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
           competencyQueryKeys.competencyCriteriaGroups(tagId),
         );
-        if (!dataAfterDelete) {
-          return;
+        if (dataAfterDelete) {
+          const indexAfterDelete = buildCompetencyCriteriaGroupsIndex(dataAfterDelete);
+          if (indexAfterDelete.groupsById.has(groupId)) {
+            moveSelectionOffVanishedRuleBox(groupId, indexAfterDelete, ruleKeysBeforeDelete);
+          }
         }
-        if (error) {
-          // The refetch shows how far the run got: any of the box's criteria gone means part of it was removed.
-          const isPartlyRemoved = criterionIds.some((id) => !dataAfterDelete.criteria.some((c) => c.id === id));
-          showToast(intl.formatMessage(
-            isPartlyRemoved
-              ? messages.deleteRuleBoxPartiallyFailedToastMessage
-              : messages.deleteRuleBoxFailedToastMessage,
-          ));
-        }
-        const indexAfterDelete = buildCompetencyCriteriaGroupsIndex(dataAfterDelete);
-        if (indexAfterDelete.groupsById.has(groupId)) {
-          moveSelectionOffVanishedRuleBox(groupId, indexAfterDelete, ruleKeysBeforeDelete);
-        }
-      },
-    });
+      }
+    }
   }, [
     isDeleting,
     index,
@@ -813,8 +819,6 @@ export const CompetencyAssociationsProvider = ({
     resolveSelectionAfterDelete,
     moveSelectionOffVanishedRuleBox,
     queryClient,
-    showToast,
-    intl,
   ]);
 
   const removePlaceholderGroup = useCallback(() => {
@@ -842,6 +846,19 @@ export const CompetencyAssociationsProvider = ({
     setKeyboardFocusRequest({ kind: 'group', groupId, expand: false });
   }, [selection, index, systemDefaultProfile, discardPlaceholder]);
 
+  const { requestRemoval, confirmRemoval, cancelRemoval } = useRemovalConfirmation({
+    tagId,
+    index,
+    systemDefaultProfile,
+    courseIdsWithGroups,
+    pendingRemoval,
+    setPendingRemoval,
+    isDeleting,
+    removeAssociation,
+    deleteRuleBox,
+    deleteGroup,
+  });
+
   const contextValue = useMemo<CompetencyAssociationsContextValue>(() => ({
     selection,
     placeholder,
@@ -858,13 +875,14 @@ export const CompetencyAssociationsProvider = ({
     associateSubsection,
     updateGroupOperator,
     updateRuleScore,
-    deleteGroup,
     isDeleting,
-    removeAssociation,
-    deleteRuleBox,
+    pendingRemoval,
+    requestRemoval,
+    confirmRemoval,
+    cancelRemoval,
     removePlaceholderGroup,
     removePlaceholderRuleBox,
-    keyboardFocusRequest,
+    keyboardFocusRequest: pendingRemoval ? null : keyboardFocusRequest,
     consumeKeyboardFocusRequest,
     canEditCourse,
     groupsQuery,
@@ -892,10 +910,11 @@ export const CompetencyAssociationsProvider = ({
     associateSubsection,
     updateGroupOperator,
     updateRuleScore,
-    deleteGroup,
     isDeleting,
-    removeAssociation,
-    deleteRuleBox,
+    pendingRemoval,
+    requestRemoval,
+    confirmRemoval,
+    cancelRemoval,
     removePlaceholderGroup,
     removePlaceholderRuleBox,
     keyboardFocusRequest,

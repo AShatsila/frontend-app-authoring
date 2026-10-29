@@ -9,6 +9,7 @@ import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import AddControl from './AddControl';
 import LogicOperatorSelect from './LogicOperatorSelect';
 import RuleBoxList from './RuleBoxList';
@@ -54,7 +55,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     addPlaceholderRuleBox,
     setPlaceholderLogicOperator,
     hasPlaceholder,
-    deleteGroup,
+    requestRemoval,
     isDeleting,
     removePlaceholderGroup,
     keyboardFocusRequest,
@@ -79,7 +80,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     if (takesKeyboardFocus && selectButtonRef.current) {
       // Stealing focus from a text field would blur it, and `ScoreThresholdField` saves on blur.
       if (!isInputOrEditableElement(document.activeElement)) {
-        selectButtonRef.current.focus({ preventScroll: true });
+        queueMicrotask(() => selectButtonRef.current?.focus({ preventScroll: true }));
       }
       consumeKeyboardFocusRequest();
     }
@@ -87,7 +88,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
 
   const handleRemoveClick = () => {
     if (group) {
-      deleteGroup(group.id);
+      requestRemoval({ kind: RemovalTargetKind.RuleGroup, groupId: group.id });
     } else {
       removePlaceholderGroup();
     }

@@ -15,6 +15,7 @@ import CompetencyIcon from '@src/generic/CompetencyIcon';
 import { LoadingSpinner } from '@src/generic/Loading';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import rootMessages from '../messages';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import messages from './messages';
 
 export interface CourseOutlineSubtreeProps {
@@ -28,7 +29,7 @@ interface SubsectionRowProps {
 
 /**
  * One row for a single graded subsection. A view-only course still shows what's associated.
- * Takes keyboard focus back after a remove started from this row.
+ * Takes keyboard focus back after a confirmed remove.
  */
 const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const intl = useIntl();
@@ -41,7 +42,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     index,
     systemDefaultProfile,
     isDeleting,
-    removeAssociation,
+    requestRemoval,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
@@ -56,10 +57,11 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const removeButtonRef = useRef<HTMLButtonElement>(null);
   const takesKeyboardFocus = keyboardFocusRequest?.kind === 'subsection'
     && keyboardFocusRequest.objectId === subsection.id;
+
   useEffect(() => {
     const target = isAssociated ? removeButtonRef.current : buttonRef.current;
     if (takesKeyboardFocus && target) {
-      target.focus();
+      queueMicrotask(() => target.focus());
       consumeKeyboardFocusRequest();
     }
   }, [takesKeyboardFocus, isAssociated, canSelect, consumeKeyboardFocusRequest]);
@@ -100,7 +102,11 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
                 onClick={() => {
                   const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === subsection.id);
                   if (criterion) {
-                    removeAssociation(criterion.id, 'subsection');
+                    requestRemoval({
+                      kind: RemovalTargetKind.Association,
+                      criterionId: criterion.id,
+                      returnFocusTo: 'subsection',
+                    });
                   }
                 }}
               />
