@@ -1,5 +1,11 @@
 import type { UseQueryResult } from '@tanstack/react-query';
-import { initializeMocks, render, screen } from '@src/testUtils';
+import {
+  act,
+  initializeMocks,
+  render,
+  screen,
+  waitFor,
+} from '@src/testUtils';
 import { buildMockCompetencyAssociationsContextValue, MockCompetencyAssociationsProvider } from '../testHelpers';
 import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from '../data/types';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
@@ -162,7 +168,50 @@ describe('<CourseGroupList />', () => {
     expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
   });
 
-  it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', () => {
+  it('shows rule box menus only in the courses the author can edit', async () => {
+    const courseA = 'course-v1:OrgX+CS101+2024';
+    const courseB = 'course-v1:OrgX+CS102+2024';
+    const defaultCriterion = { ruleProfileId: 1, ruleTypeOverride: null, rulePayloadOverride: null };
+    const leaf = {
+      tagId: 42,
+      courseKey: null,
+      name: 'leaf',
+      ordering: 0,
+      logicOperator: 'AND',
+      archived: false,
+    } as const;
+    const twoCoursesResponse: CompetencyCriteriaGroupsResponse = {
+      groups: [
+        { ...populatedGroupsResponse.groups[0] },
+        { ...populatedGroupsResponse.groups[1], courseKey: courseA },
+        { ...populatedGroupsResponse.groups[1], id: 2, courseKey: courseB, ordering: 1 },
+        { ...leaf, id: 10, parentId: 1 },
+        { ...leaf, id: 20, parentId: 2 },
+      ],
+      criteria: [
+        { ...defaultCriterion, id: 901, objectId: 'sub-a', groupId: 10 },
+        { ...defaultCriterion, id: 902, objectId: 'sub-b', groupId: 20 },
+      ],
+    };
+    const index = buildCompetencyCriteriaGroupsIndex(twoCoursesResponse);
+    renderList({
+      groupsQuery: buildQueryResult<CompetencyCriteriaGroupsResponse>({ data: twoCoursesResponse }),
+      profileQuery: loadedProfileQuery,
+      index,
+      systemDefaultProfile,
+      accessibleCourseGroups: index.courseGroups,
+      canEditCourse: (courseId) => courseId === courseB,
+    });
+
+    expect(await screen.findByText(courseB)).toBeInTheDocument();
+    expect(screen.getByText(courseA)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /More actions for the rule with a score of/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'More actions for this group' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: `More actions for ${courseB}` })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: `More actions for ${courseA}` })).not.toBeInTheDocument();
+  });
+
+  it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', async () => {
     const consumeKeyboardFocusRequest = jest.fn();
     renderList({
       groupsQuery: loadedEmptyGroupsQuery,
@@ -174,11 +223,11 @@ describe('<CourseGroupList />', () => {
       consumeKeyboardFocusRequest,
     });
 
-    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    await waitFor(() => expect(screen.getByText('No content associated.').parentElement).toHaveFocus());
     expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves the empty state unfocused without a request', () => {
+  it('leaves the empty state unfocused without a request', async () => {
     renderList({
       groupsQuery: loadedEmptyGroupsQuery,
       profileQuery: loadedProfileQuery,
@@ -187,6 +236,7 @@ describe('<CourseGroupList />', () => {
       accessibleCourseGroups: [],
     });
 
+    await act(async () => {});
     expect(screen.getByText('No content associated.').parentElement).not.toHaveFocus();
   });
 });

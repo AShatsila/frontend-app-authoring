@@ -10,10 +10,18 @@ import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import AddControl from './AddControl';
 import LogicOperatorSelect from './LogicOperatorSelect';
 import RuleBoxList from './RuleBoxList';
 import messages from './messages';
+
+const isTextEntryElement = (element: Element | null): boolean => (
+  element instanceof HTMLInputElement
+  || element instanceof HTMLTextAreaElement
+  || element instanceof HTMLSelectElement
+  || (element instanceof HTMLElement && element.isContentEditable)
+);
 
 export interface CriteriaGroupBoxProps {
   /** The persisted bottom-tier group this card represents, or `undefined`
@@ -51,7 +59,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     addPlaceholderRuleBox,
     setPlaceholderLogicOperator,
     hasPlaceholder,
-    deleteGroup,
+    requestRemoval,
     isDeleting,
     removePlaceholderGroup,
     keyboardFocusRequest,
@@ -73,14 +81,17 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     && keyboardFocusRequest.groupId === group.id;
   useEffect(() => {
     if (takesKeyboardFocus && selectButtonRef.current) {
-      selectButtonRef.current.focus({ preventScroll: true });
+      // Stealing focus from a text field would blur it, and `ScoreThresholdField` saves on blur.
+      if (!isTextEntryElement(document.activeElement)) {
+        queueMicrotask(() => selectButtonRef.current?.focus({ preventScroll: true }));
+      }
       consumeKeyboardFocusRequest();
     }
   }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
 
   const handleRemoveClick = () => {
     if (group) {
-      deleteGroup(group.id);
+      requestRemoval({ kind: RemovalTargetKind.RuleGroup, groupId: group.id });
     } else {
       removePlaceholderGroup();
     }

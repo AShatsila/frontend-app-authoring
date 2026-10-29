@@ -15,8 +15,9 @@ import { ExpandLess, ExpandMore, MoreVert } from '@openedx/paragon/icons';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
-import { bottomTierGroupsForCourse } from '../utils';
+import { bottomTierGroupsForCourse, subsectionNamesFromOutline } from '@src/taxonomy/competency-management/utils';
 import AddControl from './AddControl';
 import CriteriaGroupBox from './CriteriaGroupBox';
 import GroupConnector from './GroupConnector';
@@ -49,7 +50,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     discardPlaceholder,
     hasPlaceholder,
     competencyName,
-    deleteGroup,
+    requestRemoval,
     isDeleting,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
@@ -61,19 +62,10 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
 
   const courseDisplayName = (!isError && data) ? data.courseStructure.displayName : courseGroup.courseKey;
 
-  const subsectionNamesByUsageKey = useMemo(() => {
-    const names: Record<string, string> = {};
-    if (!isError && data) {
-      (data.courseStructure.childInfo?.children ?? []).forEach((section) => {
-        (section.childInfo?.children ?? []).forEach((subsection) => {
-          // The real `course_index` response populates `.id`, never
-          // `.usageKey` (see `CourseOutlineSubtree`'s `SubsectionRow`).
-          names[subsection.id] = subsection.displayName;
-        });
-      });
-    }
-    return names;
-  }, [data, isError]);
+  const subsectionNamesByUsageKey = useMemo(
+    () => ((!isError && data) ? subsectionNamesFromOutline(data.courseStructure) : {}),
+    [data, isError],
+  );
 
   // `index` is only `undefined` during `CourseGroupList`'s own loading/error
   // states, before this component ever mounts.
@@ -144,7 +136,9 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
                   disabled={isDeleting}
                 />
                 <Dropdown.Menu>
-                  <Dropdown.Item onClick={() => deleteGroup(courseGroup.id)}>
+                  <Dropdown.Item
+                    onClick={() => requestRemoval({ kind: RemovalTargetKind.CourseGroup, groupId: courseGroup.id })}
+                  >
                     {intl.formatMessage(messages.removeFromCompetencyMenuItem, { competencyName })}
                   </Dropdown.Item>
                 </Dropdown.Menu>

@@ -1,12 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Card } from '@openedx/paragon';
+import {
+  Card,
+  Dropdown,
+  Icon,
+  IconButton,
+} from '@openedx/paragon';
+import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import CriterionChipList from './CriterionChipList';
-import ScoreThresholdField from './ScoreThresholdField';
+import ScoreThresholdField, { formatScoreSummary } from './ScoreThresholdField';
 import messages from './messages';
 
 export interface RuleBoxProps {
@@ -43,7 +50,8 @@ export interface RuleBoxProps {
  * renders the not-yet-saved placeholder rule box (`#671`): a dashed hint
  * box instead of chips, no `focusRuleBox` on click, and a score field that
  * writes to `CompetencyAssociationsContext`'s `placeholder` state instead of
- * persisting.
+ * persisting. In a saved group, each box has a ⋮ menu whose Remove rule
+ * item asks for confirmation before deleting a saved box, or discards the placeholder (`#833`).
  */
 const RuleBox = ({
   groupId,
@@ -63,10 +71,14 @@ const RuleBox = ({
     updateRuleScore,
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
+    requestRemoval,
+    removePlaceholderRuleBox,
+    isDeleting,
   } = useCompetencyAssociations();
   const isFocused = focus?.groupId === groupId && focus?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
+  const menuToggleId = useId();
 
   useEffect(() => {
     if (isFocused) {
@@ -92,6 +104,21 @@ const RuleBox = ({
     return updateRuleScore(groupId!, criteria.map((criterion) => criterion.id), rulePayload);
   };
 
+  const handleRemoveClick = () => {
+    if (groupId === null) {
+      return;
+    }
+    if (ruleKey === null) {
+      removePlaceholderRuleBox();
+    } else {
+      requestRemoval({
+        kind: RemovalTargetKind.RuleBox,
+        groupId,
+        criterionIds: criteria.map((criterion) => criterion.id),
+      });
+    }
+  };
+
   return (
     // Interactive/focus/scroll semantics live on this wrapping `<div>`, not
     // `Card` itself: `Card`'s `ref` forwarding doesn't reliably reach a real
@@ -102,24 +129,54 @@ const RuleBox = ({
     >
       <Card>
         <Card.Body className="rule-box__body">
-          {!isPlaceholder && (
-            <button
-              type="button"
-              className="stretched-link rule-box__select-button"
-              aria-current={isFocused}
-              onClick={() => focusRuleBox(groupId!, ruleKey)}
-            >
-              <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
-            </button>
-          )}
-          <ScoreThresholdField
-            rulePayload={rule.rulePayload}
-            onChange={canEdit ? handleScoreChange : undefined}
-            getInlineValidationMessage={canEdit ? getInlineValidationMessage : undefined}
-            autoFocusSelect={autoFocusSelect}
-            hint={hint}
-            hintIsError={isRejected}
-          />
+          <div className="d-flex align-items-start">
+            {!isPlaceholder && (
+              <button
+                type="button"
+                className="stretched-link rule-box__select-button"
+                aria-current={isFocused}
+                onClick={() => focusRuleBox(groupId!, ruleKey)}
+              >
+                <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
+              </button>
+            )}
+            {/* A wrapper, so the field's span root is not blockified and given `.pgn__form-group`'s bottom margin. */}
+            <div className="flex-grow-1">
+              <ScoreThresholdField
+                rulePayload={rule.rulePayload}
+                onChange={canEdit ? handleScoreChange : undefined}
+                getInlineValidationMessage={canEdit ? getInlineValidationMessage : undefined}
+                autoFocusSelect={autoFocusSelect}
+                hint={hint}
+                hintIsError={isRejected}
+              />
+            </div>
+            {/* The placeholder group's own menu removes its placeholder rule box too. */}
+            {canEdit && groupId !== null && (
+              <Dropdown>
+                <Dropdown.Toggle
+                  id={menuToggleId}
+                  as={IconButton}
+                  src={MoreVert}
+                  iconAs={Icon}
+                  variant="primary"
+                  className="rule-box__menu-toggle"
+                  size="inline"
+                  aria-label={isPlaceholder
+                    ? intl.formatMessage(messages.placeholderRuleBoxMoreActionsLabel)
+                    : intl.formatMessage(messages.ruleBoxMoreActionsLabel, {
+                      score: formatScoreSummary(intl, rule.rulePayload),
+                    })}
+                  disabled={isDeleting}
+                />
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={handleRemoveClick}>
+                    {intl.formatMessage(messages.removeRuleBoxMenuItem)}
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
+            )}
+          </div>
           {isPlaceholder ?
             (
               <div className="rule-box__placeholder-hint text-muted">
