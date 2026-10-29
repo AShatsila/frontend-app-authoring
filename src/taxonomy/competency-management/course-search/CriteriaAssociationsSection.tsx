@@ -3,6 +3,7 @@ import { Badge } from '@openedx/paragon';
 
 import type { CompetencyTreeNode } from '../CompetencyTree';
 import { CourseGroupList } from '../criteria-groups';
+import { RemovalConfirmationModal } from '@src/taxonomy/competency-management/removal-confirmation';
 import messages from './messages';
 
 export interface CriteriaAssociationsSectionProps {
@@ -19,7 +20,7 @@ export interface CriteriaAssociationsSectionProps {
  * `CourseGroupList` reads its own data and focus state from
  * `CompetencyAssociationsContext`; this component only renders the static
  * label/mastery lines, which need `competency` directly since the context
- * doesn't track its name.
+ * doesn't track its name. It also mounts the removal dialog.
  */
 const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSectionProps) => {
   const intl = useIntl();
@@ -47,6 +48,8 @@ const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSection
         )}
       </div>
       <CourseGroupList />
+
+      <RemovalConfirmationModal />
     </div>
   );
 };

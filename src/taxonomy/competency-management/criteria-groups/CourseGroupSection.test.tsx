@@ -13,6 +13,7 @@ import type {
   CompetencyRuleProfile,
   CourseCompetencyCriteriaGroup,
 } from '../data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import CourseGroupSection from './CourseGroupSection';
 
@@ -286,16 +287,16 @@ describe('<CourseGroupSection />', () => {
   });
 
   describe('delete control', () => {
-    it('calls deleteGroup with the course group id when Remove from the competency is chosen', async () => {
+    it('requests the course group\'s removal when Remove from the competency is chosen', async () => {
       const user = userEvent.setup();
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-      const deleteGroup = jest.fn();
-      renderSection({ deleteGroup, competencyName: 'Critical Thinking' });
+      const requestRemoval = jest.fn();
+      renderSection({ requestRemoval, competencyName: 'Critical Thinking' });
 
       await user.click(await screen.findByRole('button', { name: 'More actions for Demo Course' }));
       await user.click(screen.getByRole('button', { name: 'Remove from Critical Thinking' }));
 
-      expect(deleteGroup).toHaveBeenCalledWith(courseGroup.id);
+      expect(requestRemoval).toHaveBeenCalledWith({ kind: RemovalTargetKind.CourseGroup, groupId: courseGroup.id });
     });
 
     it('renders no menu when the author cannot edit this course', async () => {

@@ -36,7 +36,7 @@ const CourseGroupList = () => {
   // the ref is normally set by the time this runs.
   useEffect(() => {
     if (takesKeyboardFocus && emptyStateRef.current) {
-      emptyStateRef.current.focus({ preventScroll: true });
+      queueMicrotask(() => emptyStateRef.current?.focus({ preventScroll: true }));
       consumeKeyboardFocusRequest();
     }
   }, [takesKeyboardFocus, accessibleCourseGroups.length, consumeKeyboardFocusRequest]);

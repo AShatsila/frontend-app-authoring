@@ -5,11 +5,13 @@ import {
   render,
   screen,
   userEvent,
+  waitFor,
   within,
 } from '@src/testUtils';
 import type { CompetencyRuleProfile } from '../data/types';
 import { buildMockCompetencyAssociationsContextValue, MockCompetencyAssociationsProvider } from '../testHelpers';
 import type { CompetencyAssociationsContextValue } from '@src/taxonomy/competency-management/CompetencyAssociationsContext';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import CourseOutlineSubtree from './CourseOutlineSubtree';
 
@@ -48,7 +50,7 @@ const mixedOutline = buildOutlineIndex({
   ],
 });
 
-// Criterion 77 associates `sub-1a`; its id is what the remove button hands to `removeAssociation`.
+// Criterion 77 associates `sub-1a`; its id is what the remove button hands to `requestRemoval`.
 const groupsQueryWithCriterion77 = {
   isLoading: false,
   isError: false,
@@ -364,12 +366,12 @@ describe('<CourseOutlineSubtree />', () => {
   it('renders an associated row on an editable course as a div with a remove button, not a select button', async () => {
     const user = userEvent.setup();
     axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
-    const removeAssociation = jest.fn();
+    const requestRemoval = jest.fn();
     renderSubtree({
       canEditCourse: () => true,
       associatedObjectIds: new Set(['sub-1a']),
       groupsQuery: groupsQueryWithCriterion77,
-      removeAssociation,
+      requestRemoval,
     });
 
     await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
@@ -382,7 +384,11 @@ describe('<CourseOutlineSubtree />', () => {
         name: 'Remove the association with Subsection 1A (graded)',
       }),
     );
-    expect(removeAssociation).toHaveBeenCalledWith(77, 'subsection');
+    expect(requestRemoval).toHaveBeenCalledWith({
+      kind: RemovalTargetKind.Association,
+      criterionId: 77,
+      returnFocusTo: 'subsection',
+    });
   });
 
   it('disables the remove button while a delete is in flight', async () => {
@@ -409,7 +415,7 @@ describe('<CourseOutlineSubtree />', () => {
 
     await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
 
-    expect(screen.getByRole('button', { name: 'Subsection 1A (graded)' })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Subsection 1A (graded)' })).toHaveFocus());
     expect(consumeKeyboardFocusRequest).toHaveBeenCalled();
   });
 
@@ -426,8 +432,10 @@ describe('<CourseOutlineSubtree />', () => {
 
     await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
 
-    expect(screen.getByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }))
-      .toHaveFocus();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }))
+        .toHaveFocus();
+    });
     expect(consumeKeyboardFocusRequest).toHaveBeenCalled();
   });
 

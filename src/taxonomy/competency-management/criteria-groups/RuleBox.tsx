@@ -11,6 +11,7 @@ import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import CriterionChipList from './CriterionChipList';
 import ScoreThresholdField, { formatScoreSummary } from './ScoreThresholdField';
 import messages from './messages';
@@ -50,7 +51,7 @@ export interface RuleBoxProps {
  * box instead of chips, no `focusRuleBox` on click, and a score field that
  * writes to `CompetencyAssociationsContext`'s `placeholder` state instead of
  * persisting. In a saved group, each box has a ⋮ menu whose Remove rule
- * item deletes it, or discards the placeholder (`#833`).
+ * item asks for confirmation before deleting a saved box, or discards the placeholder (`#833`).
  */
 const RuleBox = ({
   groupId,
@@ -70,7 +71,7 @@ const RuleBox = ({
     updateRuleScore,
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
-    deleteRuleBox,
+    requestRemoval,
     removePlaceholderRuleBox,
     isDeleting,
   } = useCompetencyAssociations();
@@ -110,7 +111,11 @@ const RuleBox = ({
     if (ruleKey === null) {
       removePlaceholderRuleBox();
     } else {
-      deleteRuleBox(groupId, ruleKey);
+      requestRemoval({
+        kind: RemovalTargetKind.RuleBox,
+        groupId,
+        criterionIds: criteria.map((criterion) => criterion.id),
+      });
     }
   };
 

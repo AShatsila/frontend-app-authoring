@@ -1,5 +1,11 @@
 import type { UseQueryResult } from '@tanstack/react-query';
-import { initializeMocks, render, screen } from '@src/testUtils';
+import {
+  act,
+  initializeMocks,
+  render,
+  screen,
+  waitFor,
+} from '@src/testUtils';
 import { buildMockCompetencyAssociationsContextValue, MockCompetencyAssociationsProvider } from '../testHelpers';
 import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from '../data/types';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
@@ -205,7 +211,7 @@ describe('<CourseGroupList />', () => {
     expect(screen.queryByRole('button', { name: `More actions for ${courseA}` })).not.toBeInTheDocument();
   });
 
-  it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', () => {
+  it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', async () => {
     const consumeKeyboardFocusRequest = jest.fn();
     renderList({
       groupsQuery: loadedEmptyGroupsQuery,
@@ -217,11 +223,11 @@ describe('<CourseGroupList />', () => {
       consumeKeyboardFocusRequest,
     });
 
-    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    await waitFor(() => expect(screen.getByText('No content associated.').parentElement).toHaveFocus());
     expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves the empty state unfocused without a request', () => {
+  it('leaves the empty state unfocused without a request', async () => {
     renderList({
       groupsQuery: loadedEmptyGroupsQuery,
       profileQuery: loadedProfileQuery,
@@ -230,6 +236,7 @@ describe('<CourseGroupList />', () => {
       accessibleCourseGroups: [],
     });
 
+    await act(async () => {});
     expect(screen.getByText('No content associated.').parentElement).not.toHaveFocus();
   });
 });
