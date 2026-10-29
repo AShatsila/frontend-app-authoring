@@ -4,6 +4,7 @@ import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
 import { ruleBoxesForGroup } from '../utils';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import AddControl from './AddControl';
 import type { AddControlProps } from './AddControl';
 import GroupActionsMenu from './GroupActionsMenu';
@@ -58,7 +59,7 @@ const CriteriaGroupBox = (
     hasPlaceholder,
     isAssociating,
     courseList,
-    deleteGroup,
+    requestRemoval,
     isDeleting,
     discardPlaceholderGroup,
     keyboardFocusRequest,
@@ -96,7 +97,8 @@ const CriteriaGroupBox = (
     if (takesKeyboardFocus && selectButtonRef.current) {
       // Moving focus off a text field would interrupt the author's typing.
       if (!isInputOrEditableElement(document.activeElement)) {
-        selectButtonRef.current.focus({ preventScroll: selectionMoved });
+        // After the dialog's own focus return, which runs in a microtask when it unmounts.
+        queueMicrotask(() => selectButtonRef.current?.focus({ preventScroll: selectionMoved }));
       }
       consumeKeyboardFocusRequest();
     }
@@ -184,7 +186,11 @@ const CriteriaGroupBox = (
                 : intl.formatMessage(messages.placeholderRuleGroupMoreActionsLabel, { courseName })}
               removeLabel={intl.formatMessage(messages.removeRuleGroupMenuItem)}
               disabled={isMenuDisabled}
-              onRemove={() => (group ? deleteGroup(group.id) : discardPlaceholderGroup())}
+              onRemove={() => (
+                group
+                  ? requestRemoval({ kind: RemovalTargetKind.RuleGroup, groupId: group.id })
+                  : discardPlaceholderGroup()
+              )}
             />
           </div>
         )

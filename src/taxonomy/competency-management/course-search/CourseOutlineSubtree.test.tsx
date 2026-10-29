@@ -5,10 +5,12 @@ import {
   render,
   screen,
   userEvent,
+  waitFor,
   within,
 } from '@src/testUtils';
 import { criterion, MockCompetencyAssociationsProvider, singleGroupResponse } from '../__mocks__';
 import type { MockCompetencyAssociationsOverrides } from '../__mocks__';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import CourseOutlineSubtree from './CourseOutlineSubtree';
 
@@ -353,7 +355,7 @@ describe('<CourseOutlineSubtree />', () => {
 
     it('renders an associated row on an editable course with a remove button in its pill', async () => {
       const user = userEvent.setup();
-      const removeAssociation = jest.fn();
+      const requestRemoval = jest.fn();
       axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
       renderSubtreeWithAssociations({
         associatedObjectIds: new Set(['sub-1a']),
@@ -361,7 +363,7 @@ describe('<CourseOutlineSubtree />', () => {
           groups: singleGroupResponse.groups,
           criteria: [criterion(77, 'sub-1a', 10)],
         }),
-        removeAssociation,
+        requestRemoval,
       });
       await expandFirstSection();
 
@@ -369,7 +371,11 @@ describe('<CourseOutlineSubtree />', () => {
         await screen.findByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }),
       );
 
-      expect(removeAssociation).toHaveBeenCalledWith(77, 'subsection');
+      expect(requestRemoval).toHaveBeenCalledWith({
+        kind: RemovalTargetKind.Association,
+        criterionId: 77,
+        returnFocusTo: 'subsection',
+      });
     });
 
     it('renders no remove button when the course cannot be edited', async () => {
@@ -400,8 +406,10 @@ describe('<CourseOutlineSubtree />', () => {
       });
       await expandFirstSection();
 
-      expect(await screen.findByRole('button', { name: 'Remove the association with Subsection 1A (graded)' }))
-        .toHaveFocus();
+      const removeButton = await screen.findByRole('button', {
+        name: 'Remove the association with Subsection 1A (graded)',
+      });
+      await waitFor(() => expect(removeButton).toHaveFocus());
       expect(consumeKeyboardFocusRequest).toHaveBeenCalled();
     });
 
@@ -415,8 +423,10 @@ describe('<CourseOutlineSubtree />', () => {
       });
       await expandFirstSection();
 
-      expect(await screen.findByRole('button', { name: 'Associate EXT-042 with Subsection 1A (graded)' }))
-        .toHaveFocus();
+      const associateButton = await screen.findByRole('button', {
+        name: 'Associate EXT-042 with Subsection 1A (graded)',
+      });
+      await waitFor(() => expect(associateButton).toHaveFocus());
       expect(consumeKeyboardFocusRequest).toHaveBeenCalled();
     });
 

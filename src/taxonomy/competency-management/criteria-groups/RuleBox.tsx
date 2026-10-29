@@ -10,6 +10,7 @@ import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import CriterionChipList from './CriterionChipList';
 import { formatScoreSummary } from './formatScoreSummary';
 import ScoreThresholdField from './ScoreThresholdField';
@@ -40,8 +41,8 @@ export interface RuleBoxProps {
 /**
  * One rule box: its score threshold, whose score settings button opens the box's settings popover, and its
  * criterion chips, or a hint when it is the placeholder.
- * In a saved group, each box has a ⋮ menu whose Remove rule item deletes it, or discards the placeholder; without
- * `canEdit` the menu is not rendered at all.
+ * In a saved group, each box has a ⋮ menu whose Remove rule item asks for confirmation before deleting a saved box,
+ * or discards the placeholder; without `canEdit` the menu is not rendered at all.
  */
 const RuleBox = ({
   groupId,
@@ -64,7 +65,7 @@ const RuleBox = ({
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
     placeholderDuplicateRejectionCount,
-    deleteRuleBox,
+    requestRemoval,
     removePlaceholderRuleBox,
     isDeleting,
   } = useCompetencyAssociations();
@@ -103,7 +104,11 @@ const RuleBox = ({
     if (ruleKey === null) {
       removePlaceholderRuleBox();
     } else {
-      deleteRuleBox(groupId, ruleKey);
+      requestRemoval({
+        kind: RemovalTargetKind.RuleBox,
+        groupId,
+        criterionIds: criteria.map((criterion) => criterion.id),
+      });
     }
   };
 
