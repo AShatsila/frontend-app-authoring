@@ -1,13 +1,16 @@
+import { useIntl } from '@edx/frontend-platform/i18n';
 import type { CompetencyCriteriaGroupsIndex } from '../utils';
 import { ruleBoxesForGroup } from '../utils';
-import type { CompetencyRuleProfile } from '../data/types';
+import type { CompetencyRuleProfile, RuleBox as RuleBoxData } from '../data/types';
 import RuleBox from './RuleBox';
+import messages from './messages';
 
 export interface RuleBoxListProps {
   groupId: number;
   index: CompetencyCriteriaGroupsIndex;
   systemDefaultProfile: CompetencyRuleProfile;
   subsectionNamesByUsageKey: Record<string, string>;
+  canEdit?: boolean;
 }
 
 /** Derives one bottom-tier group's rule boxes via `ruleBoxesForGroup` and
@@ -21,8 +24,23 @@ const RuleBoxList = ({
   index,
   systemDefaultProfile,
   subsectionNamesByUsageKey,
+  canEdit = false,
 }: RuleBoxListProps) => {
+  const intl = useIntl();
   const boxes = ruleBoxesForGroup(groupId, index, systemDefaultProfile);
+
+  // Compares rounded percent + rule type + op (not `ruleKeyOf`'s raw key, which risks a
+  // formatting-mismatch false negative); excludes the box being edited by its own `key`.
+  const getInlineValidationMessage = (candidateBox: RuleBoxData) => (value: string): string => {
+    const candidatePercent = Math.round(Number(value));
+    const isDuplicate = boxes.some((other) => (
+      other.key !== candidateBox.key
+      && other.rule.ruleType === candidateBox.rule.ruleType
+      && other.rule.rulePayload.op === candidateBox.rule.rulePayload.op
+      && Math.round(other.rule.rulePayload.value * 100) === candidatePercent
+    ));
+    return isDuplicate ? intl.formatMessage(messages.duplicateScoreValidationMessage) : '';
+  };
 
   return (
     <div className="rule-box-list">
@@ -34,6 +52,8 @@ const RuleBoxList = ({
           rule={box.rule}
           criteria={box.criteria}
           subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+          canEdit={canEdit}
+          getInlineValidationMessage={getInlineValidationMessage(box)}
         />
       ))}
     </div>

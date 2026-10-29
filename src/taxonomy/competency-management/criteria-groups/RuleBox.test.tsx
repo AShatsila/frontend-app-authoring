@@ -52,11 +52,11 @@ describe('<RuleBox />', () => {
     expect(screen.getByText('Subsection A')).toBeInTheDocument();
   });
 
-  it('calls focusRuleBox with its own groupId/ruleKey when clicked', () => {
+  it('calls focusRuleBox with its own groupId/ruleKey when the select button is clicked', () => {
     const focusRuleBox = jest.fn();
-    renderRuleBox({ focusRuleBox });
+    const { container } = renderRuleBox({ focusRuleBox });
 
-    fireEvent.click(screen.getByRole('button'));
+    fireEvent.click(container.querySelector('.rule-box__select-button')!);
     expect(focusRuleBox).toHaveBeenCalledWith(10, 'grade:gte:0.7:percent');
   });
 
