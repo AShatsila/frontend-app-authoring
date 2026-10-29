@@ -158,7 +158,7 @@ export interface CompetencyAssociationsContextBase {
   displayedCourseKeys: string[] | undefined;
   /** The groups response's association counts: `criteriaCount` in the listed
    * courses and `totalCriteriaCount` across the instance. `undefined` while the
-   * groups for the current scope are loading.
+   * groups for the current scope are loading, and while the groups query is in error.
    */
   criteriaCounts: Pick<CompetencyCriteriaGroupsResponse, 'criteriaCount' | 'totalCriteriaCount'> | undefined;
 }
@@ -443,8 +443,11 @@ export const CompetencyAssociationsProvider = ({
     () => (groupsQuery.data ? associatedObjectIds(groupsQuery.data) : new Set<string>()),
     [groupsQuery.data],
   );
-  const criteriaCount = groupsQuery.data?.criteriaCount;
-  const totalCriteriaCount = groupsQuery.data?.totalCriteriaCount;
+  // `data` outlives a failed refetch under the same key, so after a write
+  // whose refetch failed it holds the pre-write counts beside the panel's error.
+  const countsData = groupsQuery.isError ? undefined : groupsQuery.data;
+  const criteriaCount = countsData?.criteriaCount;
+  const totalCriteriaCount = countsData?.totalCriteriaCount;
   const criteriaCounts = useMemo(
     () => (criteriaCount !== undefined && totalCriteriaCount !== undefined
       ? { criteriaCount, totalCriteriaCount }
