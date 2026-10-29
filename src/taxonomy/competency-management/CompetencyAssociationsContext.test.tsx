@@ -116,13 +116,6 @@ const TestConsumer = () => {
     ['Focus group 11', () => ctx.focusGroup(11)],
     ['Delete group 10', () => ctx.deleteGroup(10)],
     ['Delete group 20', () => ctx.deleteGroup(20)],
-    [
-      'Delete group 10 twice',
-      () => {
-        ctx.deleteGroup(10);
-        ctx.deleteGroup(10);
-      },
-    ],
     ['Remove placeholder group', () => ctx.removePlaceholderGroup()],
     ['Add placeholder rule box in group 10', () => ctx.addPlaceholderRuleBox(10)],
     ['Add placeholder group under course A', () => ctx.addPlaceholderGroup(1)],
@@ -1134,17 +1127,6 @@ describe('CompetencyAssociationsProvider', () => {
       expectToast('Couldn\'t remove the group. The panel was refreshed.', ErrorIcon);
       expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
-    });
-
-    it('drops a second call made before the first settles, so one request is sent', async () => {
-      axiosMock.onDelete(deleteUrl).reply(200, {});
-      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
-
-      await deleteAndRefetch('Delete group 10 twice', reads);
-
-      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expect(axiosMock.history.delete).toHaveLength(1);
     });
 
     it('requests the empty state when the delete leaves no course group', async () => {

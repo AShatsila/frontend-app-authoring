@@ -460,8 +460,6 @@ export const CompetencyAssociationsProvider = ({
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
   const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the delete menus.
-  const isDeleteInFlightRef = useRef(false);
   // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
   // respect a click made while the request was in flight.
   const focusRef = useRef(focus);
@@ -792,10 +790,9 @@ export const CompetencyAssociationsProvider = ({
   }, [queryClient, tagId, focusGroupAfterRemoval]);
 
   const deleteGroup = useCallback((groupId: number) => {
-    if (isDeleteInFlightRef.current || !groupsIndex) {
+    if (!groupsIndex) {
       return;
     }
-    isDeleteInFlightRef.current = true;
     const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
       onError: (deleteError) => {
@@ -805,7 +802,6 @@ export const CompetencyAssociationsProvider = ({
         }
       },
       onSettled: () => {
-        isDeleteInFlightRef.current = false;
         resolveFocusAfterDelete(groupId, snapshot);
       },
     });
