@@ -15,6 +15,7 @@ import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { CompetencyAssociationsProvider } from '../CompetencyAssociationsContext';
 import { apiUrls as competencyManagementApiUrls } from '../data/api';
 import type { CompetencyTreeNode } from '../CompetencyTree';
+import { byTextContent } from '../testHelpers';
 import CourseRow from './CourseRow';
 import CourseSearchBrowse from './CourseSearchBrowse';
 
@@ -151,9 +152,10 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         );
         expect(within(masteryLine).getByText('Test Competency', { selector: 'strong' })).toBeInTheDocument();
 
-        expect(await screen.findByText('No content associated.')).toBeInTheDocument();
+        expect(await screen.findByText(byTextContent('No content associated with Test Competency yet.')))
+          .toBeInTheDocument();
         expect(
-          screen.getByText('Make content selections to associate this competency with course content.'),
+          screen.getByText('Make content selections to create competency criteria associations.'),
         ).toBeInTheDocument();
       },
     );
@@ -437,6 +439,10 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       jest.setSystemTime(new Date(2026, 6, 15));
     });
 
+    afterEach(() => {
+      jest.setSystemTime(jest.getRealSystemTime());
+    });
+
     it('shows how many courses are listed out of every accessible course, naming no filter when none is applied', async () => {
       axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA, courseB]));
       renderCourseSearchBrowse();
@@ -485,14 +491,14 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       pickDay('10');
       await waitFor(() => {
         expect(summaryLine()).toHaveTextContent(
-          /^Showing 2 of 208 Courses starting on or after 07-10-2026, and 0 of 0 Competency Criteria Associations$/,
+          /^Showing 2 of 208 Courses starting on or after 07\/10\/2026, and 0 of 0 Competency Criteria Associations$/,
         );
       });
 
       pickDay('20');
       await waitFor(() => {
         expect(summaryLine()).toHaveTextContent(
-          /^Showing 2 of 208 Courses starting between 07-10-2026 and 07-20-2026, and 0 of 0 Competency Criteria Associations$/,
+          /^Showing 2 of 208 Courses starting between 07\/10\/2026 and 07\/20\/2026, and 0 of 0 Competency Criteria Associations$/,
         );
       });
     });
@@ -513,14 +519,14 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       pickDay('10');
       await waitFor(() => {
         expect(summaryLine()).toHaveTextContent(
-          /^Showing 2 of 208 Courses containing “pro”, starting on or after 07-10-2026, and 0 of 0 Competency Criteria Associations$/,
+          /^Showing 2 of 208 Courses containing “pro”, starting on or after 07\/10\/2026, and 0 of 0 Competency Criteria Associations$/,
         );
       });
 
       pickDay('20');
       await waitFor(() => {
         expect(summaryLine()).toHaveTextContent(
-          /^Showing 2 of 208 Courses containing “pro”, starting between 07-10-2026 and 07-20-2026, and 0 of 0 Competency Criteria Associations$/,
+          /^Showing 2 of 208 Courses containing “pro”, starting between 07\/10\/2026 and 07\/20\/2026, and 0 of 0 Competency Criteria Associations$/,
         );
       });
     });
@@ -535,7 +541,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       pickDay('10');
       await waitFor(() => {
         expect(summaryLine()).toHaveTextContent(
-          /containing “pro”, starting on or after 07-10-2026, and 0 of 0 Competency Criteria Associations$/,
+          /containing “pro”, starting on or after 07\/10\/2026, and 0 of 0 Competency Criteria Associations$/,
         );
       });
 
@@ -548,20 +554,33 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       });
     });
 
-    it('shows zero courses listed against the accessible total when a search matches nothing', async () => {
+    it('shows zero courses and zero associations in view, against both true totals, when a search matches nothing', async () => {
       axiosMock.onGet(coursesApiUrl).reply((config) => [
         200,
         buildResponse(config.params.search ? [] : [courseA, courseB]),
       ]);
+      // An empty page still asks for the groups, with no keys, to learn the competency's total.
+      axiosMock.onGet(competencyManagementApiUrls.competencyCriteriaGroups(Number(activeCompetency.id)))
+        .reply((config) => [
+          200,
+          {
+            groups: [],
+            criteria: [],
+            criteria_count: config.params.course_keys === '' ? 0 : 2,
+            total_criteria_count: 3,
+          },
+        ]);
       renderCourseSearchBrowse();
-      await findSummaryLine();
+      expect(await findSummaryLine()).toHaveTextContent(/, and 2 of 3 Competency Criteria Associations$/);
 
       typeSearch('nonexistent');
 
       expect(await screen.findByText('No courses match your search.')).toBeInTheDocument();
-      expect(summaryLine()).toHaveTextContent(
-        /^Showing 0 of 208 Courses containing “nonexistent”, and 0 of 0 Competency Criteria Associations$/,
-      );
+      await waitFor(() => {
+        expect(summaryLine()).toHaveTextContent(
+          /^Showing 0 of 208 Courses containing “nonexistent”, and 0 of 3 Competency Criteria Associations$/,
+        );
+      });
     });
 
     it('fetches the accessible total once, unfiltered, and keeps it across paging, searching, and date changes', async () => {
@@ -596,6 +615,20 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         expect(summaryLine()).toHaveTextContent(`containing “${'a'.repeat(50)}…”`);
       });
       expect(summaryLine()).not.toHaveTextContent(longSearchTerm);
+    });
+
+    it('truncates a long search term by characters, not UTF-16 code units, so an emoji is never cut in half', async () => {
+      // Each emoji is two code units; a slice by code units would cut at 25 emoji or through one.
+      const longSearchTerm = '😀'.repeat(51);
+      axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA]));
+      renderCourseSearchBrowse();
+      await findSummaryLine();
+
+      typeSearch(longSearchTerm);
+
+      await waitFor(() => {
+        expect(summaryLine()).toHaveTextContent(`containing “${'😀'.repeat(50)}…”`);
+      });
     });
 
     it('shows nothing while the course list loads, and nothing once it fails', async () => {
@@ -690,7 +723,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
 
         await waitFor(() => {
           expect(summaryLine()).toHaveTextContent(
-            /^Showing 2 of 208 Courses containing “pro”, starting between 07-10-2026 and 07-20-2026, and 0 of 3 Competency Criteria Associations$/,
+            /^Showing 2 of 208 Courses containing “pro”, starting between 07\/10\/2026 and 07\/20\/2026, and 0 of 3 Competency Criteria Associations$/,
           );
         });
       });
@@ -719,6 +752,45 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         });
       });
 
+      it('drops the counts, rather than keeping pre-write ones, when the refetch after a create fails', async () => {
+        const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+        const groupsRequestCount = () => axiosMock.history.get.filter((req) => req.url === groupsUrl).length;
+        axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA]));
+        // The first request is the page's own; the next is the refetch after the create.
+        axiosMock.onGet(groupsUrl).reply(() => (groupsRequestCount() === 1 ? [200, buildCountsResponse(0, 0)] : [500]));
+        axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(
+          200,
+          buildOutlineIndex({
+            sections: [{
+              id: 'section-1',
+              displayName: 'Section 1',
+              children: [{ id: 'sub-1a', displayName: 'Subsection 1A', overrides: { graded: true } }],
+            }],
+          }),
+        );
+        axiosMock.onPost(competencyManagementApiUrls.createCompetencyCriterion(Number(activeCompetency.id))).reply(
+          201,
+          {
+            id: 901,
+            group_id: 20,
+            rule_profile_id: 1,
+            rule_type_override: null,
+            rule_payload_override: null,
+            object_tag_id: Number(activeCompetency.id),
+          },
+        );
+        renderCourseSearchBrowse();
+        expect(await findSummaryLine()).toHaveTextContent(/, and 0 of 0 Competency Criteria Associations$/);
+
+        await user.click(screen.getByRole('button', { name: 'Expand' }));
+        await user.click(await screen.findByRole('button', { name: 'Expand' }));
+        await user.click(await screen.findByRole('button', { name: 'Subsection 1A' }));
+
+        expect(await screen.findByText(associationsErrorMessage)).toBeInTheDocument();
+        expect(groupsRequestCount()).toBe(2);
+        expect(querySummaryLine()).not.toBeInTheDocument();
+      });
+
       it('shows nothing while the listed courses\' associations load, and nothing once they fail', async () => {
         const groupsReply = deferredReply();
         axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA]));
@@ -745,7 +817,11 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
     const courseA = buildCourse({ courseKey: 'course-v1:OrgX+CSA+2024', displayName: 'Course A' });
     const courseB = buildCourse({ courseKey: 'course-v1:OrgX+CSB+2024', displayName: 'Course B' });
     const courseC = buildCourse({ courseKey: 'course-v1:OrgX+CSC+2024', displayName: 'Course C' });
-    const emptyMessage = 'No content associated.';
+    const emptyMessage = 'No content associated with Test Competency yet.';
+    /** The other empty-state message, for a competency whose associations are all out of view. */
+    const outOfViewMessage = (competencyName = 'Test Competency') => (
+      `No content associated with ${competencyName} in the courses listed here.`
+    );
 
     const groupsRequests = () => axiosMock.history.get.filter((req) => req.url === groupsUrl);
 
@@ -843,9 +919,13 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       };
     };
 
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
     beforeEach(() => {
       // jsdom has no layout; a sole group gets auto-focused, and its rule box scrolls itself into view.
       Element.prototype.scrollIntoView = jest.fn();
+    });
+    afterEach(() => {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
     });
 
     const associationsSection = () =>
@@ -872,7 +952,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
 
       await waitFor(() => expect(groupsRequests()).toHaveLength(1));
       expect(groupsRequests()[0].params).toEqual({
-        course_keys: listedCourses.map((course) => course.courseKey).join(','),
+        course_keys: 'course-v1:OrgX+CSC+2024,course-v1:OrgX+CSA+2024,course-v1:OrgX+CSB+2024',
       });
     });
 
@@ -884,16 +964,36 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       expect(await screen.findByText('You do not have access to any courses.')).toBeInTheDocument();
       await waitFor(() => expect(groupsRequests()).toHaveLength(1));
       expect(groupsRequests()[0].params).toEqual({ course_keys: '' });
-      expect(await screen.findByText(emptyMessage)).toBeInTheDocument();
+      expect(await screen.findByText(byTextContent(emptyMessage))).toBeInTheDocument();
     });
 
-    it('shows the empty state for an empty page, even when the competency has associations elsewhere', async () => {
+    it('says none are in the listed courses, and counts the rest in the summary, for an empty page when the competency has some elsewhere', async () => {
       axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([]));
       axiosMock.onGet(groupsUrl).reply(200, buildEmptyGroupsResponse(criteriaAcrossBothCourses));
       renderCourseSearchBrowse();
 
       expect(await screen.findByText('You do not have access to any courses.')).toBeInTheDocument();
-      expect(await within(associationsSection()).findByText(emptyMessage)).toBeInTheDocument();
+      const section = associationsSection();
+      expect(await within(section).findByText(byTextContent(outOfViewMessage()))).toBeInTheDocument();
+      expect(within(section).queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText(/^Showing/)).toHaveTextContent(/, and 0 of 2 Competency Criteria Associations$/);
+      });
+    });
+
+    it('gives a listed course with no associations no Course Group, beside one that has some', async () => {
+      axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA, courseB]));
+      axiosMock.onGet(groupsUrl).reply(200, buildGroupsResponse(courseA, 1));
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(200, buildOutline(courseA));
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB.courseKey)).reply(200, buildOutline(courseB));
+      renderCourseSearchBrowse();
+
+      expect(await screen.findByText(outlineNameOf(courseA))).toBeInTheDocument();
+      expect(screen.getByText('Course A')).toBeInTheDocument();
+      expect(screen.getByText('Course B')).toBeInTheDocument();
+      expect(screen.queryByText(outlineNameOf(courseB))).not.toBeInTheDocument();
+      expect(document.querySelectorAll('.course-group-section')).toHaveLength(1);
+      expect(screen.queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
     });
 
     it('keeps nothing from the previous page once a page change has loaded', async () => {
@@ -978,7 +1078,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       const otherCompetency: CompetencyTreeNode = { id: 2, value: 'Other Competency' };
       const otherGroupsUrl = competencyManagementApiUrls.competencyCriteriaGroups(Number(otherCompetency.id));
       const otherGroupsRequests = () => axiosMock.history.get.filter((req) => req.url === otherGroupsUrl);
-      const listedCourseKeys = [courseA, courseB].map((course) => course.courseKey).join(',');
+      const listedCourseKeys = 'course-v1:OrgX+CSA+2024,course-v1:OrgX+CSB+2024';
       axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA, courseB]));
       axiosMock.onGet(groupsUrl).reply(200, buildGroupsResponse(courseA, 1));
       axiosMock.onGet(otherGroupsUrl).reply(200, buildEmptyGroupsResponse(3));
@@ -993,13 +1093,14 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       rerender(courseSearchBrowseTree(otherCompetency));
 
       const section = associationsSection();
-      expect(
-        await within(section).findByText(emptyMessage),
-      ).toBeInTheDocument();
+      const firstLine = await within(section).findByText(byTextContent(outOfViewMessage('Other Competency')));
+      expect(firstLine).toBeInTheDocument();
+      expect(within(section).queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
       await waitFor(() =>
         expect(screen.getByText(/^Showing/)).toHaveTextContent(/, and 0 of 3 Competency Criteria Associations$/)
       );
-      expect(within(section).getByText('Other Competency', { selector: 'strong' })).toBeInTheDocument();
+      expect(within(firstLine).getByText('Other Competency', { selector: 'strong' })).toBeInTheDocument();
+      expect(within(section).getByText(byTextContent('Demonstrate Mastery For Other Competency'))).toBeInTheDocument();
       expect(screen.queryByText(outlineNameOf(courseA))).not.toBeInTheDocument();
       expect(otherGroupsRequests()).toHaveLength(1);
       expect(otherGroupsRequests()[0].params).toEqual({ course_keys: listedCourseKeys });
@@ -1077,7 +1178,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         await waitFor(() => {
           expect(axiosMock.history.get.some((req) => req.url === coursesApiUrl && req.params.page === 2)).toBe(true);
         });
-        expect(screen.queryByText(emptyMessage)).not.toBeInTheDocument();
+        expect(screen.queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
 
         // The new page is listed; its groups are loading.
         await act(async () => {
@@ -1086,7 +1187,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         expect(await screen.findByText('Course B')).toBeInTheDocument();
         await waitFor(() => expect(groupsRequests()).toHaveLength(2));
         expect(within(associationsSection()).getByRole('status')).toBeInTheDocument();
-        expect(screen.queryByText(emptyMessage)).not.toBeInTheDocument();
+        expect(screen.queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
 
         // The new page's groups are in; its course's outline, which decides access, is loading.
         await act(async () => {
@@ -1096,7 +1197,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
           expect(axiosMock.history.get.some((req) => req.url === getCourseOutlineIndexApiUrl(courseB.courseKey)))
             .toBe(true);
         });
-        expect(screen.queryByText(emptyMessage)).not.toBeInTheDocument();
+        expect(screen.queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
 
         await act(async () => {
           outlineBReply.settle([200, buildOutline(courseB)]);
@@ -1147,8 +1248,9 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
           ),
         ).toBeInTheDocument();
         expect(groupsRequests()[groupsRequests().length - 1].params).toEqual({ course_keys: courseB.courseKey });
-        expect(screen.queryByText(emptyMessage)).not.toBeInTheDocument();
+        expect(screen.queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
         expect(screen.queryByText(outlineNameOf(courseA))).not.toBeInTheDocument();
+        expect(screen.queryByText(/^Showing/)).not.toBeInTheDocument();
         expect(emptyMessageWatch.wasSeen()).toBe(false);
       } finally {
         emptyMessageWatch.stop();
@@ -1168,7 +1270,47 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       expect(within(section).getByText('Test Competency', { selector: 'strong' })).toBeInTheDocument();
       expect(within(section).queryByRole('status')).not.toBeInTheDocument();
       expect(within(section).queryByText(outlineNameOf(courseA))).not.toBeInTheDocument();
-      expect(within(section).queryByText(emptyMessage)).not.toBeInTheDocument();
+      expect(within(section).queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
+    });
+
+    it('never shows the previous page\'s Course Groups, or its association counts, once the next page\'s courses are in', async () => {
+      axiosMock.onGet(coursesApiUrl).reply((
+        config,
+      ) => [200, buildResponse(config.params.page === 2 ? [courseB] : [courseA, courseC], 2)]);
+      axiosMock.onGet(groupsUrl).reply((config) => [
+        200,
+        config.params.course_keys === courseB.courseKey
+          ? { ...buildGroupsResponse(courseB, 2), total_criteria_count: 4 }
+          : { ...buildGroupsResponse(courseA, 1), criteria_count: 3, total_criteria_count: 4 },
+      ]);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(200, buildOutline(courseA));
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB.courseKey)).reply(200, buildOutline(courseB));
+      renderCourseSearchBrowse();
+      expect(await screen.findByText(outlineNameOf(courseA))).toBeInTheDocument();
+      expect(await screen.findByText(/^Showing/)).toHaveTextContent(
+        /^Showing 2 of 208 Courses, and 3 of 4 Competency Criteria Associations$/,
+      );
+
+      // Page 2 lists one course. In the commit where the list has it but the
+      // context is still scoped to page 1, page 1's groups and counts would
+      // render against page 2's course count.
+      const staleGroupWatch = watchForText(outlineNameOf(courseA));
+      const staleSummaryWatch = watchForText('Showing 1 of 208 Courses, and 3 of 4');
+      try {
+        fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
+
+        expect(await screen.findByText(outlineNameOf(courseB))).toBeInTheDocument();
+        await waitFor(() => {
+          expect(screen.getByText(/^Showing/)).toHaveTextContent(
+            /^Showing 1 of 208 Courses, and 1 of 4 Competency Criteria Associations$/,
+          );
+        });
+        expect(staleGroupWatch.wasSeen()).toBe(false);
+        expect(staleSummaryWatch.wasSeen()).toBe(false);
+      } finally {
+        staleGroupWatch.stop();
+        staleSummaryWatch.stop();
+      }
     });
 
     it('shows a spinner, not the previous page\'s Course Groups, while the next page\'s courses load', async () => {
@@ -1190,12 +1332,21 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       expect(screen.queryByText(outlineNameOf(courseA))).not.toBeInTheDocument();
     });
 
-    it('offers no subsection selection until the listed courses\' groups load, then sends the create request', async () => {
+    it('offers no subsection selection until the listed courses\' groups load, then creates, shows the new Course Group and counts it', async () => {
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
       const createUrl = competencyManagementApiUrls.createCompetencyCriterion(tagId);
       const groupsReply = deferredReply();
+      /** The groups after the create: Course A's new group (id 2, leaf 20) holding the criterion for `sub-1a`. */
+      const createdGroups = buildGroupsResponse(courseA, 2);
+      const groupsAfterCreate = {
+        ...createdGroups,
+        criteria: [{ ...createdGroups.criteria[0], object_id: 'sub-1a' }],
+      };
       axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA]));
-      axiosMock.onGet(groupsUrl).reply(() => groupsReply.promise);
+      // The page's own request is held; the refetch after the create carries the new group.
+      axiosMock.onGet(groupsUrl).reply(
+        () => (groupsRequests().length === 1 ? groupsReply.promise : [200, groupsAfterCreate]),
+      );
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(
         200,
         buildOutlineIndex({
@@ -1204,6 +1355,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
             displayName: 'Section 1',
             children: [{ id: 'sub-1a', displayName: 'Subsection 1A', overrides: { graded: true } }],
           }],
+          overrides: { courseStructure: { displayName: outlineNameOf(courseA) } },
         }),
       );
       axiosMock.onPost(createUrl).reply(201, {
@@ -1229,12 +1381,20 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         groupsReply.settle([200, { groups: [], criteria: [], criteria_count: 0, total_criteria_count: 0 }]);
       });
       expect(await screen.findByRole('button', { name: 'Subsection 1A' })).toBeEnabled();
+      expect(within(associationsSection()).getByText(byTextContent(emptyMessage))).toBeInTheDocument();
+      expect(screen.getByText(/^Showing/)).toHaveTextContent(/, and 0 of 0 Competency Criteria Associations$/);
 
       await user.click(screen.getByRole('button', { name: 'Subsection 1A' }));
 
       await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
       expect(axiosMock.history.post[0].url).toEqual(createUrl);
       expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'sub-1a' });
+
+      expect(await within(associationsSection()).findByText(outlineNameOf(courseA))).toBeInTheDocument();
+      expect(within(associationsSection()).queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText(/^Showing/)).toHaveTextContent(/, and 1 of 1 Competency Criteria Association$/);
+      });
     });
   });
 

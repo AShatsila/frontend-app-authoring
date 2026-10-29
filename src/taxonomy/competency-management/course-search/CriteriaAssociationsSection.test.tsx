@@ -9,6 +9,7 @@ import {
 import { CompetencyAssociationsProvider, useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyTreeNode } from '../CompetencyTree';
 import { apiUrls } from '../data/api';
+import { byTextContent } from '../testHelpers';
 import CriteriaAssociationsSection, { type CriteriaAssociationsSectionProps } from './CriteriaAssociationsSection';
 
 let axiosMock: ReturnType<typeof initializeMocks>['axiosMock'];
@@ -84,7 +85,7 @@ describe('<CriteriaAssociationsSection />', () => {
     axiosMock.onGet(apiUrls.defaultCompetencyRuleProfile()).reply(200, profileResponse);
     renderSection();
 
-    expect(await screen.findByText('No content associated.')).toBeInTheDocument();
+    expect(await screen.findByText(byTextContent('No content associated with Data Literacy yet.'))).toBeInTheDocument();
   });
 
   it('keeps loading, sends no groups request, and shows no empty state until course keys are reported', async () => {
@@ -95,7 +96,7 @@ describe('<CriteriaAssociationsSection />', () => {
     // Only the unreported keys hold the list back once the profile has landed.
     expect(await screen.findByText('profile loaded')).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Data Literacy yet.'))).not.toBeInTheDocument();
     expect(axiosMock.history.get.filter((req) => req.url === apiUrls.competencyCriteriaGroups(tagId))).toHaveLength(0);
   });
 
@@ -110,7 +111,7 @@ describe('<CriteriaAssociationsSection />', () => {
     });
     expect(await screen.findByText('profile loaded')).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Data Literacy yet.'))).not.toBeInTheDocument();
   });
 
   it('shows only the header lines once the course list has failed', async () => {
@@ -121,7 +122,7 @@ describe('<CriteriaAssociationsSection />', () => {
     expect(await screen.findByText('profile loaded')).toBeInTheDocument();
     expect(screen.getByText('Data Literacy', { selector: 'strong' })).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Data Literacy yet.'))).not.toBeInTheDocument();
   });
 
   it('renders a failed state when the groups request fails', async () => {

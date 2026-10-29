@@ -46,6 +46,10 @@ export interface CourseSearchBrowseProps {
 
 const PAGE_SIZE = 10;
 
+// The summary line's "of N Courses" total: the list's own endpoint with no
+// search or date parameter, so the response's `count` is every course the
+// author can access, and the smallest page it serves, since only `count` is
+// read. Keep the filters out of it, or the total would follow them.
 const ACCESSIBLE_COURSES_COUNT_PARAMS = { pageSize: 1 };
 
 // Sends the local calendar day's own start/end instant (in the browser's own
@@ -208,8 +212,16 @@ const CourseSearchBrowse = ({ activeCompetency }: CourseSearchBrowseProps) => {
 
   const courses = data?.results.courses ?? [];
   const numPages = data?.numPages ?? 0;
-  const associationCounts = isEqual(displayedCourseKeys, listedCourseKeys) ? groupsQuery.data : undefined;
+  // The context scopes `groupsQuery` to the keys it was last given, and the
+  // effect above hands over a new page one commit after the list has it. In
+  // that commit `groupsQuery` still describes the previous page, so the
+  // summary and the groups panel both wait for the scope to catch up.
+  const isScopeCurrent = isEqual(displayedCourseKeys, listedCourseKeys);
+  // `data` outlives a failed refetch under the same key, so after a write
+  // whose refetch failed it holds the pre-write counts beside the panel's error.
+  const associationCounts = isScopeCurrent && !groupsQuery.isError ? groupsQuery.data : undefined;
   const showSummary = isSuccess && accessibleCourseCount !== undefined && associationCounts !== undefined;
+  const associationsStatus = isSuccess && !isScopeCurrent ? 'pending' : status;
 
   let body: ReactNode;
   if (isLoading) {
@@ -303,19 +315,26 @@ const CourseSearchBrowse = ({ activeCompetency }: CourseSearchBrowseProps) => {
             )}
           </div>
         </Stack>
-        {showSummary && (
-          <CourseListSummary
-            listedCount={courses.length}
-            totalCount={accessibleCourseCount}
-            search={search}
-            dateRange={dateRange}
-            listedAssociationCount={associationCounts.criteriaCount}
-            totalAssociationCount={associationCounts.totalCriteriaCount}
-          />
-        )}
+        {
+          /* Always rendered: a live region only announces changes to content it
+            held before them (WCAG 2.2, 4.1.3), and its reserved line keeps the
+            panel below from shifting while the summary's inputs reload. */
+        }
+        <div role="status" className="course-search-browse__summary small mt-2">
+          {showSummary && (
+            <CourseListSummary
+              listedCount={courses.length}
+              totalCount={accessibleCourseCount}
+              search={search}
+              dateRange={dateRange}
+              listedAssociationCount={associationCounts.criteriaCount}
+              totalAssociationCount={associationCounts.totalCriteriaCount}
+            />
+          )}
+        </div>
       </div>
       <div className="course-search-browse__panel">
-        <CriteriaAssociationsSection competency={activeCompetency} courseListStatus={status} />
+        <CriteriaAssociationsSection competency={activeCompetency} courseListStatus={associationsStatus} />
         <div className="course-search-browse__container">
           <div className="course-search-browse__section-label">
             {intl.formatMessage(messages.coursesAndContentLabel)}
