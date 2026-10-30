@@ -102,7 +102,13 @@ const ScoreThresholdPopover = ({
 
   return (
     <>
-      <Button ref={setTarget} variant="link" size="inline" className="score-threshold-field" onClick={onOpen}>
+      <Button
+        ref={setTarget}
+        variant="link"
+        size="inline"
+        className="score-threshold-field rule-box__score-trigger"
+        onClick={onOpen}
+      >
         {intl.formatMessage(messages.scoreThresholdLabel, {
           threshold: (
             <span key="threshold" className="score-threshold-field__value">
