@@ -102,7 +102,7 @@ const ScoreThresholdPopover = ({
         ref={setTarget}
         variant="link"
         size="inline"
-        className="score-threshold-field score-threshold-field--trigger"
+        className="score-threshold-field rule-box__score-trigger"
         onClick={onOpen}
       >
         {intl.formatMessage(messages.scoreThresholdLabel, {
