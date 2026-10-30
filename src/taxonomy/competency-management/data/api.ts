@@ -46,6 +46,8 @@ export const apiUrls = {
   defaultCompetencyRuleProfile: () => makeCbeV1Url('rule_profiles/'),
   /** POST: create a new criterion under this competency (tag). Backs `#665`. */
   createCompetencyCriterion: (tagId: number) => makeUrl(`${tagId}/criteria/`),
+  /** DELETE: remove one criterion (association). Backs `#674`. */
+  deleteCompetencyCriterion: (tagId: number, criterionId: number) => makeUrl(`${tagId}/criteria/${criterionId}/`),
   /** PATCH: update a bottom-tier group's any/all combining logic. Backs `#760`. */
   updateCompetencyCriteriaGroup: (tagId: number, groupId: number) => makeUrl(`${tagId}/criteria-groups/${groupId}/`),
   /** PATCH: batch-update a rule box's score across every criterion sharing it. Backs `#759`. */
@@ -126,6 +128,17 @@ export async function updateCompetencyCriteriaGroupOperator(
  */
 export async function deleteCompetencyCriteriaGroup(tagId: number, groupId: number): Promise<void> {
   await getAuthenticatedHttpClient().delete(apiUrls.updateCompetencyCriteriaGroup(tagId, groupId));
+}
+
+/**
+ * Delete one criterion (`#710`). A group this empties no longer appears in the
+ * criteria-groups GET (it may be archived), cascading up through its ancestors,
+ * so callers re-read the groups.
+ * @param tagId The competency (tag) the criterion belongs to.
+ * @param criterionId The criterion to delete.
+ */
+export async function deleteCompetencyCriterion(tagId: number, criterionId: number): Promise<void> {
+  await getAuthenticatedHttpClient().delete(apiUrls.deleteCompetencyCriterion(tagId, criterionId));
 }
 
 /**
