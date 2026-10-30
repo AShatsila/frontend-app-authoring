@@ -164,7 +164,7 @@
 
     // Stands in for the chips on a placeholder box.
     &__placeholder-hint {
-      border: 1px dashed $connector-line-color;
+      border: 1px dashed var(--pgn-color-gray-200);
       border-radius: var(--pgn-size-card-border-radius);
       padding: 8px;
       font-size: var(--pgn-typography-font-size-sm);
@@ -252,7 +252,7 @@
     &__line {
       flex: 1;
       height: 1px;
-      background-color: $connector-line-color;
+      background-color: var(--pgn-color-gray-200);
     }
   }
 }
