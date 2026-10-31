@@ -183,6 +183,111 @@ const messages = defineMessages({
     description: 'Hint text shown in place of chips on a not-yet-saved placeholder rule box, which has no '
       + 'content associated with it yet.',
   },
+  editConfirmationSaveButton: {
+    id: 'course-authoring.competency-management.criteria-groups.edit-confirmation-save-button',
+    defaultMessage: 'Save changes',
+    description: 'Primary button of the dialog that confirms an edit to a saved rule or rule group.',
+  },
+  editConfirmationErrorHeading: {
+    id: 'course-authoring.competency-management.criteria-groups.edit-confirmation-error-heading',
+    defaultMessage: 'Couldn\'t save this change',
+    description: 'Heading of the error alert shown in the edit confirmation dialog when saving fails.',
+  },
+  scoreRulePopoverTitle: {
+    id: 'course-authoring.competency-management.criteria-groups.score-rule-popover-title',
+    defaultMessage: 'Competency Completion Rule',
+    description: 'Title of the popover where a saved rule box\'s score threshold is edited.',
+  },
+  scoreRulePopoverCancelButton: {
+    id: 'course-authoring.competency-management.criteria-groups.score-rule-popover-cancel-button',
+    defaultMessage: 'Cancel',
+    description: 'Button that closes the score threshold popover without saving.',
+  },
+  scoreRulePopoverSaveButton: {
+    id: 'course-authoring.competency-management.criteria-groups.score-rule-popover-save-button',
+    defaultMessage: 'Save',
+    description: 'Primary button of the score threshold popover that submits the edited score.',
+  },
+  scoreOperatorGte: {
+    id: 'course-authoring.competency-management.criteria-groups.score-operator-gte',
+    defaultMessage: '>=',
+    description: 'Read-only symbol for the "at least" comparison, shown next to the score input in the popover.',
+  },
+  scoreOperatorEq: {
+    id: 'course-authoring.competency-management.criteria-groups.score-operator-eq',
+    defaultMessage: '=',
+    description: 'Read-only symbol for the "exactly" comparison, shown next to the score input in the popover.',
+  },
+  scoreOperatorLte: {
+    id: 'course-authoring.competency-management.criteria-groups.score-operator-lte',
+    defaultMessage: '<=',
+    description: 'Read-only symbol for the "at most" comparison, shown next to the score input in the popover.',
+  },
+  scoreChangeConfirmationTitle: {
+    id: 'course-authoring.competency-management.criteria-groups.score-change-confirmation-title',
+    defaultMessage: 'Change this rule to {newScore}?',
+    description: 'Title of the dialog that confirms a new score for a saved rule. "{newScore}" is the new score, '
+      + 'such as "80% or higher".',
+  },
+  scoreChangeConfirmationItemsText: {
+    id: 'course-authoring.competency-management.criteria-groups.score-change-confirmation-items-text',
+    defaultMessage: 'The new score applies to the <b>{count, plural, one {# content item} other {# content items}}'
+      + '</b> in this rule.',
+    description: 'First paragraph of the score change dialog. "{count}" is the number of content items in the rule.',
+  },
+  scoreChangeConfirmationFutureText: {
+    id: 'course-authoring.competency-management.criteria-groups.score-change-confirmation-future-text',
+    defaultMessage: 'This only affects future evaluations of <b>{competencyName}</b>. Learners already evaluated '
+      + 'against {oldScore} keep the status they have.',
+    description: 'Second paragraph of the score change dialog. "{competencyName}" is the competency being edited '
+      + 'and "{oldScore}" is the score before the change, such as "70% or higher".',
+  },
+  scoreChangeFailedText: {
+    id: 'course-authoring.competency-management.criteria-groups.score-change-failed-text',
+    defaultMessage: 'The rule is still {oldScore}. Try again, or cancel to keep editing.',
+    description: 'Text of the error alert in the score change dialog when saving fails. "{oldScore}" is the score '
+      + 'the rule still has, such as "70% or higher".',
+  },
+  requireAllConfirmationTitle: {
+    id: 'course-authoring.competency-management.criteria-groups.require-all-confirmation-title',
+    defaultMessage: 'Require all content in this group?',
+    description: 'Title of the dialog confirming a change of a saved group from "any" to "all".',
+  },
+  requireAllConfirmationText: {
+    id: 'course-authoring.competency-management.criteria-groups.require-all-confirmation-text',
+    defaultMessage: 'Learners will need to meet the score on every content item in this group, not just one.',
+    description: 'First paragraph of the dialog confirming a change of a saved group from "any" to "all".',
+  },
+  requireAnyConfirmationTitle: {
+    id: 'course-authoring.competency-management.criteria-groups.require-any-confirmation-title',
+    defaultMessage: 'Require any content in this group?',
+    description: 'Title of the dialog confirming a change of a saved group from "all" to "any". The copy is '
+      + 'awaiting designer confirmation.',
+  },
+  requireAnyConfirmationText: {
+    id: 'course-authoring.competency-management.criteria-groups.require-any-confirmation-text',
+    defaultMessage: 'Learners will need to meet the score on just one content item in this group, not every one.',
+    description: 'First paragraph of the dialog confirming a change of a saved group from "all" to "any". The copy '
+      + 'is awaiting designer confirmation.',
+  },
+  logicChangeFutureText: {
+    id: 'course-authoring.competency-management.criteria-groups.logic-change-future-text',
+    defaultMessage: 'This only affects future evaluations of <b>{competencyName}</b>. Learners already evaluated '
+      + 'keep the status they have.',
+    description: 'Second paragraph of the any/all change dialog. "{competencyName}" is the competency being edited.',
+  },
+  groupStillRequiresAnyText: {
+    id: 'course-authoring.competency-management.criteria-groups.group-still-requires-any-text',
+    defaultMessage: 'The group still requires any content. Try again, or cancel to keep it as it is.',
+    description: 'Text of the error alert in the any/all change dialog when saving fails and the group is still "any". '
+      + 'The copy is awaiting designer confirmation.',
+  },
+  groupStillRequiresAllText: {
+    id: 'course-authoring.competency-management.criteria-groups.group-still-requires-all-text',
+    defaultMessage: 'The group still requires all content. Try again, or cancel to keep it as it is.',
+    description: 'Text of the error alert in the any/all change dialog when saving fails and the group is still "all". '
+      + 'The copy is awaiting designer confirmation.',
+  },
 });
 
 export default messages;
