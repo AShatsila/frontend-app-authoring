@@ -48,7 +48,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
     setPlaceholderLogicOperator,
     hasPlaceholder,
     deleteGroup,
-    isDeletingGroup,
+    isDeleting,
     removePlaceholderGroup,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
@@ -145,7 +145,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
               variant="primary"
               aria-label={intl.formatMessage(messages.ruleGroupMoreActionsLabel)}
               size="inline"
-              disabled={isDeletingGroup}
+              disabled={isDeleting}
             />
             <Dropdown.Menu>
               <Dropdown.Item onClick={handleRemoveClick}>

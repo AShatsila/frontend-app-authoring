@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Button, Icon, IconButton } from '@openedx/paragon';
@@ -27,17 +27,8 @@ interface SubsectionRowProps {
 }
 
 /**
- * One row for a single graded subsection.
- *
- * Renders a button that calls `associateSubsection` when clicked, unless
- * `canEditCourse(courseId)` is false or the association data (`index`,
- * `systemDefaultProfile`) isn't loaded yet, in which case it renders the same
- * content as a non-interactive `div`. The already-associated pill
- * shows regardless of `canEditCourse`, so a view-only course still shows
- * what's associated; its cancel icon is
- * decorative (removal is out of scope). Re-clicking an already-associated
- * row hits the duplicate guard inside `associateSubsection` (an
- * informational toast), not a failed request.
+ * One row for a single graded subsection. A view-only course still shows what's associated.
+ * Takes keyboard focus back after a remove started from this row.
  */
 const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const intl = useIntl();
@@ -46,14 +37,32 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     associateSubsection,
     canEditCourse,
     competencyExternalId,
+    groupsQuery,
     index,
     systemDefaultProfile,
-    isDeletingGroup,
+    isDeleting,
+    removeAssociation,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   // The real `course_index` response populates `.id`, never `.usageKey`
   // (declared on the shared `XBlockBase` type but always `undefined` here).
   const isAssociated = associatedObjectIds.has(subsection.id);
   const canSelect = canEditCourse(courseId) && !!index && !!systemDefaultProfile;
+
+  // The row is a select button when unassociated and holds the remove icon
+  // button when associated; whichever is mounted takes the focus request.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const removeButtonRef = useRef<HTMLButtonElement>(null);
+  const takesKeyboardFocus = keyboardFocusRequest?.kind === 'subsection'
+    && keyboardFocusRequest.objectId === subsection.id;
+  useEffect(() => {
+    const target = isAssociated ? removeButtonRef.current : buttonRef.current;
+    if (takesKeyboardFocus && target) {
+      target.focus();
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, isAssociated, canSelect, consumeKeyboardFocusRequest]);
 
   const rowClassName = 'course-search-browse__subsection d-flex align-items-center justify-content-between';
   const rowContent = (
@@ -77,18 +86,39 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
             </span>
           )}
           <span className="course-search-browse__subsection-pill-divider" aria-hidden="true" />
-          <Icon
-            src={isAssociated ? Cancel : AddCircle}
-            size="xs"
-            className="course-search-browse__subsection-pill-action"
-            aria-hidden="true"
-          />
+          {isAssociated && canSelect ?
+            (
+              <IconButton
+                ref={removeButtonRef}
+                src={Cancel}
+                size="inline"
+                invertColors
+                alt={intl.formatMessage(messages.removeAssociationButtonLabel, {
+                  subsectionName: subsection.displayName,
+                })}
+                disabled={isDeleting}
+                onClick={() => {
+                  const criterion = groupsQuery.data?.criteria.find((c) => c.objectId === subsection.id);
+                  if (criterion) {
+                    removeAssociation(criterion.id, 'subsection');
+                  }
+                }}
+              />
+            ) :
+            (
+              <Icon
+                src={isAssociated ? Cancel : AddCircle}
+                size="xs"
+                className="course-search-browse__subsection-pill-action"
+                aria-hidden="true"
+              />
+            )}
         </span>
       )}
     </>
   );
 
-  if (!canSelect) {
+  if (!canSelect || isAssociated) {
     return (
       <div className={rowClassName} data-associated={isAssociated}>
         {rowContent}
@@ -101,9 +131,10 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
       variant="tertiary"
       type="button"
       block
+      ref={buttonRef}
       className={rowClassName}
       data-associated={isAssociated}
-      disabled={isDeletingGroup}
+      disabled={isDeleting}
       onClick={() => associateSubsection(subsection.id, courseId)}
     >
       {rowContent}

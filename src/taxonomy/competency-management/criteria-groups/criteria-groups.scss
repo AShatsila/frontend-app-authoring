@@ -214,6 +214,9 @@
     box-sizing: border-box;
     max-width: 160px;
     height: 1.75rem;
+    // Layers above `.rule-box__select-button`'s stretched overlay so the remove icon gets the click.
+    position: relative;
+    z-index: 1;
 
     .pgn__chip__label {
       font-weight: 400;

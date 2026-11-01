@@ -110,6 +110,12 @@ const messages = defineMessages({
     description: 'Accessible name for the Competency ID badge shown next to the "Demonstrate Mastery For" line, '
       + 'read by screen readers since the badge itself is aria-hidden.',
   },
+  removeAssociationButtonLabel: {
+    id: 'course-authoring.competency-management.course-search.remove-association-button-label',
+    defaultMessage: 'Remove the association with {subsectionName}',
+    description: 'Accessible label for the icon button on an associated subsection row that removes its '
+      + 'association with the competency. {subsectionName} is the name of the subsection.',
+  },
 });
 
 export default messages;
