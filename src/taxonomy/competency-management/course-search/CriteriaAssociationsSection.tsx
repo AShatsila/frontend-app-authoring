@@ -16,7 +16,7 @@ export interface CriteriaAssociationsSectionProps {
  * competency's existing criteria groups, rendered as a tree of course-level
  * groups, bottom-tier groups, and rule boxes.
  *
- * `CourseGroupList` reads its own data and focus state from
+ * `CourseGroupList` reads its own data and selection state from
  * `CompetencyAssociationsContext`; this component only renders the static
  * label/mastery lines, which need `competency` directly since the context
  * doesn't track its name.

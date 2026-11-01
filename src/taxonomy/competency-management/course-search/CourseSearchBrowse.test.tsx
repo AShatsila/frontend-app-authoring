@@ -51,6 +51,7 @@ const renderCourseSearchBrowse = (competency: CompetencyTreeNode = activeCompete
   render(
     <CompetencyAssociationsProvider
       tagId={Number(competency.id)}
+      competencyName={competency.value}
       competencyExternalId={competency.externalId ?? null}
     >
       <CourseSearchBrowse activeCompetency={competency} />
@@ -59,7 +60,11 @@ const renderCourseSearchBrowse = (competency: CompetencyTreeNode = activeCompete
 
 const renderCourseRow = (course: Course) =>
   render(
-    <CompetencyAssociationsProvider tagId={Number(activeCompetency.id)} competencyExternalId={null}>
+    <CompetencyAssociationsProvider
+      tagId={Number(activeCompetency.id)}
+      competencyName={activeCompetency.value}
+      competencyExternalId={null}
+    >
       <CourseRow course={course} />
     </CompetencyAssociationsProvider>,
   );

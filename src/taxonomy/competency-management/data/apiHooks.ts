@@ -139,6 +139,21 @@ export const useUpdateCompetencyCriteriaRule = () => {
   });
 };
 
+/**
+ * Build the mutation to delete a group (`#709`). It refetches the groups on success and failure alike,
+ * and stays pending until that refetch lands.
+ */
+export const useDeleteCompetencyCriteriaGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, AxiosError, { tagId: number; groupId: number; }>({
+    mutationFn: ({ tagId, groupId }) => api.deleteCompetencyCriteriaGroup(tagId, groupId),
+    onSettled: (_data, _error, { tagId }) =>
+      queryClient.invalidateQueries({
+        queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
+      }),
+  });
+};
+
 export interface UseCourseTaggingPermissionsReturn {
   isLoading: boolean;
   isAuthzEnabled: boolean;

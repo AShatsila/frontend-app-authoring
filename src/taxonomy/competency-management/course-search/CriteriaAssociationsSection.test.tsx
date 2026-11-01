@@ -11,7 +11,7 @@ const competency: CompetencyTreeNode = { id: String(tagId), value: 'Data Literac
 
 const renderSection = () => (
   render(
-    <CompetencyAssociationsProvider tagId={tagId} competencyExternalId="CCRS-1.3">
+    <CompetencyAssociationsProvider tagId={tagId} competencyName={competency.value} competencyExternalId="CCRS-1.3">
       <CriteriaAssociationsSection competency={competency} />
     </CompetencyAssociationsProvider>,
   )

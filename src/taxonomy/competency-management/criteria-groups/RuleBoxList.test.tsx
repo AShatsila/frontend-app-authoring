@@ -100,10 +100,10 @@ describe('<RuleBoxList />', () => {
     expect(boxes[1]).toHaveTextContent('With a score of 90% or lower');
   });
 
-  it('marks only the box matching the context focus as focused', () => {
+  it('marks only the box matching the context selection as selected', () => {
     const index = buildCompetencyCriteriaGroupsIndex(response);
     const { container } = render(
-      <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: 'grade:lte:0.9:percent' } }}>
+      <MockCompetencyAssociationsProvider value={{ selection: { groupId: 10, ruleKey: 'grade:lte:0.9:percent' } }}>
         <RuleBoxList
           groupId={10}
           index={index}
@@ -114,17 +114,17 @@ describe('<RuleBoxList />', () => {
     );
 
     const boxes = container.querySelectorAll('.rule-box');
-    expect(boxes[0].className).not.toContain('rule-box--focused');
-    expect(boxes[1].className).toContain('rule-box--focused');
+    expect(boxes[0].className).not.toContain('rule-box--selected');
+    expect(boxes[1].className).toContain('rule-box--selected');
   });
 
-  it('renders no box as focused, without throwing, when the focused key matches none rendered', () => {
+  it('renders no box as selected, without throwing, when the selected key matches none rendered', () => {
     const index = buildCompetencyCriteriaGroupsIndex(response);
     let container!: HTMLElement;
     expect(() => {
       ({ container } = render(
         <MockCompetencyAssociationsProvider
-          value={{ focus: { groupId: 10, ruleKey: 'stale-key-that-matches-nothing' } }}
+          value={{ selection: { groupId: 10, ruleKey: 'stale-key-that-matches-nothing' } }}
         >
           <RuleBoxList
             groupId={10}
@@ -137,7 +137,7 @@ describe('<RuleBoxList />', () => {
     }).not.toThrow();
 
     container.querySelectorAll('.rule-box').forEach((box) => {
-      expect(box.className).not.toContain('rule-box--focused');
+      expect(box.className).not.toContain('rule-box--selected');
     });
   });
 
@@ -237,7 +237,7 @@ describe('<RuleBoxList />', () => {
     ) => {
       const index = buildCompetencyCriteriaGroupsIndex(placeholderGroupResponse);
       return render(
-        <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: null }, ...contextOverrides }}>
+        <MockCompetencyAssociationsProvider value={{ selection: { groupId: 10, ruleKey: null }, ...contextOverrides }}>
           <RuleBoxList
             groupId={10}
             index={index}
@@ -253,7 +253,7 @@ describe('<RuleBoxList />', () => {
       // Read-only, so the percent is plain text rather than an input value.
       const index = buildCompetencyCriteriaGroupsIndex(placeholderGroupResponse);
       const { container } = render(
-        <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: null } }}>
+        <MockCompetencyAssociationsProvider value={{ selection: { groupId: 10, ruleKey: null } }}>
           <RuleBoxList
             groupId={10}
             index={index}
@@ -265,7 +265,7 @@ describe('<RuleBoxList />', () => {
 
       const boxes = container.querySelectorAll('.rule-box');
       expect(boxes).toHaveLength(2);
-      // The placeholder is already the focus target, so it has no select button.
+      // The placeholder is already the selection target, so it has no select button.
       expect(within(boxes[1] as HTMLElement).queryByRole('button')).not.toBeInTheDocument();
       expect(boxes[1]).toHaveTextContent('With a score of 70% or higher');
       expect(boxes[1]).toHaveTextContent('Select content below to add it here.');
@@ -311,7 +311,9 @@ describe('<RuleBoxList />', () => {
         groupsResponse: CompetencyCriteriaGroupsResponse = response,
       ) => (
         render(
-          <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: null }, ...contextOverrides }}>
+          <MockCompetencyAssociationsProvider
+            value={{ selection: { groupId: 10, ruleKey: null }, ...contextOverrides }}
+          >
             <RuleBoxList
               groupId={10}
               index={buildCompetencyCriteriaGroupsIndex(groupsResponse)}
@@ -343,7 +345,7 @@ describe('<RuleBoxList />', () => {
           return (
             <MockCompetencyAssociationsProvider
               value={{
-                focus: { groupId: 10, ruleKey: null },
+                selection: { groupId: 10, ruleKey: null },
                 placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload },
                 setPlaceholderRulePayload: setRulePayload,
               }}

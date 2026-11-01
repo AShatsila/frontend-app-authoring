@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
-import type { CriteriaFocus, CriteriaPlaceholder } from './CompetencyAssociationsContext';
+import type { CriteriaSelection, CriteriaPlaceholder } from './CompetencyAssociationsContext';
 import type { CompetencyGroupLogicOperator, GradeRulePayload } from './data/types';
 
 const EMPTY_PLACEHOLDER: CriteriaPlaceholder = {
@@ -10,8 +10,8 @@ const EMPTY_PLACEHOLDER: CriteriaPlaceholder = {
   rulePayload: null,
 };
 
-/** Owns the placeholder rule box/group choices and the duplicate-rejected flag; writes `focus` through `setFocus`. */
-export function usePlaceholderState(setFocus: Dispatch<SetStateAction<CriteriaFocus | null>>) {
+/** Owns the placeholder rule box/group choices and the duplicate-rejected flag; writes `selection` through `setSelection`. */
+export function usePlaceholderState(setSelection: Dispatch<SetStateAction<CriteriaSelection | null>>) {
   const [placeholder, setPlaceholder] = useState<CriteriaPlaceholder>(EMPTY_PLACEHOLDER);
   const [duplicateRejected, setDuplicateRejected] = useState(false);
 
@@ -22,16 +22,16 @@ export function usePlaceholderState(setFocus: Dispatch<SetStateAction<CriteriaFo
   };
 
   const addPlaceholderRuleBox = useCallback((groupId: number) => {
-    setFocus({ groupId, ruleKey: null });
+    setSelection({ groupId, ruleKey: null });
     setPlaceholder((prev) => ({ ...prev, rulePayload: null }));
     setDuplicateRejected(false);
-  }, [setFocus]);
+  }, [setSelection]);
 
   const addPlaceholderGroup = useCallback((parentRuleGroupId: number) => {
-    setFocus({ groupId: null, ruleKey: null });
+    setSelection({ groupId: null, ruleKey: null });
     setPlaceholder({ ...EMPTY_PLACEHOLDER, parentRuleGroupId });
     setDuplicateRejected(false);
-  }, [setFocus]);
+  }, [setSelection]);
 
   const setPlaceholderLogicOperator = useCallback((logicOperator: CompetencyGroupLogicOperator) => {
     setPlaceholder((prev) => ({ ...prev, logicOperator }));
@@ -43,9 +43,9 @@ export function usePlaceholderState(setFocus: Dispatch<SetStateAction<CriteriaFo
   }, []);
 
   const discardPlaceholder = useCallback(() => {
-    setFocus(null);
+    setSelection(null);
     setDuplicateRejected(false);
-  }, [setFocus]);
+  }, [setSelection]);
 
   return {
     placeholder,

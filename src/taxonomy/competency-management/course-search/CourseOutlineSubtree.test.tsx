@@ -394,4 +394,14 @@ describe('<CourseOutlineSubtree />', () => {
     expect(screen.getByText('Subsection 1A (graded)')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Subsection 1A (graded)' })).not.toBeInTheDocument();
   });
+
+  it('disables a subsection\'s select button while a group delete is in flight', async () => {
+    const user = userEvent.setup();
+    axiosMock.onGet(outlineApiUrl).reply(200, mixedOutline);
+    renderSubtree({ isDeletingGroup: true });
+
+    await user.click((await screen.findAllByRole('button', { name: 'Expand' }))[0]);
+
+    expect(screen.getByRole('button', { name: 'Subsection 1A (graded)' })).toBeDisabled();
+  });
 });

@@ -10,14 +10,14 @@ import messages from './messages';
 
 export interface RuleBoxProps {
   /** The group this box belongs to, and this box's own rule key - together
-   * this box's identity for focus comparisons against
-   * `CompetencyAssociationsContext`'s `focus`. `null` only for the
+   * this box's identity for selection comparisons against
+   * `CompetencyAssociationsContext`'s `selection`. `null` only for the
    * placeholder rule box inside the placeholder group itself - a real rule
    * box (`ruleKey !== null`) always belongs to a real group.
    */
   groupId: number | null;
   /** `null` renders this as the not-yet-saved placeholder rule box: no
-   * `focusRuleBox` on click, a dashed hint box instead of chips, and its
+   * `selectRuleBox` on click, a dashed hint box instead of chips, and its
    * `ScoreThresholdField` writes to the placeholder instead of persisting.
    */
   ruleKey: string | null;
@@ -35,12 +35,12 @@ export interface RuleBoxProps {
   autoFocusSelect?: boolean;
 }
 
-/** One rule box: the rule it's given, its chips, and focus/click behavior.
- * Scrolls itself into view (`block: 'nearest'`) when it becomes the focused
- * box - the innermost focused element, so its containing `CriteriaGroupBox`
+/** One rule box: the rule it's given, its chips, and selection/click behavior.
+ * Scrolls itself into view (`block: 'nearest'`) when it becomes the selected
+ * box - the innermost selected element, so its containing `CriteriaGroupBox`
  * does not also scroll itself in that case. `ruleKey === null` instead
  * renders the not-yet-saved placeholder rule box (`#671`): a dashed hint
- * box instead of chips, no `focusRuleBox` on click, and a score field that
+ * box instead of chips, no `selectRuleBox` on click, and a score field that
  * writes to `CompetencyAssociationsContext`'s `placeholder` state instead of
  * persisting.
  */
@@ -57,21 +57,21 @@ const RuleBox = ({
 }: RuleBoxProps) => {
   const intl = useIntl();
   const {
-    focus,
-    focusRuleBox,
+    selection,
+    selectRuleBox,
     updateRuleScore,
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
   } = useCompetencyAssociations();
-  const isFocused = focus?.groupId === groupId && focus?.ruleKey === ruleKey;
+  const isSelected = selection?.groupId === groupId && selection?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isFocused) {
+    if (isSelected) {
       ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }, [isFocused]);
+  }, [isSelected]);
 
   const isRejected = isPlaceholder && !!hint && placeholderDuplicateRejected;
 
@@ -94,14 +94,14 @@ const RuleBox = ({
   return (
     <div
       ref={ref}
-      className={classNames('rule-box', { 'rule-box--focused': isFocused })}
+      className={classNames('rule-box', { 'rule-box--selected': isSelected })}
     >
       {!isPlaceholder && (
         <button
           type="button"
           className="stretched-link rule-box__select-button"
-          aria-current={isFocused}
-          onClick={() => focusRuleBox(groupId!, ruleKey)}
+          aria-current={isSelected}
+          onClick={() => selectRuleBox(groupId!, ruleKey)}
         >
           <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
         </button>

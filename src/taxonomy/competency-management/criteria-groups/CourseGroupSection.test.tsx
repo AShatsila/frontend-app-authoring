@@ -178,9 +178,9 @@ describe('<CourseGroupSection />', () => {
     expect(screen.getByText('Subsection 1A')).toBeInTheDocument();
   });
 
-  it('renders nothing as focused, without throwing, when a collapsed section holds the focused group/rule box', async () => {
+  it('renders nothing as selected, without throwing, when a collapsed section holds the selected group/rule box', async () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-    renderSection({ focus: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
+    renderSection({ selection: { groupId: 10, ruleKey: 'grade:gte:0.7:percent' } });
 
     await screen.findByText('Demo Course');
     fireEvent.click(screen.getByRole('button', { name: 'Collapse' }));
@@ -189,36 +189,36 @@ describe('<CourseGroupSection />', () => {
     expect(screen.queryByText(/By completing/)).not.toBeInTheDocument();
   });
 
-  it('marks itself focused only when it contains the focused group', async () => {
+  it('marks itself selected only when it contains the selected group', async () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-    const { container, unmount } = renderSection({ focus: { groupId: 10, ruleKey: null } });
+    const { container, unmount } = renderSection({ selection: { groupId: 10, ruleKey: null } });
 
     await screen.findByText('Demo Course');
-    expect(container.querySelector('.course-group-section')).toHaveClass('course-group-section--focused');
+    expect(container.querySelector('.course-group-section')).toHaveClass('course-group-section--selected');
 
     unmount();
-    const { container: other } = renderSection({ focus: { groupId: 999, ruleKey: null } });
+    const { container: other } = renderSection({ selection: { groupId: 999, ruleKey: null } });
     await screen.findByText('Demo Course');
-    expect(other.querySelector('.course-group-section')).not.toHaveClass('course-group-section--focused');
+    expect(other.querySelector('.course-group-section')).not.toHaveClass('course-group-section--selected');
   });
 
-  it('marks itself focused when the focused placeholder group belongs to it', async () => {
+  it('marks itself selected when the selected placeholder group belongs to it', async () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const { container, unmount } = renderSection({
-      focus: { groupId: null, ruleKey: null },
+      selection: { groupId: null, ruleKey: null },
       placeholder: { parentRuleGroupId: courseGroup.id, logicOperator: 'OR', rulePayload: null },
     });
 
     await screen.findByText('Demo Course');
-    expect(container.querySelector('.course-group-section')).toHaveClass('course-group-section--focused');
+    expect(container.querySelector('.course-group-section')).toHaveClass('course-group-section--selected');
 
     unmount();
     const { container: other } = renderSection({
-      focus: { groupId: null, ruleKey: null },
+      selection: { groupId: null, ruleKey: null },
       placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null },
     });
     await screen.findByText('Demo Course');
-    expect(other.querySelector('.course-group-section')).not.toHaveClass('course-group-section--focused');
+    expect(other.querySelector('.course-group-section')).not.toHaveClass('course-group-section--selected');
   });
 
   it('places the toggle before the course title', async () => {
@@ -235,7 +235,7 @@ describe('<CourseGroupSection />', () => {
     async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       const { container } = renderSection({
-        focus: { groupId: null, ruleKey: null },
+        selection: { groupId: null, ruleKey: null },
         placeholder: { parentRuleGroupId: courseGroup.id, logicOperator: 'OR', rulePayload: null },
       });
 
@@ -248,7 +248,7 @@ describe('<CourseGroupSection />', () => {
   it('does not render a placeholder group that belongs to a different course-level group', async () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const { container } = renderSection({
-      focus: { groupId: null, ruleKey: null },
+      selection: { groupId: null, ruleKey: null },
       placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null },
     });
 
@@ -281,10 +281,10 @@ describe('<CourseGroupSection />', () => {
 
   it.each([
     ['a placeholder group under it', {
-      focus: { groupId: null, ruleKey: null },
+      selection: { groupId: null, ruleKey: null },
       placeholder: { parentRuleGroupId: courseGroup.id, logicOperator: 'OR' as const, rulePayload: null },
     }],
-    ['a placeholder rule box in one of its groups', { focus: { groupId: 10, ruleKey: null } }],
+    ['a placeholder rule box in one of its groups', { selection: { groupId: 10, ruleKey: null } }],
   ])('discards the placeholder when collapsing a section holding %s', async (_label, overrides) => {
     const user = userEvent.setup();
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
@@ -302,7 +302,7 @@ describe('<CourseGroupSection />', () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const discardPlaceholder = jest.fn();
     renderSection({
-      focus: { groupId: null, ruleKey: null },
+      selection: { groupId: null, ruleKey: null },
       placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null },
       discardPlaceholder,
     });
@@ -317,12 +317,102 @@ describe('<CourseGroupSection />', () => {
     const user = userEvent.setup();
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const discardPlaceholder = jest.fn();
-    renderSection({ focus: { groupId: 10, ruleKey: null }, discardPlaceholder });
+    renderSection({ selection: { groupId: 10, ruleKey: null }, discardPlaceholder });
 
     await screen.findByText('Demo Course');
     await user.click(screen.getByRole('button', { name: 'Collapse' }));
     await user.click(screen.getByRole('button', { name: 'Expand' }));
 
     expect(discardPlaceholder).toHaveBeenCalledTimes(1);
+  });
+
+  describe('delete control', () => {
+    it('calls deleteGroup with the course group id when Remove from the competency is chosen', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const deleteGroup = jest.fn();
+      renderSection({ deleteGroup, competencyName: 'Critical Thinking' });
+
+      await user.click(await screen.findByRole('button', { name: 'More actions for Demo Course' }));
+      await user.click(screen.getByRole('button', { name: 'Remove from Critical Thinking' }));
+
+      expect(deleteGroup).toHaveBeenCalledWith(courseGroup.id);
+    });
+
+    it('renders no menu when the author cannot edit this course', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      renderSection({ canEditCourse: () => false });
+
+      await screen.findByText('Demo Course');
+      expect(screen.queryByRole('button', { name: /More actions for/ })).not.toBeInTheDocument();
+    });
+
+    it('disables the menu button while a delete is in flight', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      renderSection({ isDeletingGroup: true });
+
+      expect(await screen.findByRole('button', { name: 'More actions for Demo Course' })).toBeDisabled();
+    });
+
+    it('expands itself when a keyboard focus request names one of its rule groups while collapsed', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const { rerender } = renderSection();
+      await user.click(await screen.findByRole('button', { name: 'Collapse' }));
+      expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{ index, systemDefaultProfile, keyboardFocusRequest: { kind: 'group', groupId: 11, expand: true } }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(await screen.findByText('Subsection 1A')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument();
+    });
+
+    it('stays collapsed and drops a request that does not ask to expand it', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { rerender } = renderSection({ consumeKeyboardFocusRequest });
+      await user.click(await screen.findByRole('button', { name: 'Collapse' }));
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{
+            index,
+            systemDefaultProfile,
+            consumeKeyboardFocusRequest,
+            keyboardFocusRequest: { kind: 'group', groupId: 11, expand: false },
+          }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument();
+      expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('stays collapsed for a keyboard focus request that names a group of another course group', async () => {
+      const user = userEvent.setup();
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const { rerender } = renderSection();
+      await user.click(await screen.findByRole('button', { name: 'Collapse' }));
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{ index, systemDefaultProfile, keyboardFocusRequest: { kind: 'group', groupId: 999, expand: true } }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Expand' })).toBeInTheDocument();
+    });
   });
 });
