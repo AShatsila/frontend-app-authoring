@@ -14,9 +14,10 @@ import './criteria-groups.scss';
  * competency: loading, failed, empty, or the list of accessible course-level
  * groups. Reads everything from `CompetencyAssociationsContext`.
  *
- * "Loading" covers the groups, default-rule-profile, and per-course outline
- * queries. The empty state is decided on `accessibleCourseGroups`, never the
- * raw payload, so a course the author can't see renders as no associations.
+ * "Loading" covers the groups and default-rule-profile queries. The empty
+ * state is decided on `accessibleCourseGroups`, never the raw payload, so a
+ * course the author can't see renders as no associations. Outline queries
+ * only gate the empty state, so a refetch never unmounts rendered sections.
  */
 const CourseGroupList = () => {
   const intl = useIntl();
@@ -39,9 +40,14 @@ const CourseGroupList = () => {
       emptyStateRef.current.focus({ preventScroll: true });
       consumeKeyboardFocusRequest();
     }
-  }, [takesKeyboardFocus, accessibleCourseGroups.length, consumeKeyboardFocusRequest]);
+  }, [
+    takesKeyboardFocus,
+    accessibleCourseGroups.length,
+    areCourseOutlinesLoading,
+    consumeKeyboardFocusRequest,
+  ]);
 
-  if (groupsQuery.isLoading || profileQuery.isLoading || areCourseOutlinesLoading) {
+  if (groupsQuery.isLoading || profileQuery.isLoading) {
     return (
       <div className="d-flex justify-content-center py-3">
         <LoadingSpinner size="sm" />
@@ -59,6 +65,13 @@ const CourseGroupList = () => {
   }
 
   if (accessibleCourseGroups.length === 0) {
+    if (areCourseOutlinesLoading) {
+      return (
+        <div className="d-flex justify-content-center py-3">
+          <LoadingSpinner size="sm" />
+        </div>
+      );
+    }
     return (
       <div ref={emptyStateRef} tabIndex={-1} className="course-search-browse__associations-empty-state">
         <p>{intl.formatMessage(courseSearchMessages.noAssociationsMessage)}</p>

@@ -97,4 +97,43 @@ describe('<CriterionChipList />', () => {
       '-1',
     );
   });
+
+  it('marks only the unresolved criterion as unavailable in a mixed list', () => {
+    renderList({
+      criteria: [buildCriterion({ id: 1, objectId: 'block-a' }), buildCriterion({ id: 2, objectId: 'deleted-block' })],
+      subsectionNamesByUsageKey: { 'block-a': 'Subsection A' },
+      courseName: 'Course A',
+    });
+
+    expect(screen.getByText('Subsection A')).toBeInTheDocument();
+    expect(screen.getAllByText('Content unavailable in Course A')).toHaveLength(1);
+  });
+
+  it('renders every criterion when all of them are unavailable', () => {
+    renderList({
+      criteria: [buildCriterion({ id: 1, objectId: 'gone-a' }), buildCriterion({ id: 2, objectId: 'gone-b' })],
+      subsectionNamesByUsageKey: {},
+      courseName: 'Course A',
+    });
+
+    expect(screen.getAllByText('Content unavailable in Course A')).toHaveLength(2);
+  });
+
+  it('removes an unavailable chip\'s criterion by its id', async () => {
+    const user = userEvent.setup();
+    const removeAssociation = jest.fn();
+    renderList(
+      {
+        criteria: [buildCriterion({ id: 1, objectId: 'deleted-block' })],
+        subsectionNamesByUsageKey: {},
+        courseName: 'Course A',
+        canEdit: true,
+      },
+      { removeAssociation },
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Remove the association with Content unavailable' }));
+
+    expect(removeAssociation).toHaveBeenCalledWith(1, 'group');
+  });
 });
