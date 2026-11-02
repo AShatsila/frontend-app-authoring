@@ -5,7 +5,7 @@ import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { EffectiveRule, RuleBox as RuleBoxData } from '../data/types';
 import { isRuleTakenInGroup, nextUnusedScore } from '../utils';
 import RuleBox from './RuleBox';
-import { formatScoreSummary } from './ScoreThresholdField';
+import { formatScoreSummary } from './scoreInput';
 import messages from './messages';
 
 export interface RuleBoxListProps {

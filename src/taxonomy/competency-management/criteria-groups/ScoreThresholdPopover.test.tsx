@@ -50,7 +50,7 @@ describe('<ScoreThresholdPopover />', () => {
     renderOpen();
     expect(screen.getByText('Competency Completion Rule')).toBeInTheDocument();
     expect(screen.getByText('>=')).toBeInTheDocument();
-    const input = screen.getByRole('textbox', { name: 'Score threshold percentage' });
+    const input = screen.getByRole('textbox', { name: 'Minimum score percentage' });
     expect(input).toHaveValue('70');
     expect(input).toHaveFocus();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe('<ScoreThresholdPopover />', () => {
   it('saves a changed score with the Save button and keeps the popover open', async () => {
     const user = userEvent.setup();
     renderOpen();
-    const input = screen.getByRole('textbox', { name: 'Score threshold percentage' });
+    const input = screen.getByRole('textbox', { name: 'Minimum score percentage' });
     await user.clear(input);
     await user.type(input, '85');
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -68,10 +68,20 @@ describe('<ScoreThresholdPopover />', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it.each(
+    [
+      ['lte', 'Maximum score percentage'],
+      ['eq', 'Exact score percentage'],
+    ] as const,
+  )('labels the input for a %s rule by its operator', (op, name) => {
+    renderOpen({ rulePayload: { ...rulePayload, op } });
+    expect(screen.getByRole('textbox', { name })).toBeInTheDocument();
+  });
+
   it('saves a changed score with Enter', async () => {
     const user = userEvent.setup();
     renderOpen();
-    const input = screen.getByRole('textbox', { name: 'Score threshold percentage' });
+    const input = screen.getByRole('textbox', { name: 'Minimum score percentage' });
     await user.clear(input);
     await user.type(input, '85{Enter}');
     expect(onSave).toHaveBeenCalledWith({ op: 'gte', value: 0.85, scale: 'percent' });
@@ -89,7 +99,7 @@ describe('<ScoreThresholdPopover />', () => {
   it.each(['', '101'])('shows the range message for "%s" and calls neither callback', async (typed) => {
     const user = userEvent.setup();
     renderOpen();
-    const input = screen.getByRole('textbox', { name: 'Score threshold percentage' });
+    const input = screen.getByRole('textbox', { name: 'Minimum score percentage' });
     await user.clear(input);
     if (typed) {
       await user.type(input, typed);
@@ -103,7 +113,7 @@ describe('<ScoreThresholdPopover />', () => {
   it('shows the message from getInlineValidationMessage and calls neither callback', async () => {
     const user = userEvent.setup();
     renderOpen({ getInlineValidationMessage: () => 'Taken' });
-    const input = screen.getByRole('textbox', { name: 'Score threshold percentage' });
+    const input = screen.getByRole('textbox', { name: 'Minimum score percentage' });
     await user.clear(input);
     await user.type(input, '85');
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -129,7 +139,7 @@ describe('<ScoreThresholdPopover />', () => {
   it('starts the draft from the saved score on every open', async () => {
     const user = userEvent.setup();
     const { rerender } = renderOpen();
-    const input = screen.getByRole('textbox', { name: 'Score threshold percentage' });
+    const input = screen.getByRole('textbox', { name: 'Minimum score percentage' });
     await user.clear(input);
     await user.type(input, '85');
     const renderWith = (isOpen: boolean) => (
@@ -143,6 +153,6 @@ describe('<ScoreThresholdPopover />', () => {
     );
     rerender(renderWith(false));
     rerender(renderWith(true));
-    expect(screen.getByRole('textbox', { name: 'Score threshold percentage' })).toHaveValue('70');
+    expect(screen.getByRole('textbox', { name: 'Minimum score percentage' })).toHaveValue('70');
   });
 });

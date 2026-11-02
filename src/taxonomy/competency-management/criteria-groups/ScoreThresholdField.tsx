@@ -7,17 +7,16 @@ import {
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Form } from '@openedx/paragon';
-import type { IntlShape } from 'react-intl';
 import type { GradeRulePayload } from '../data/types';
 import messages from './messages';
 import { parseScoreInput, percentOf } from './scoreInput';
 
 export interface ScoreThresholdFieldProps {
   rulePayload: GradeRulePayload;
-  /** When given, the percentage renders as an editable input. Returns a `Promise` so a rejected save
-   * reverts the input; the mutation itself lives in `CompetencyAssociationsContext`.
+  /** When given, the percentage renders as an editable input, used by the unsaved placeholder rule box, whose
+   * handler only stores the value and never rejects.
    */
-  onChange?: (rulePayload: GradeRulePayload) => Promise<void>;
+  onChange?: (rulePayload: GradeRulePayload) => void;
   /** Called when saving. A non-empty result blocks the save and is shown inline. */
   getInlineValidationMessage?: (value: string) => string;
   /** Focuses and selects the input on mount. */
@@ -27,22 +26,6 @@ export interface ScoreThresholdFieldProps {
   /** Renders `hint` as an error and marks the input invalid. */
   hintIsError?: boolean;
 }
-
-/** A score as text, such as "75% or higher", for messages that name a score. Read from the same message as the
- * field's own label, so the wording stays in one place.
- */
-export const formatScoreSummary = (intl: IntlShape, rulePayload: GradeRulePayload): string => {
-  let summary = '';
-  intl.formatMessage(messages.scoreThresholdLabel, {
-    op: rulePayload.op,
-    value: intl.formatNumber(rulePayload.value, { style: 'percent', maximumFractionDigits: 0 }),
-    threshold: (chunks: ReactNode[]) => {
-      summary = chunks.filter((chunk): chunk is string => typeof chunk === 'string').join('');
-      return summary;
-    },
-  });
-  return summary;
-};
 
 /** Label stating a rule box's score threshold, for example "With a score of 70% or higher".
  * The percentage is editable when `onChange` is given.
@@ -58,14 +41,9 @@ const ScoreThresholdField = ({
   const intl = useIntl();
   const inputId = useId();
 
-  // Not resynced from `rulePayload` while mounted: a successful edit changes the rule key, which
-  // remounts the box via `RuleBoxList`'s `key`. A rejected edit keeps the key, so it reverts explicitly.
+  // Not resynced from `rulePayload` while mounted.
   const [inputValue, setInputValue] = useState(() => percentOf(rulePayload));
   const [validationMessage, setValidationMessage] = useState('');
-  // A ref, so a blur fired by the same Enter keypress sees it before React re-renders. Keeps a second save
-  // from racing the first, whose response could otherwise land out of order.
-  const saveInFlight = useRef(false);
-  const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -80,8 +58,8 @@ const ScoreThresholdField = ({
     setValidationMessage('');
   };
 
-  const saveScoreIfChanged = async () => {
-    if (!onChange || saveInFlight.current) {
+  const saveScoreIfChanged = () => {
+    if (!onChange) {
       return;
     }
     const parsed = parseScoreInput(inputValue, rulePayload);
@@ -104,21 +82,12 @@ const ScoreThresholdField = ({
       return;
     }
     setValidationMessage('');
-    saveInFlight.current = true;
-    setIsSaving(true);
-    try {
-      await onChange(parsed.rulePayload);
-    } catch {
-      revertToLastPersisted();
-    } finally {
-      saveInFlight.current = false;
-      setIsSaving(false);
-    }
+    onChange(parsed.rulePayload);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
-      void saveScoreIfChanged();
+      saveScoreIfChanged();
     } else if (event.key === 'Escape') {
       revertToLastPersisted();
     }
@@ -141,11 +110,10 @@ const ScoreThresholdField = ({
           aria-label={intl.formatMessage(messages.scoreThresholdInputAccessibleLabel)}
           aria-invalid={showAsInvalid}
           isInvalid={showAsInvalid}
-          disabled={isSaving}
           onChange={(event) => setInputValue(event.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={() => {
-            void saveScoreIfChanged();
+            saveScoreIfChanged();
           }}
         />
         %

@@ -7,8 +7,9 @@ import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
 import CriterionChipList from './CriterionChipList';
 import EditConfirmationModal from './EditConfirmationModal';
-import ScoreThresholdField, { formatScoreSummary } from './ScoreThresholdField';
+import ScoreThresholdField from './ScoreThresholdField';
 import ScoreThresholdPopover from './ScoreThresholdPopover';
+import { formatScoreSummary } from './scoreInput';
 import messages from './messages';
 
 export interface RuleBoxProps {
@@ -77,9 +78,8 @@ const RuleBox = ({
   }, [isRejected]);
 
   // With no criteria yet, the score stays in the context until content is picked.
-  const handlePlaceholderScoreChange = (rulePayload: GradeRulePayload): Promise<void> => {
+  const handlePlaceholderScoreChange = (rulePayload: GradeRulePayload) => {
     setPlaceholderRulePayload(rulePayload);
-    return Promise.resolve();
   };
 
   const handlePopoverClose = () => {

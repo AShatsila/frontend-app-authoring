@@ -4,13 +4,16 @@ import { parseScoreInput, percentOf } from './scoreInput';
 const rule: GradeRulePayload = { op: 'gte', value: 0.7, scale: 'percent' };
 
 describe('parseScoreInput', () => {
-  it.each(['  ', 'abc'])('reports %j as empty', (input) => {
+  it.each(['', '  ', 'abc'])('reports %j as empty', (input) => {
     expect(parseScoreInput(input, rule)).toEqual({ kind: 'empty' });
   });
 
-  it.each(['101', '-1', '70.5'])('reports %j as out of range', (input) => {
-    expect(parseScoreInput(input, rule)).toEqual({ kind: 'outOfRange' });
-  });
+  it.each(['101', '-1', '70.5', '1e2', '0x10', '+85', '-0', '85.0', 'Infinity'])(
+    'reports %j as out of range',
+    (input) => {
+      expect(parseScoreInput(input, rule)).toEqual({ kind: 'outOfRange' });
+    },
+  );
 
   it.each(['70', ' 70 '])('reports %j as unchanged', (input) => {
     expect(parseScoreInput(input, rule)).toEqual({ kind: 'unchanged' });
@@ -20,6 +23,13 @@ describe('parseScoreInput', () => {
     expect(parseScoreInput('85', rule)).toEqual({
       kind: 'changed',
       rulePayload: { op: 'gte', value: 0.85, scale: 'percent' },
+    });
+  });
+
+  it('accepts leading zeros as the plain number', () => {
+    expect(parseScoreInput('007', rule)).toEqual({
+      kind: 'changed',
+      rulePayload: { ...rule, value: 0.07 },
     });
   });
 
