@@ -66,6 +66,17 @@ const messages = defineMessages({
     defaultMessage: 'Couldn\'t remove the association. The panel was refreshed.',
     description: 'Toast shown when removing one subsection\'s association with a competency fails.',
   },
+  deleteRuleBoxFailedToastMessage: {
+    id: 'course-authoring.competency-management.delete-rule-box-failed-toast-message',
+    defaultMessage: 'Couldn\'t remove the rule. The panel was refreshed.',
+    description: 'Toast shown when removing a rule box fails before any of its content was removed.',
+  },
+  deleteRuleBoxPartiallyFailedToastMessage: {
+    id: 'course-authoring.competency-management.delete-rule-box-partially-failed-toast-message',
+    defaultMessage: 'Some of the rule\'s content couldn\'t be removed. The panel was refreshed.',
+    description: 'Toast shown when removing a rule box stops partway, so some of its content was removed and the '
+      + 'rest is still shown.',
+  },
   updateGroupOperatorFailedToastMessage: {
     id: 'course-authoring.competency-management.update-group-operator-failed-toast-message',
     defaultMessage: 'There was a problem updating this group\'s logic. Please try again.',

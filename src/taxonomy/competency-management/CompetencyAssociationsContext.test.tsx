@@ -9,11 +9,13 @@ import {
   initializeMocks,
   render,
   screen,
+  userEvent,
   waitFor,
 } from '@src/testUtils';
 import { CompetencyAssociationsProvider, useCompetencyAssociations } from './CompetencyAssociationsContext';
 import { apiUrls } from './data/api';
-import type { CompetencyCriteriaGroupsResponse } from './data/types';
+import type { CompetencyCriteriaGroupsResponse, CompetencyCriterion } from './data/types';
+import { mockHeldGroupsRefetch } from './testHelpers';
 
 let axiosMock: ReturnType<typeof initializeMocks>['axiosMock'];
 let mockShowToast: ReturnType<typeof initializeMocks>['mockShowToast'];
@@ -219,6 +221,7 @@ const courseExpansionResponse: CompetencyCriteriaGroupsResponse = {
 
 const defaultRuleKey = 'grade:gte:0.7:percent';
 const rule80Key = 'grade:gte:0.8:percent';
+const rule90Key = 'grade:gte:0.9:percent';
 
 /** `twoGroupsResponse`'s two leaf groups, each holding one default-rule criterion. */
 const twoGroupsWithCriteriaResponse: CompetencyCriteriaGroupsResponse = {
@@ -275,6 +278,53 @@ const twoCoursesWithCriteriaResponse: CompetencyCriteriaGroupsResponse = {
   criteria: [
     { id: 901, objectId: 'sub-a', groupId: 10, ruleProfileId: 1, ruleTypeOverride: null, rulePayloadOverride: null },
     { id: 902, objectId: 'sub-b', groupId: 20, ruleProfileId: 1, ruleTypeOverride: null, rulePayloadOverride: null },
+  ],
+};
+
+/** A criterion in group `groupId` at `percent`, or one resolving through the 70% default profile when `percent` is null. */
+const criterionAt = (id: number, groupId: number, percent: number | null): CompetencyCriterion => (
+  percent === null
+    ? { id, objectId: `sub-${id}`, groupId, ruleProfileId: 1, ruleTypeOverride: null, rulePayloadOverride: null }
+    : {
+      id,
+      objectId: `sub-${id}`,
+      groupId,
+      ruleProfileId: null,
+      ruleTypeOverride: 'grade',
+      rulePayloadOverride: { op: 'gte', value: percent / 100, scale: 'percent' },
+    }
+);
+
+const withoutCriteria = (response: CompetencyCriteriaGroupsResponse, criterionIds: number[]) => ({
+  ...response,
+  criteria: response.criteria.filter((criterion) => !criterionIds.includes(criterion.id)),
+});
+
+/** Group 10 holds three rule boxes (70%, 80%, 90%) and group 11 one, so a box can vanish while its group survives. */
+const threeBoxesInGroupResponse: CompetencyCriteriaGroupsResponse = {
+  ...twoGroupsResponse,
+  criteria: [
+    criterionAt(901, 10, null),
+    criterionAt(903, 10, 80),
+    criterionAt(904, 10, 90),
+    criterionAt(902, 11, null),
+  ],
+};
+
+/** `threeBoxesInGroupResponse` plus a fourth box (95%) in group 10, so a removed box has a neighbor on each side. */
+const fourBoxesInGroupResponse: CompetencyCriteriaGroupsResponse = {
+  ...threeBoxesInGroupResponse,
+  criteria: [...threeBoxesInGroupResponse.criteria, criterionAt(907, 10, 95)],
+};
+
+/** Group 10's 70% box holds three criteria (901, 905, 906) and its 80% box one (903). */
+const boxOfThreeResponse: CompetencyCriteriaGroupsResponse = {
+  ...singleGroupResponse,
+  criteria: [
+    criterionAt(901, 10, null),
+    criterionAt(905, 10, null),
+    criterionAt(906, 10, null),
+    criterionAt(903, 10, 80),
   ],
 };
 
@@ -336,6 +386,14 @@ const TestConsumer = () => {
       <button type="button" onClick={() => ctx.removeAssociation(902, 'group')}>remove-criterion-902</button>
       <button type="button" onClick={() => ctx.removeAssociation(901, 'subsection')}>remove-sub-a-subsection</button>
       <button type="button" onClick={() => ctx.removePlaceholderGroup()}>remove-placeholder-group</button>
+      <button type="button" onClick={() => ctx.selectRuleBox(10, rule80Key)}>selection-rulebox-10-80</button>
+      <button type="button" onClick={() => ctx.selectRuleBox(10, rule90Key)}>selection-rulebox-10-90</button>
+      <button type="button" onClick={() => ctx.deleteRuleBox(10, defaultRuleKey)}>delete-rule-box-10-70</button>
+      <button type="button" onClick={() => ctx.deleteRuleBox(10, rule80Key)}>delete-rule-box-10-80</button>
+      <button type="button" onClick={() => ctx.deleteRuleBox(10, rule90Key)}>delete-rule-box-10-90</button>
+      <button type="button" onClick={() => ctx.deleteRuleBox(11, defaultRuleKey)}>delete-rule-box-11-70</button>
+      <button type="button" onClick={() => ctx.deleteRuleBox(20, defaultRuleKey)}>delete-rule-box-20-70</button>
+      <button type="button" onClick={() => ctx.removePlaceholderRuleBox()}>remove-placeholder-rule-box</button>
       <button type="button" onClick={() => ctx.updateGroupOperator(10, 'OR')}>update-group-operator</button>
       <button
         type="button"
@@ -356,6 +414,23 @@ const renderProvider = () =>
       <TestConsumer />
     </CompetencyAssociationsProvider>,
   );
+
+/** Clears the initial selection the way an author can: by starting a placeholder rule box and discarding it. */
+const selectNothing = async () => {
+  await userEvent.click(screen.getByText('add-placeholder-rule-10'));
+  await userEvent.click(screen.getByText('discard-placeholder'));
+  expect(screen.getByTestId('selection')).toHaveTextContent('null');
+};
+
+/** `mockHeldGroupsRefetch` for this competency, plus the profile and course A outline reads. */
+const mockGroupsReads = (
+  initial: CompetencyCriteriaGroupsResponse,
+  refetched: CompetencyCriteriaGroupsResponse,
+) => {
+  axiosMock.onGet(profileUrl).reply(200, profileResponse);
+  axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+  return mockHeldGroupsRefetch(axiosMock, tagId, initial, refetched);
+};
 
 describe('CompetencyAssociationsProvider', () => {
   beforeEach(() => {
@@ -846,7 +921,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
     });
 
-    it('discardPlaceholder clears selection, and with it the placeholder', async () => {
+    it('discardPlaceholder clears selection, and with it the placeholder and its choices', async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -855,10 +930,14 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
       fireEvent.click(screen.getByText('add-placeholder-group-1'));
+      fireEvent.click(screen.getByText('set-placeholder-rule-payload'));
       fireEvent.click(screen.getByText('discard-placeholder'));
 
       expect(screen.getByTestId('selection')).toHaveTextContent('null');
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+      expect(screen.getByTestId('placeholder')).toHaveTextContent(
+        '{"parentRuleGroupId":null,"logicOperator":"OR","rulePayload":null}',
+      );
     });
 
     it('course expansion leaves selection unchanged when no placeholder exists', async () => {
@@ -1398,23 +1477,6 @@ describe('CompetencyAssociationsProvider', () => {
   describe('deleteGroup', () => {
     const deleteUrl = apiUrls.updateCompetencyCriteriaGroup(tagId, 10);
 
-    /** Serves `initial` once, then `refetched` (held until `release` is called) for every later GET. */
-    const mockGroupsReads = (
-      initial: CompetencyCriteriaGroupsResponse,
-      refetched: CompetencyCriteriaGroupsResponse,
-    ) => {
-      const control = { release: () => {} };
-      axiosMock.onGet(groupsUrl).replyOnce(200, initial);
-      axiosMock.onGet(groupsUrl).reply(() => (
-        new Promise((resolve) => {
-          control.release = () => resolve([200, refetched]);
-        })
-      ));
-      axiosMock.onGet(profileUrl).reply(200, profileResponse);
-      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
-      return control;
-    };
-
     const renderWithSelectionOnGroup10 = async () => {
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
@@ -1479,13 +1541,19 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
     });
 
-    it('requests the empty state when the delete leaves no course group', async () => {
+    it.each([
+      { selected: 'the group', setUp: async () => {} },
+      { selected: 'nothing', setUp: selectNothing },
+    ])('requests the empty state when the delete leaves no course group and $selected was selected', async (
+      { setUp },
+    ) => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10'));
+      await setUp();
 
-      fireEvent.click(screen.getByText('delete-group-10'));
+      await userEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
       await act(async () => {
         reads.release();
@@ -1594,25 +1662,359 @@ describe('CompetencyAssociationsProvider', () => {
     });
   });
 
-  describe('removeAssociation', () => {
-    const deleteUrl = apiUrls.deleteCompetencyCriterion(tagId, 901);
+  describe('deleteRuleBox', () => {
+    const deleteUrlOf = (criterionId: number) => apiUrls.deleteCompetencyCriterion(tagId, criterionId);
+    const sentDeleteUrls = () => axiosMock.history.delete.map((request) => request.url);
+    // An unmatched URL answers 404, which counts as removed, so every DELETE is mocked and the sent URLs asserted.
+    const mockDeletes = (...criterionIds: number[]) => {
+      criterionIds.forEach((id) => {
+        axiosMock.onDelete(deleteUrlOf(id)).reply(200, { id, archived: false });
+      });
+    };
 
-    /** Serves `initial` once, then `refetched` (held until `release` is called) for every later GET. */
-    const mockGroupsReads = (
-      initial: CompetencyCriteriaGroupsResponse,
-      refetched: CompetencyCriteriaGroupsResponse,
+    const renderLoaded = async () => {
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      await waitFor(() => expect(screen.getByTestId('accessible-course-group-ids')).toHaveTextContent(courseA));
+    };
+
+    /** Clicks `label`, then lets the held refetch land and the delete settle. */
+    const clickAndSettle = async (label: string, reads: { release: () => void; }) => {
+      await userEvent.click(screen.getByText(label));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+      await act(async () => {
+        reads.release();
+      });
+      await waitFor(() => expect(screen.getByTestId('is-deleting')).toHaveTextContent('false'));
+    };
+
+    it('sends exactly the box\'s criteria in order, refetches once, and leaves the other boxes alone', async () => {
+      mockDeletes(901, 905, 906, 903);
+      const reads = mockGroupsReads(boxOfThreeResponse, withoutCriteria(boxOfThreeResponse, [901, 905, 906]));
+      await renderLoaded();
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(901), deleteUrlOf(905), deleteUrlOf(906)]);
+      expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2);
+      expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[903]');
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+
+    it('does not send content that shows up at the same score during the run, and keeps that box selected', async () => {
+      mockDeletes(901, 905, 903, 907);
+      const afterDelete: CompetencyCriteriaGroupsResponse = {
+        ...singleGroupResponse,
+        criteria: [criterionAt(907, 10, null), criterionAt(903, 10, 80)],
+      };
+      const reads = mockGroupsReads(
+        {
+          ...singleGroupResponse,
+          criteria: [criterionAt(901, 10, null), criterionAt(905, 10, null), criterionAt(903, 10, 80)],
+        },
+        afterDelete,
+      );
+      await renderLoaded();
+      await userEvent.click(screen.getByText('selection-rulebox-10'));
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(901), deleteUrlOf(905)]);
+      expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[907,903]');
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+    });
+
+    it('sends nothing for a rule key the group does not have', async () => {
+      mockGroupsReads(boxOfThreeResponse, boxOfThreeResponse);
+      await renderLoaded();
+
+      await userEvent.click(screen.getByText('delete-rule-box-10-90'));
+
+      expect(axiosMock.history.delete).toHaveLength(0);
+      expect(screen.getByTestId('is-deleting')).toHaveTextContent('false');
+      expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(1);
+    });
+
+    it.each([
+      {
+        name: 'the first of three boxes',
+        initial: threeBoxesInGroupResponse,
+        selectionLabel: 'selection-rulebox-10',
+        deleteLabel: 'delete-rule-box-10-70',
+        gone: 901,
+        key: rule80Key,
+      },
+      {
+        // The box above (80%) is neither the group's first box nor the box below (95%).
+        name: 'the third of four boxes',
+        initial: fourBoxesInGroupResponse,
+        selectionLabel: 'selection-rulebox-10-90',
+        deleteLabel: 'delete-rule-box-10-90',
+        gone: 904,
+        key: rule80Key,
+      },
+    ])('moves the selection to the box above, else below, when $name was selected and removed', async (
+      { initial, selectionLabel, deleteLabel, gone, key },
     ) => {
-      const control = { release: () => {} };
-      axiosMock.onGet(groupsUrl).replyOnce(200, initial);
-      axiosMock.onGet(groupsUrl).reply(() => (
-        new Promise((resolve) => {
-          control.release = () => resolve([200, refetched]);
-        })
-      ));
+      mockDeletes(901, 904);
+      const reads = mockGroupsReads(initial, withoutCriteria(initial, [gone]));
+      await renderLoaded();
+      await userEvent.click(screen.getByText(selectionLabel));
+
+      await clickAndSettle(deleteLabel, reads);
+
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(gone)]);
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${key}"}`);
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        '{"kind":"group","groupId":10,"expand":false}',
+      );
+    });
+
+    it.each([
+      {
+        selected: 'on another box of the same group',
+        selectLabel: 'selection-rulebox-10',
+        selectionText: `{"groupId":10,"ruleKey":"${defaultRuleKey}"}`,
+        focusGroupId: 10,
+      },
+      {
+        selected: 'in another group',
+        selectLabel: 'selection-group-11',
+        selectionText: `{"groupId":11,"ruleKey":"${defaultRuleKey}"}`,
+        focusGroupId: 11,
+      },
+      { selected: 'none', selectLabel: null, selectionText: 'null', focusGroupId: 10 },
+    ])('keeps the selection ($selected) and asks group $focusGroupId to take keyboard focus', async (
+      { selectLabel, selectionText, focusGroupId },
+    ) => {
+      mockDeletes(901, 903, 904);
+      const reads = mockGroupsReads(threeBoxesInGroupResponse, withoutCriteria(threeBoxesInGroupResponse, [903]));
+      await renderLoaded();
+      if (selectLabel !== null) {
+        await userEvent.click(screen.getByText(selectLabel));
+      }
+      expect(screen.getByTestId('selection')).toHaveTextContent(selectionText);
+
+      await clickAndSettle('delete-rule-box-10-80', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(selectionText);
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        `{"kind":"group","groupId":${focusGroupId},"expand":false}`,
+      );
+    });
+
+    it('selects the neighbor group\'s first box when the last box takes its group away', async () => {
+      mockDeletes(901);
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      await renderLoaded();
+      await userEvent.click(screen.getByText('selection-group-10'));
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        '{"kind":"group","groupId":11,"expand":true}',
+      );
+    });
+
+    it('selects the group above, with its first box, when the last box takes its own group away', async () => {
+      mockDeletes(902);
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, {
+        groups: twoGroupsWithCriteriaResponse.groups.filter((group) => group.id !== 11),
+        criteria: twoGroupsWithCriteriaResponse.criteria.filter((criterion) => criterion.groupId !== 11),
+      });
+      await renderLoaded();
+      await userEvent.click(screen.getByText('selection-group-11'));
+
+      await clickAndSettle('delete-rule-box-11-70', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        '{"kind":"group","groupId":10,"expand":true}',
+      );
+    });
+
+    it('follows the selection move, not the vanished group, when another author deleted the selected group meanwhile', async () => {
+      mockDeletes(901, 903, 904);
+      // Group 11 holds the selection, and goes away with the run; group 10 survives with one box fewer.
+      const reads = mockGroupsReads(threeBoxesInGroupResponse, {
+        groups: threeBoxesInGroupResponse.groups.filter((group) => group.id !== 11),
+        criteria: withoutCriteria(threeBoxesInGroupResponse, [903, 902]).criteria,
+      });
+      await renderLoaded();
+      await userEvent.click(screen.getByText('selection-group-11'));
+
+      await clickAndSettle('delete-rule-box-10-80', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        '{"kind":"group","groupId":10,"expand":true}',
+      );
+    });
+
+    it('selects the other section\'s group when the last box takes its whole section away', async () => {
+      mockDeletes(902);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
+        groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 2 && group.id !== 20),
+        criteria: twoCoursesWithCriteriaResponse.criteria.filter((criterion) => criterion.groupId === 10),
+      });
+      await renderLoaded();
+      await waitFor(() => expect(screen.getByTestId('accessible-course-group-ids')).toHaveTextContent(courseB));
+      await userEvent.click(screen.getByText('selection-group-20'));
+
+      await clickAndSettle('delete-rule-box-20-70', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        '{"kind":"group","groupId":10,"expand":true}',
+      );
+    });
+
+    it.each([
+      { selected: 'its group', setUp: async () => {} },
+      { selected: 'nothing', setUp: selectNothing },
+    ])('requests the empty state when the last box on the page goes and $selected was selected', async (
+      { setUp },
+    ) => {
+      mockDeletes(900);
+      const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10'));
+      await setUp();
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('{"kind":"empty"}');
+    });
+
+    it('moves a selected placeholder rule box out of the group that vanished', async () => {
+      mockDeletes(901);
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      await renderLoaded();
+      await userEvent.click(screen.getByText('add-placeholder-rule-10'));
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":11,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+    });
+
+    it('moves a selected placeholder group out of the section that vanished', async () => {
+      mockDeletes(901);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
+        groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 1 && group.id !== 10),
+        criteria: twoCoursesWithCriteriaResponse.criteria.filter((criterion) => criterion.groupId === 20),
+      });
+      await renderLoaded();
+      await waitFor(() => expect(screen.getByTestId('accessible-course-group-ids')).toHaveTextContent(courseB));
+      await userEvent.click(screen.getByText('add-placeholder-group-1'));
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":20,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+    });
+
+    it('stops at a failure partway, shows the partial-failure toast, and keeps the selection', async () => {
+      mockDeletes(901, 906, 903);
+      axiosMock.onDelete(deleteUrlOf(905)).reply(500);
+      const reads = mockGroupsReads(boxOfThreeResponse, withoutCriteria(boxOfThreeResponse, [901]));
+      await renderLoaded();
+      await userEvent.click(screen.getByText('selection-rulebox-10'));
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(901), deleteUrlOf(905)]);
+      expect(mockShowToast).toHaveBeenCalledTimes(1);
+      expect(mockShowToast).toHaveBeenCalledWith(
+        'Some of the rule\'s content couldn\'t be removed. The panel was refreshed.',
+      );
+      expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[905,906,903]');
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        '{"kind":"group","groupId":10,"expand":false}',
+      );
+    });
+
+    it('shows the nothing-removed toast, not the partial one, when the first request fails', async () => {
+      axiosMock.onDelete(deleteUrlOf(901)).reply(500);
+      mockDeletes(905, 906, 903);
+      const reads = mockGroupsReads(boxOfThreeResponse, boxOfThreeResponse);
+      await renderLoaded();
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(901)]);
+      expect(mockShowToast).toHaveBeenCalledTimes(1);
+      expect(mockShowToast).toHaveBeenCalledWith('Couldn\'t remove the rule. The panel was refreshed.');
+      expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[901,905,906,903]');
+    });
+
+    it('counts a 404 in the middle as removed: every criterion is tried, no toast, the box is gone', async () => {
+      mockDeletes(901, 906, 903);
+      axiosMock.onDelete(deleteUrlOf(905)).reply(404);
+      const reads = mockGroupsReads(boxOfThreeResponse, withoutCriteria(boxOfThreeResponse, [901, 905, 906]));
+      await renderLoaded();
+      await userEvent.click(screen.getByText('selection-rulebox-10'));
+
+      await clickAndSettle('delete-rule-box-10-70', reads);
+
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(901), deleteUrlOf(905), deleteUrlOf(906)]);
+      expect(mockShowToast).not.toHaveBeenCalled();
+      expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[903]');
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${rule80Key}"}`);
+    });
+
+    it('lets a retry send only what is left after a partial failure', async () => {
+      mockDeletes(901, 906, 903);
+      axiosMock.onDelete(deleteUrlOf(905)).replyOnce(500);
+      axiosMock.onDelete(deleteUrlOf(905)).reply(200, { id: 905, archived: false });
+      axiosMock.onGet(groupsUrl).replyOnce(200, boxOfThreeResponse);
+      axiosMock.onGet(groupsUrl).replyOnce(200, withoutCriteria(boxOfThreeResponse, [901]));
+      axiosMock.onGet(groupsUrl).reply(200, withoutCriteria(boxOfThreeResponse, [901, 905, 906]));
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
-      return control;
-    };
+      await renderLoaded();
+
+      await userEvent.click(screen.getByText('delete-rule-box-10-70'));
+      await waitFor(() => expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[905,906,903]'));
+      await waitFor(() => expect(screen.getByTestId('is-deleting')).toHaveTextContent('false'));
+      expect(mockShowToast).toHaveBeenCalledTimes(1);
+
+      await userEvent.click(screen.getByText('delete-rule-box-10-70'));
+      await waitFor(() => expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[903]'));
+      await waitFor(() => expect(screen.getByTestId('is-deleting')).toHaveTextContent('false'));
+
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(901), deleteUrlOf(905), deleteUrlOf(905), deleteUrlOf(906)]);
+      expect(mockShowToast).toHaveBeenCalledTimes(1);
+    });
+
+    it('drops a second call made while the first is still deleting, so one run is sent', async () => {
+      mockDeletes(901, 905, 906, 903);
+      const reads = mockGroupsReads(boxOfThreeResponse, withoutCriteria(boxOfThreeResponse, [901, 905, 906]));
+      await renderLoaded();
+      await userEvent.click(screen.getByText('delete-rule-box-10-70'));
+      await waitFor(() => expect(screen.getByTestId('is-deleting')).toHaveTextContent('true'));
+
+      await userEvent.click(screen.getByText('delete-rule-box-10-70'));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+      await act(async () => {
+        reads.release();
+      });
+
+      await waitFor(() => expect(screen.getByTestId('is-deleting')).toHaveTextContent('false'));
+      expect(sentDeleteUrls()).toEqual([deleteUrlOf(901), deleteUrlOf(905), deleteUrlOf(906)]);
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeAssociation', () => {
+    const deleteUrl = apiUrls.deleteCompetencyCriterion(tagId, 901);
 
     const renderLoaded = async () => {
       renderProvider();
@@ -1795,6 +2197,44 @@ describe('CompetencyAssociationsProvider', () => {
     });
   });
 
+  describe('a delete that settles after the competency changed', () => {
+    const otherTagId = 43;
+    const ui = (id: number) => (
+      <CompetencyAssociationsProvider tagId={id} competencyName="Competency" competencyExternalId="CCRS-1.3">
+        <TestConsumer />
+      </CompetencyAssociationsProvider>
+    );
+
+    it.each([
+      { label: 'delete-group-10' },
+      { label: 'remove-sub-a-chip' },
+      { label: 'delete-rule-box-10-70' },
+    ])('leaves the new competency\'s selection and keyboard focus alone ($label)', async ({ label }) => {
+      axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {});
+      axiosMock.onDelete(apiUrls.deleteCompetencyCriterion(tagId, 901)).reply(200, { id: 901, archived: false });
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      axiosMock.onGet(apiUrls.competencyCriteriaGroups(otherTagId)).reply(200, courseBGroupsResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      const { rerender } = render(ui(tagId));
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      await userEvent.click(screen.getByText(label));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+
+      rerender(ui(otherTagId));
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      await userEvent.click(screen.getByText('selection-group-20'));
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":20');
+      await act(async () => {
+        reads.release();
+      });
+
+      await waitFor(() => expect(screen.getByTestId('is-deleting')).toHaveTextContent('false'));
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":20');
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+  });
+
   describe('removePlaceholderGroup', () => {
     it('sends no request, and selects the last saved group of the placeholder\'s course with a keyboard request', async () => {
       axiosMock.onGet(groupsUrl).reply(200, twoGroupsWithCriteriaResponse);
@@ -1830,6 +2270,70 @@ describe('CompetencyAssociationsProvider', () => {
       fireEvent.click(screen.getByText('remove-placeholder-group'));
 
       expect(screen.getByTestId('selection')).toHaveTextContent('null');
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
+    });
+  });
+
+  describe('removePlaceholderRuleBox', () => {
+    const renderLoaded = async (response: CompetencyCriteriaGroupsResponse) => {
+      axiosMock.onGet(groupsUrl).reply(200, response);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+    };
+
+    const renderWithPlaceholderRuleBox = async (response: CompetencyCriteriaGroupsResponse) => {
+      await renderLoaded(response);
+      await userEvent.click(screen.getByText('add-placeholder-rule-10'));
+      expect(screen.getByTestId('selection')).toHaveTextContent('{"groupId":10,"ruleKey":null}');
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
+    };
+
+    it('sends no request, and selects the group\'s last saved box with a keyboard request', async () => {
+      await renderWithPlaceholderRuleBox(twoBoxesInGroupResponse);
+
+      await userEvent.click(screen.getByText('remove-placeholder-rule-box'));
+
+      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${rule80Key}"}`);
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+        '{"kind":"group","groupId":10,"expand":false}',
+      );
+      expect(axiosMock.history.delete).toHaveLength(0);
+      expect(axiosMock.history.patch).toHaveLength(0);
+      expect(axiosMock.history.post).toHaveLength(0);
+    });
+
+    it('clears a duplicate rejection along with the placeholder', async () => {
+      await renderWithPlaceholderRuleBox(twoBoxesInGroupResponse);
+      // The untouched placeholder's default score duplicates the group's saved default box.
+      await userEvent.click(screen.getByText('associate-course-a'));
+      expect(screen.getByTestId('duplicate-rejected')).toHaveTextContent('true');
+
+      await userEvent.click(screen.getByText('remove-placeholder-rule-box'));
+
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+      expect(screen.getByTestId('duplicate-rejected')).toHaveTextContent('false');
+    });
+
+    it('clears the selection when the group has no saved box to return to', async () => {
+      await renderWithPlaceholderRuleBox(twoGroupsResponse);
+
+      await userEvent.click(screen.getByText('remove-placeholder-rule-box'));
+
+      expect(screen.getByTestId('selection')).toHaveTextContent('null');
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+    });
+
+    it('does nothing when no placeholder rule box is selected', async () => {
+      await renderLoaded(twoBoxesInGroupResponse);
+      await userEvent.click(screen.getByText('selection-rulebox-10'));
+      const selectionBefore = screen.getByTestId('selection').textContent;
+
+      await userEvent.click(screen.getByText('remove-placeholder-rule-box'));
+
+      expect(screen.getByTestId('selection').textContent).toEqual(selectionBefore);
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
     });
   });

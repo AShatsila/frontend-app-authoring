@@ -9,6 +9,7 @@ import { useUserPermissions } from '@src/authz/data/apiHooks';
 import { waffleFlagDefaults } from '@src/data/api';
 import * as apiHooks from '@src/data/apiHooks';
 import { mockWaffleFlags } from '@src/data/apiHooks.mock';
+import { mockHeldGroupsRefetch } from '@src/taxonomy/competency-management/testHelpers';
 import { apiUrls } from './api';
 import {
   competencyQueryKeys,
@@ -18,6 +19,7 @@ import {
   useDefaultCompetencyRuleProfile,
   useDeleteCompetencyCriteriaGroup,
   useDeleteCompetencyCriterion,
+  useDeleteCompetencyRuleBox,
   useUpdateCompetencyCriteriaGroupOperator,
   useUpdateCompetencyCriteriaRule,
 } from './apiHooks';
@@ -255,19 +257,12 @@ describe('useDeleteCompetencyCriteriaGroup', () => {
 
   it('stays pending until the refetch of an active groups query has landed', async () => {
     const { axiosMock } = initializeMocks();
-    axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).replyOnce(200, { groups: [], criteria: [] });
+    const reads = mockHeldGroupsRefetch(axiosMock, tagId, { groups: [], criteria: [] }, { groups: [], criteria: [] });
     const { result } = renderHook(
       () => ({ query: useCompetencyCriteriaGroups(tagId), mutation: useDeleteCompetencyCriteriaGroup() }),
       { wrapper: makeWrapper() },
     );
     await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
-
-    let releaseRefetch: () => void = () => {};
-    axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).reply(() => (
-      new Promise((resolve) => {
-        releaseRefetch = () => resolve([200, { groups: [], criteria: [] }]);
-      })
-    ));
     axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {});
 
     act(() => {
@@ -277,9 +272,155 @@ describe('useDeleteCompetencyCriteriaGroup', () => {
     expect(result.current.mutation.isPending).toBe(true);
 
     await act(async () => {
-      releaseRefetch();
+      reads.release();
     });
     await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
+  });
+});
+
+describe('useDeleteCompetencyRuleBox', () => {
+  const groupsKey = competencyQueryKeys.competencyCriteriaGroups(tagId);
+  const deleteUrl = (criterionId: number) => apiUrls.deleteCompetencyCriterion(tagId, criterionId);
+  const sentDeleteUrls = (axiosMock: ReturnType<typeof initializeMocks>['axiosMock']) => (
+    axiosMock.history.delete.map((request) => request.url)
+  );
+
+  // An unmatched URL answers 404, which counts as removed, so every DELETE is mocked and the sent URLs asserted.
+  it('sends one request at a time, in order', async () => {
+    const { axiosMock } = initializeMocks();
+    // Holding the first reply: a parallel run would log the later sends before 'answered 101'.
+    const events: string[] = [];
+    let releaseFirst: () => void = () => {};
+    axiosMock.onDelete(deleteUrl(101)).reply(() => {
+      events.push('sent 101');
+      return new Promise((resolve) => {
+        releaseFirst = () => {
+          events.push('answered 101');
+          resolve([200, { id: 101, archived: false }]);
+        };
+      });
+    });
+    [102, 103].forEach((id) => {
+      axiosMock.onDelete(deleteUrl(id)).reply(() => {
+        events.push(`sent ${id}`);
+        return [200, { id, archived: false }];
+      });
+    });
+    const { result } = renderHook(() => useDeleteCompetencyRuleBox(), { wrapper: makeWrapper() });
+
+    act(() => {
+      result.current.mutate({ tagId, criterionIds: [101, 102, 103] });
+    });
+    await waitFor(() => expect(events).toContain('sent 101'));
+    await act(async () => {
+      releaseFirst();
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(events).toEqual(['sent 101', 'answered 101', 'sent 102', 'sent 103']);
+  });
+
+  it('treats a 404 as already removed and goes on to the next criterion', async () => {
+    const { axiosMock } = initializeMocks();
+    axiosMock.onDelete(deleteUrl(101)).reply(200, { id: 101, archived: false });
+    axiosMock.onDelete(deleteUrl(102)).reply(404);
+    axiosMock.onDelete(deleteUrl(103)).reply(200, { id: 103, archived: false });
+    const { result } = renderHook(() => useDeleteCompetencyRuleBox(), { wrapper: makeWrapper() });
+
+    await act(async () => {
+      await result.current.mutateAsync({ tagId, criterionIds: [101, 102, 103] });
+    });
+
+    expect(sentDeleteUrls(axiosMock)).toEqual([deleteUrl(101), deleteUrl(102), deleteUrl(103)]);
+  });
+
+  const networkError = new Error('network');
+  it.each([
+    {
+      name: 'a 500 partway',
+      failing: 102,
+      failWith: 500,
+      rejection: { response: { status: 500 } },
+      sentIds: [101, 102],
+    },
+    {
+      name: 'a 500 on the first request',
+      failing: 101,
+      failWith: 500,
+      rejection: { response: { status: 500 } },
+      sentIds: [101],
+    },
+    {
+      name: 'an error that is not from axios',
+      failing: 102,
+      failWith: networkError,
+      rejection: networkError,
+      sentIds: [101, 102],
+    },
+  ])('stops at $name and rejects with it', async ({ failing, failWith, rejection, sentIds }) => {
+    const { axiosMock } = initializeMocks();
+    [101, 102, 103].forEach((id) => {
+      axiosMock.onDelete(deleteUrl(id)).reply(() => {
+        if (id !== failing) {
+          return [200, { id, archived: false }];
+        }
+        return failWith instanceof Error ? Promise.reject(failWith) : [failWith];
+      });
+    });
+    const { result } = renderHook(() => useDeleteCompetencyRuleBox(), { wrapper: makeWrapper() });
+
+    let caught: unknown;
+    await act(async () => {
+      try {
+        await result.current.mutateAsync({ tagId, criterionIds: [101, 102, 103] });
+      } catch (error) {
+        caught = error;
+      }
+    });
+
+    expect(caught).toMatchObject(rejection);
+    expect(sentDeleteUrls(axiosMock)).toEqual(sentIds.map(deleteUrl));
+  });
+
+  it.each([
+    { outcome: 'success', status: 200 },
+    { outcome: 'failure too', status: 403 },
+  ])('invalidates that tagId\'s groups query on $outcome', async ({ status }) => {
+    const { axiosMock, queryClient } = initializeMocks();
+    axiosMock.onDelete(deleteUrl(101)).reply(status, { id: 101, archived: false });
+    queryClient.setQueryData(groupsKey, { groups: [], criteria: [] });
+    const { result } = renderHook(() => useDeleteCompetencyRuleBox(), { wrapper: makeWrapper() });
+
+    await act(async () => {
+      await result.current.mutateAsync({ tagId, criterionIds: [101] }).catch(() => {});
+    });
+
+    expect(queryClient.getQueryState(groupsKey)?.isInvalidated).toBe(true);
+  });
+
+  it('refetches the groups once for the whole run and stays pending until that refetch has landed', async () => {
+    const { axiosMock } = initializeMocks();
+    const reads = mockHeldGroupsRefetch(axiosMock, tagId, { groups: [], criteria: [] }, { groups: [], criteria: [] });
+    const { result } = renderHook(
+      () => ({ query: useCompetencyCriteriaGroups(tagId), mutation: useDeleteCompetencyRuleBox() }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+    axiosMock.onDelete(deleteUrl(101)).reply(200, { id: 101, archived: false });
+    axiosMock.onDelete(deleteUrl(102)).reply(200, { id: 102, archived: false });
+
+    act(() => {
+      result.current.mutation.mutate({ tagId, criterionIds: [101, 102] });
+    });
+    await waitFor(() => expect(result.current.query.isFetching).toBe(true));
+    expect(result.current.mutation.isPending).toBe(true);
+    expect(sentDeleteUrls(axiosMock)).toEqual([deleteUrl(101), deleteUrl(102)]);
+
+    await act(async () => {
+      reads.release();
+    });
+    await waitFor(() => expect(result.current.mutation.isSuccess).toBe(true));
+    expect(axiosMock.history.get).toHaveLength(2);
   });
 });
 
