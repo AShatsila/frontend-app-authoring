@@ -6,7 +6,7 @@ import type { CompetencyCriteriaGroupsIndex } from '../utils';
 import { isRuleTakenInGroup, nextUnusedScore, ruleBoxesForGroup } from '../utils';
 import type { CompetencyRuleProfile, EffectiveRule, RuleBox as RuleBoxData } from '../data/types';
 import RuleBox from './RuleBox';
-import { formatScoreSummary } from './ScoreThresholdField';
+import { formatScoreSummary } from './scoreInput';
 import messages from './messages';
 
 export interface RuleBoxListProps {

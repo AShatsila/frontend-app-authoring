@@ -5,14 +5,12 @@ import {
   ActionRow,
   Button,
   Form,
-  Icon,
   ModalPopup,
 } from '@openedx/paragon';
-import { ExpandMore } from '@openedx/paragon/icons';
-import type { GradeRulePayload } from '../data/types';
+import type { GradeRulePayload } from '@src/taxonomy/competency-management/data/types';
 import messages from './messages';
 import { parseScoreInput, percentOf } from './scoreInput';
-import { SUFFIX_MESSAGE_BY_OP } from './ScoreThresholdField';
+import ScoreThresholdField from './ScoreThresholdField';
 
 export interface ScoreThresholdPopoverProps {
   rulePayload: GradeRulePayload;
@@ -29,6 +27,12 @@ const OPERATOR_MESSAGE_BY_OP = {
   gte: messages.scoreOperatorGte,
   eq: messages.scoreOperatorEq,
   lte: messages.scoreOperatorLte,
+};
+
+const INPUT_LABEL_MESSAGE_BY_OP = {
+  gte: messages.scoreThresholdPopoverInputLabelGte,
+  eq: messages.scoreThresholdPopoverInputLabelEq,
+  lte: messages.scoreThresholdPopoverInputLabelLte,
 };
 
 type ScoreFormProps = Omit<ScoreThresholdPopoverProps, 'isOpen' | 'onOpen'>;
@@ -57,20 +61,24 @@ const ScoreForm = ({ rulePayload, onClose, onSave, getInlineValidationMessage }:
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="small text-gray-500 mb-2">{intl.formatMessage(messages.scoreRulePopoverTitle)}</div>
+      <div className="small text-gray-500 mb-2">{intl.formatMessage(messages.scoreThresholdPopoverTitle)}</div>
       <div className="d-flex align-items-center">
         <span className="mr-2">{intl.formatMessage(OPERATOR_MESSAGE_BY_OP[rulePayload.op])}</span>
-        <Form.Control
-          autoFocus
-          type="text"
-          inputMode="numeric"
-          size="sm"
-          value={draft}
-          aria-label={intl.formatMessage(messages.scoreThresholdInputAccessibleLabel)}
-          isInvalid={!!validationMessage}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <span className="ml-2">%</span>
+        {intl.formatMessage(messages.scoreThresholdValue, {
+          percent: (
+            <Form.Control
+              key="percent"
+              autoFocus
+              type="text"
+              inputMode="numeric"
+              size="sm"
+              value={draft}
+              aria-label={intl.formatMessage(INPUT_LABEL_MESSAGE_BY_OP[rulePayload.op])}
+              isInvalid={!!validationMessage}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+          ),
+        })}
       </div>
       {validationMessage && (
         <Form.Control.Feedback type="invalid" hasIcon={false}>
@@ -79,9 +87,9 @@ const ScoreForm = ({ rulePayload, onClose, onSave, getInlineValidationMessage }:
       )}
       <ActionRow className="mt-3">
         <Button variant="tertiary" onClick={onClose}>
-          {intl.formatMessage(messages.scoreRulePopoverCancelButton)}
+          {intl.formatMessage(messages.scoreThresholdPopoverCancelButton)}
         </Button>
-        <Button type="submit">{intl.formatMessage(messages.scoreRulePopoverSaveButton)}</Button>
+        <Button type="submit">{intl.formatMessage(messages.scoreThresholdPopoverSaveButton)}</Button>
       </ActionRow>
     </form>
   );
@@ -95,10 +103,7 @@ const ScoreThresholdPopover = ({
   onSave,
   getInlineValidationMessage,
 }: ScoreThresholdPopoverProps) => {
-  const intl = useIntl();
   const [target, setTarget] = useState<HTMLButtonElement | null>(null);
-  const percent = Math.round(rulePayload.value * 100);
-  const suffixMessage = SUFFIX_MESSAGE_BY_OP[rulePayload.op];
 
   return (
     <>
@@ -109,15 +114,7 @@ const ScoreThresholdPopover = ({
         className="score-threshold-field rule-box__score-trigger"
         onClick={onOpen}
       >
-        {intl.formatMessage(messages.scoreThresholdLabel, {
-          threshold: (
-            <span key="threshold" className="score-threshold-field__value">
-              {intl.formatMessage(messages.scoreThresholdValue, { percent })}
-              {suffixMessage && ` ${intl.formatMessage(suffixMessage)}`}
-              <Icon src={ExpandMore} size="xs" className="score-threshold-field__chevron" />
-            </span>
-          ),
-        })}
+        <ScoreThresholdField rulePayload={rulePayload} />
       </Button>
       <ModalPopup positionRef={target} isOpen={isOpen} onClose={onClose}>
         <div className="bg-white rounded shadow p-3">

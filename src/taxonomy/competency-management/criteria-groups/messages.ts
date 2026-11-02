@@ -193,20 +193,35 @@ const messages = defineMessages({
     defaultMessage: 'Couldn\'t save this change',
     description: 'Heading of the error alert shown in the edit confirmation dialog when saving fails.',
   },
-  scoreRulePopoverTitle: {
-    id: 'course-authoring.competency-management.criteria-groups.score-rule-popover-title',
+  scoreThresholdPopoverTitle: {
+    id: 'course-authoring.competency-management.criteria-groups.score-threshold-popover-title',
     defaultMessage: 'Competency Completion Rule',
     description: 'Title of the popover where a saved rule box\'s score threshold is edited.',
   },
-  scoreRulePopoverCancelButton: {
-    id: 'course-authoring.competency-management.criteria-groups.score-rule-popover-cancel-button',
+  scoreThresholdPopoverCancelButton: {
+    id: 'course-authoring.competency-management.criteria-groups.score-threshold-popover-cancel-button',
     defaultMessage: 'Cancel',
     description: 'Button that closes the score threshold popover without saving.',
   },
-  scoreRulePopoverSaveButton: {
-    id: 'course-authoring.competency-management.criteria-groups.score-rule-popover-save-button',
+  scoreThresholdPopoverSaveButton: {
+    id: 'course-authoring.competency-management.criteria-groups.score-threshold-popover-save-button',
     defaultMessage: 'Save',
     description: 'Primary button of the score threshold popover that submits the edited score.',
+  },
+  scoreThresholdPopoverInputLabelGte: {
+    id: 'course-authoring.competency-management.criteria-groups.score-threshold-popover-input-label-gte',
+    defaultMessage: 'Minimum score percentage',
+    description: 'Accessible label of the score input in the score popover for an "at least" (>=) rule.',
+  },
+  scoreThresholdPopoverInputLabelEq: {
+    id: 'course-authoring.competency-management.criteria-groups.score-threshold-popover-input-label-eq',
+    defaultMessage: 'Exact score percentage',
+    description: 'Accessible label of the score input in the score popover for an "exactly" (=) rule.',
+  },
+  scoreThresholdPopoverInputLabelLte: {
+    id: 'course-authoring.competency-management.criteria-groups.score-threshold-popover-input-label-lte',
+    defaultMessage: 'Maximum score percentage',
+    description: 'Accessible label of the score input in the score popover for an "at most" (<=) rule.',
   },
   scoreOperatorGte: {
     id: 'course-authoring.competency-management.criteria-groups.score-operator-gte',
