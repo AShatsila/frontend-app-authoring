@@ -181,32 +181,34 @@ const RuleBox = ({
             canEdit={canEdit}
           />
         )}
-      <EditConfirmationModal
-        isOpen={editState.kind === 'confirming'}
-        title={intl.formatMessage(messages.scoreChangeConfirmationTitle, {
-          newScore: editState.kind === 'confirming' ? formatScoreSummary(intl, editState.rulePayload) : '',
-        })}
-        body={
-          <>
-            <p>
-              {intl.formatMessage(messages.scoreChangeConfirmationItemsText, { count: criteria.length, ...richText })}
-            </p>
-            <p>
-              {intl.formatMessage(messages.scoreChangeConfirmationFutureText, {
-                competencyName,
-                oldScore,
-                ...richText,
-              })}
-            </p>
-          </>
-        }
-        errorText={intl.formatMessage(messages.scoreChangeFailedText, { oldScore })}
-        onConfirm={handleConfirm}
-        onCancel={() =>
-          setEditState((state) => (
-            state.kind === 'confirming' ? { kind: 'editing', draft: state.rulePayload } : state
-          ))}
-      />
+      {editState.kind === 'confirming' && (
+        <EditConfirmationModal
+          isOpen
+          title={intl.formatMessage(messages.scoreChangeConfirmationTitle, {
+            newScore: formatScoreSummary(intl, editState.rulePayload),
+          })}
+          body={
+            <>
+              <p>
+                {intl.formatMessage(messages.scoreChangeConfirmationItemsText, { count: criteria.length, ...richText })}
+              </p>
+              <p>
+                {intl.formatMessage(messages.scoreChangeConfirmationFutureText, {
+                  competencyName,
+                  oldScore,
+                  ...richText,
+                })}
+              </p>
+            </>
+          }
+          errorText={intl.formatMessage(messages.scoreChangeFailedText, { oldScore })}
+          onConfirm={handleConfirm}
+          onCancel={() =>
+            setEditState((state) => (
+              state.kind === 'confirming' ? { kind: 'editing', draft: state.rulePayload } : state
+            ))}
+        />
+      )}
     </Stack>
   );
 };

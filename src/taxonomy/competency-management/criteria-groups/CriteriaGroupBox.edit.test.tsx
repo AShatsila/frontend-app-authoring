@@ -156,6 +156,30 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       .toBeInTheDocument();
   });
 
+  it('shows no stale error in a reopened confirmation after a refetch closed it', async () => {
+    const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
+    const { rerender } = renderBox({ updateGroupOperator });
+
+    await chooseAll();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Couldn\'t save this change')).toBeInTheDocument();
+
+    rerender(
+      <MockCompetencyAssociationsProvider value={{ updateGroupOperator }}>
+        <CriteriaGroupBox group={allGroup} subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(getToggle('all'));
+    await user.click(
+      screen.getAllByRole('button', { name: 'any' }).find((el) => !el.classList.contains('dropdown-toggle'))!,
+    );
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByText('Couldn\'t save this change')).not.toBeInTheDocument();
+  });
+
   it.each(['Cancel', 'Save changes'])('returns focus to the dropdown toggle after %s', async (buttonName) => {
     const updateGroupOperator = jest.fn().mockResolvedValue(undefined);
     renderBox({ updateGroupOperator });

@@ -166,6 +166,20 @@ describe('<RuleBox /> editing (#794, #785)', () => {
     expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores a keyboard focus request with the same rule key in another group', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    renderRuleBox(
+      {
+        keyboardFocusRequest: { kind: 'ruleBox', groupId: 11, ruleKey: 'grade:gte:0.7:percent' },
+        consumeKeyboardFocusRequest,
+      },
+      { canEdit: true },
+    );
+
+    expect(screen.getByRole('button', { name: /70%/ })).not.toHaveFocus();
+    expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+  });
+
   it('ignores a keyboard focus request that names another rule box', () => {
     const consumeKeyboardFocusRequest = jest.fn();
     renderRuleBox(

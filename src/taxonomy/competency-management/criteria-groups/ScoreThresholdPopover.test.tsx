@@ -122,6 +122,20 @@ describe('<ScoreThresholdPopover />', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it('returns focus to the input on a repeated identical validation failure', async () => {
+    const user = userEvent.setup();
+    renderOpen();
+    const input = screen.getByRole('textbox', { name: 'Minimum score percentage' });
+    await user.clear(input);
+    await user.type(input, '150');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(input).toHaveFocus();
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('Enter a whole number from 0 to 100.')).toBeInTheDocument();
+    expect(input).toHaveFocus();
+  });
+
   it('calls onClose on Cancel', async () => {
     const user = userEvent.setup();
     renderOpen();
