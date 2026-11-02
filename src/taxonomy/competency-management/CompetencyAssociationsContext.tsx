@@ -183,8 +183,10 @@ export interface CompetencyAssociationsContextBase {
    * logic applies.
    */
   removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => void;
-  /** Deletes every criterion the saved rule box shows now, and drops the call during another delete. Selection on this
-   * box moves to the box above it, else below; when its group goes too, `deleteGroup`'s rule applies.
+  /** Deletes every criterion the saved rule box shows now, and drops the call during another delete.
+   * Only a selection on this box moves: to the box above it, else below, else the group's first box; when its
+   * group goes too, `deleteGroup`'s rule applies. Success or failure, keyboard focus is treated as lost, since the
+   * run disabled the box's ⋮. A failure's toast says whether some of the box's content was already removed.
    */
   deleteRuleBox: (groupId: number, ruleKey: string) => void;
   /** Discards a saved group's placeholder rule box without a request; selection returns to the box above it. */
@@ -784,6 +786,9 @@ export const CompetencyAssociationsProvider = ({
     || (isCriterionDeletePending && criterionDeleteVariables?.tagId === tagId)
     || (isRuleBoxDeletePending && ruleBoxDeleteVariables?.tagId === tagId);
   const queryClient = useQueryClient();
+  // The latest generation, so a rule box delete that settles after the author switched competency can tell.
+  const generationRef = useRef(generation);
+  generationRef.current = generation;
   // The rule box a running `deleteRuleBox` removes. A selection on it is not re-resolved to the group's last box when
   // the refetch lands, so `deleteRuleBox` can move it to a neighbor once it settles.
   const deletingRuleBoxRef = useRef<{ groupId: number; ruleKey: string; } | null>(null);
@@ -1229,11 +1234,11 @@ export const CompetencyAssociationsProvider = ({
     const criterionIds = box.criteria.map((criterion) => criterion.id);
     deletingRuleBoxRef.current = { groupId, ruleKey };
     mutateDeleteRuleBox({ tagId, criterionIds }, {
-      onError: () => {
-        showToast(intl.formatMessage(messages.deleteRuleBoxFailedToastMessage), undefined, undefined, ErrorIcon);
-      },
-      onSettled: () => {
+      onSettled: (_data, deleteError) => {
         deletingRuleBoxRef.current = null;
+        if (generationRef.current !== generation) {
+          return;
+        }
         // Keyboard focus is lost even when the box survives: its ⋮ toggle was disabled for the run.
         resolveSelectionAfterDelete(groupId, snapshot, false, systemDefaultProfile, true);
         const dataAfterDelete = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
@@ -1241,6 +1246,20 @@ export const CompetencyAssociationsProvider = ({
         );
         if (!dataAfterDelete) {
           return;
+        }
+        if (deleteError) {
+          // The refetch shows how far the run got: any of the box's criteria gone means part of it was removed.
+          const isPartlyRemoved = criterionIds.some((id) => !dataAfterDelete.criteria.some((c) => c.id === id));
+          showToast(
+            intl.formatMessage(
+              isPartlyRemoved
+                ? messages.deleteRuleBoxPartiallyFailedToastMessage
+                : messages.deleteRuleBoxFailedToastMessage,
+            ),
+            undefined,
+            undefined,
+            ErrorIcon,
+          );
         }
         const indexAfterDelete = buildCompetencyCriteriaGroupsIndex(dataAfterDelete);
         if (!indexAfterDelete.groupsById.has(groupId)) {
