@@ -1,4 +1,9 @@
-import { useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import type { FormEvent } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import {
@@ -20,6 +25,8 @@ export interface ScoreThresholdPopoverProps {
   onClose: () => void;
   /** A valid, changed score. The popover stays open; the parent closes it. */
   onSave: (rulePayload: GradeRulePayload) => void;
+  /** Pre-fills the input when the popover reopens with an unsaved edit. */
+  initialRulePayload?: GradeRulePayload;
   getInlineValidationMessage?: (value: string) => string;
 }
 
@@ -29,19 +36,41 @@ const OPERATOR_MESSAGE_BY_OP = {
   lte: messages.scoreOperatorLte,
 };
 
+const OPERATOR_SR_MESSAGE_BY_OP = {
+  gte: messages.scoreOperatorSrGte,
+  eq: messages.scoreOperatorSrEq,
+  lte: messages.scoreOperatorSrLte,
+};
+
 const INPUT_LABEL_MESSAGE_BY_OP = {
   gte: messages.scoreThresholdPopoverInputLabelGte,
   eq: messages.scoreThresholdPopoverInputLabelEq,
   lte: messages.scoreThresholdPopoverInputLabelLte,
 };
 
-type ScoreFormProps = Omit<ScoreThresholdPopoverProps, 'isOpen' | 'onOpen'>;
+type ScoreFormProps = Omit<ScoreThresholdPopoverProps, 'isOpen' | 'onOpen'> & { titleId: string; };
 
 // Mounted only while the popover is open, so the draft restarts from the saved score on each open.
-const ScoreForm = ({ rulePayload, onClose, onSave, getInlineValidationMessage }: ScoreFormProps) => {
+const ScoreForm = ({
+  rulePayload,
+  initialRulePayload,
+  titleId,
+  onClose,
+  onSave,
+  getInlineValidationMessage,
+}: ScoreFormProps) => {
   const intl = useIntl();
-  const [draft, setDraft] = useState(() => percentOf(rulePayload));
+  const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(() => percentOf(initialRulePayload ?? rulePayload));
   const [validationMessage, setValidationMessage] = useState('');
+
+  // The failed submit's message is rendered by now; send focus back to the field it describes.
+  useEffect(() => {
+    if (validationMessage) {
+      inputRef.current?.focus();
+    }
+  }, [validationMessage]);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -61,26 +90,33 @@ const ScoreForm = ({ rulePayload, onClose, onSave, getInlineValidationMessage }:
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="small text-gray-500 mb-2">{intl.formatMessage(messages.scoreThresholdPopoverTitle)}</div>
-      <div className="d-flex align-items-center">
-        <span className="mr-2">{intl.formatMessage(OPERATOR_MESSAGE_BY_OP[rulePayload.op])}</span>
-        <Form.Control
-          autoFocus
-          type="text"
-          inputMode="numeric"
-          size="sm"
-          value={draft}
-          aria-label={intl.formatMessage(INPUT_LABEL_MESSAGE_BY_OP[rulePayload.op])}
-          isInvalid={!!validationMessage}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <span className="ml-2">%</span>
+      <div id={titleId} className="small text-gray-500 mb-2">
+        {intl.formatMessage(messages.scoreThresholdPopoverTitle)}
       </div>
-      {validationMessage && (
-        <Form.Control.Feedback type="invalid" hasIcon={false}>
-          {validationMessage}
-        </Form.Control.Feedback>
-      )}
+      <Form.Group controlId={inputId} className="mb-0">
+        <div className="d-flex align-items-center">
+          <span className="mr-2" aria-hidden="true">{intl.formatMessage(OPERATOR_MESSAGE_BY_OP[rulePayload.op])}</span>
+          <span className="sr-only">{intl.formatMessage(OPERATOR_SR_MESSAGE_BY_OP[rulePayload.op])}</span>
+          <Form.Control
+            ref={inputRef}
+            autoFocus
+            type="text"
+            inputMode="numeric"
+            size="sm"
+            value={draft}
+            aria-label={intl.formatMessage(INPUT_LABEL_MESSAGE_BY_OP[rulePayload.op])}
+            aria-invalid={!!validationMessage}
+            isInvalid={!!validationMessage}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+          <span className="ml-2">%</span>
+        </div>
+        {validationMessage && (
+          <Form.Control.Feedback type="invalid" hasIcon={false}>
+            {validationMessage}
+          </Form.Control.Feedback>
+        )}
+      </Form.Group>
       <ActionRow className="mt-3">
         <Button variant="tertiary" onClick={onClose}>
           {intl.formatMessage(messages.scoreThresholdPopoverCancelButton)}
@@ -97,8 +133,10 @@ const ScoreThresholdPopover = ({
   onOpen,
   onClose,
   onSave,
+  initialRulePayload,
   getInlineValidationMessage,
 }: ScoreThresholdPopoverProps) => {
+  const titleId = useId();
   const [target, setTarget] = useState<HTMLButtonElement | null>(null);
   return (
     <>
@@ -107,14 +145,18 @@ const ScoreThresholdPopover = ({
         variant="link"
         size="inline"
         className="score-threshold-field rule-box__score-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
         onClick={onOpen}
       >
         <ScoreThresholdField rulePayload={rulePayload} />
       </Button>
       <ModalPopup positionRef={target} isOpen={isOpen} onClose={onClose}>
-        <div className="bg-white rounded shadow p-3">
+        <div className="bg-white rounded shadow p-3" role="dialog" aria-labelledby={titleId}>
           <ScoreForm
             rulePayload={rulePayload}
+            initialRulePayload={initialRulePayload}
+            titleId={titleId}
             onClose={onClose}
             onSave={onSave}
             getInlineValidationMessage={getInlineValidationMessage}

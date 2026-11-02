@@ -31,7 +31,7 @@ const renderRuleBox = (
   )
 );
 
-describe('<RuleBox /> editing (#794)', () => {
+describe('<RuleBox /> editing (#794, #785)', () => {
   mockScrollIntoView();
   let user: ReturnType<typeof userEvent.setup>;
 
@@ -88,7 +88,7 @@ describe('<RuleBox /> editing (#794)', () => {
     expect(screen.queryByText('Competency Completion Rule')).not.toBeInTheDocument();
   });
 
-  it('cancelling keeps the edit in the popover and saves nothing', async () => {
+  it('cancelling reopens the popover with the typed value focused and saves nothing', async () => {
     const updateRuleScore = jest.fn().mockResolvedValue(undefined);
     renderRuleBox({ updateRuleScore }, { canEdit: true });
 
@@ -96,19 +96,88 @@ describe('<RuleBox /> editing (#794)', () => {
     await saveInPopover();
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByRole('textbox')).toHaveValue('85');
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('85'));
+    expect(screen.getByRole('textbox')).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
     expect(updateRuleScore).not.toHaveBeenCalled();
   });
 
-  it('keeps the popover open while the confirmation is open', async () => {
+  it('cancels the confirmation with Escape and keeps the edit', async () => {
+    const updateRuleScore = jest.fn().mockResolvedValue(undefined);
+    renderRuleBox({ updateRuleScore }, { canEdit: true });
+
+    await openPopoverAndType('85');
+    await saveInPopover();
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('85'));
+    expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
+    expect(screen.queryByText('Change this rule to 85% or higher?')).not.toBeInTheDocument();
+  });
+
+  it('closes the popover while the confirmation is open', async () => {
     renderRuleBox({}, { canEdit: true });
 
     await openPopoverAndType('85');
     await saveInPopover();
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Competency Completion Rule')).toBeInTheDocument();
+    expect(screen.queryByText('Competency Completion Rule')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('marks the input invalid, describes it with the message, and refocuses it after a failed submit', async () => {
+    renderRuleBox({}, { canEdit: true });
+
+    await openPopoverAndType('150');
+    screen.getByRole('button', { name: 'Save' }).focus();
+    await saveInPopover();
+
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAccessibleDescription('Enter a whole number from 0 to 100.');
+    expect(input).toHaveFocus();
+  });
+
+  it('reports whether the trigger\'s popover is expanded, and names the popover as a dialog', async () => {
+    renderRuleBox({}, { canEdit: true });
+
+    const trigger = screen.getByRole('button', { name: /70%/ });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
+  });
+
+  it('focuses its score trigger and consumes the request when a keyboard focus request names it', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    renderRuleBox(
+      {
+        keyboardFocusRequest: { kind: 'ruleBox', groupId: 10, ruleKey: 'grade:gte:0.7:percent' },
+        consumeKeyboardFocusRequest,
+      },
+      { canEdit: true },
+    );
+
+    expect(screen.getByRole('button', { name: /70%/ })).toHaveFocus();
+    expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a keyboard focus request that names another rule box', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    renderRuleBox(
+      {
+        keyboardFocusRequest: { kind: 'ruleBox', groupId: 10, ruleKey: 'grade:gte:0.9:percent' },
+        consumeKeyboardFocusRequest,
+      },
+      { canEdit: true },
+    );
+
+    expect(screen.getByRole('button', { name: /70%/ })).not.toHaveFocus();
+    expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
   });
 
   it('shows the failure and keeps the edit when the save is rejected', async () => {
@@ -123,8 +192,8 @@ describe('<RuleBox /> editing (#794)', () => {
     expect(screen.getByText('The rule is still 70% or higher. Try again, or cancel to keep editing.'))
       .toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    // The open dialog hides the page behind it from the accessibility tree.
-    expect(screen.getByRole('textbox', { hidden: true })).toHaveValue('85');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('85'));
   });
 
   it('blocks Save and shows the message when getInlineValidationMessage flags a duplicate', async () => {
@@ -137,7 +206,7 @@ describe('<RuleBox /> editing (#794)', () => {
     await openPopoverAndType('85');
     await saveInPopover();
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Change this rule to/)).not.toBeInTheDocument();
     expect(updateRuleScore).not.toHaveBeenCalled();
     expect(screen.getByText('Another rule box in this group already uses this score.')).toBeInTheDocument();
   });

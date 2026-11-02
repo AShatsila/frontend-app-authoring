@@ -1804,6 +1804,8 @@ describe('CompetencyAssociationsProvider', () => {
         rule_payload_override: { op: 'gte', value: 0.8, scale: 'percent' },
       });
       expect(await screen.findByText(focusOn(10, 'grade:gte:0.8:percent'))).toBeInTheDocument();
+      expect(screen.getByText('Keyboard request: {"kind":"ruleBox","groupId":10,"ruleKey":"grade:gte:0.8:percent"}'))
+        .toBeInTheDocument();
     });
 
     it('rejects without a toast, and without changing focus', async () => {

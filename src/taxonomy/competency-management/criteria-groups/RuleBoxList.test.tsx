@@ -154,7 +154,7 @@ describe('<RuleBoxList />', () => {
 
       await typeInFirstBox('80');
 
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText('Change this rule to 80% or higher?')).not.toBeInTheDocument();
       expect(updateRuleScore).not.toHaveBeenCalled();
       expect(screen.getByText('Another rule box in this group already uses this score.')).toBeInTheDocument();
     });
@@ -165,7 +165,7 @@ describe('<RuleBoxList />', () => {
 
       await typeInFirstBox('60');
 
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText('Change this rule to 80% or higher?')).not.toBeInTheDocument();
       expect(updateRuleScore).not.toHaveBeenCalled();
       expect(screen.queryByText('Another rule box in this group already uses this score.')).not.toBeInTheDocument();
     });

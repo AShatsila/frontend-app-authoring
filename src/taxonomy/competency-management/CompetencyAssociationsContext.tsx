@@ -68,14 +68,16 @@ export interface CriteriaFocus {
 }
 
 /** A one-shot request for the browser's keyboard focus, left by a delete because the trash button that had it is
- * gone. Kept here because the cards can unmount (or be collapsed) before the new target renders. `group` names the
- * bottom-tier group card that takes it, and `expand` whether a collapsed course-level group holding that card opens
- * for it. `empty` is the "no associations" message, and `subsection` the content panel's row for `objectId`.
+ * gone, or by a score save that remounts its rule box. Kept here because the cards can unmount (or be collapsed)
+ * before the new target renders. `group` names the bottom-tier group card that takes it, and `expand` whether a
+ * collapsed course-level group holding that card opens for it. `empty` is the "no associations" message,
+ * `subsection` the content panel's row for `objectId`, and `ruleBox` the score trigger of the rule box with that key.
  */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
   | { kind: 'empty'; }
-  | { kind: 'subsection'; objectId: string; };
+  | { kind: 'subsection'; objectId: string; }
+  | { kind: 'ruleBox'; groupId: number; ruleKey: string; };
 
 /** The author's choices on the placeholder group or rule box. The rule payload is shared by both shapes, since only
  * one placeholder exists at a time.
@@ -723,10 +725,9 @@ export const CompetencyAssociationsProvider = ({
         // Keyed from the response: a "reset to default" edit can echo back a shared profile reference.
         const [updatedCriterion] = updatedCriteria;
         if (updatedCriterion) {
-          dispatch({
-            type: 'setFocus',
-            focus: { groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) },
-          });
+          const ruleKey = ruleKeyOf(updatedCriterion, systemDefaultProfile);
+          dispatch({ type: 'setFocus', focus: { groupId, ruleKey } });
+          dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: { kind: 'ruleBox', groupId, ruleKey } });
         }
       });
   }, [groupsIndex, systemDefaultProfile, tagId, updateRuleScoreMutateAsync]);
