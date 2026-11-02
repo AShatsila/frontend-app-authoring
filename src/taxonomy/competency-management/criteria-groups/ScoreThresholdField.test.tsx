@@ -3,7 +3,6 @@ import {
   render,
   screen,
   userEvent,
-  waitFor,
 } from '@src/testUtils';
 import ScoreThresholdField from './ScoreThresholdField';
 
@@ -51,7 +50,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('commits the typed percent, as a fraction, on Enter - op/scale pinned unchanged', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
       const input = screen.getByRole('textbox');
@@ -64,7 +63,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('commits the typed percent on blur', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(
         <>
           <ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />
@@ -82,7 +81,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('Escape reverts the input to the last-persisted value without committing', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
       const input = screen.getByRole('textbox');
@@ -94,53 +93,9 @@ describe('<ScoreThresholdField />', () => {
       expect(onChange).not.toHaveBeenCalled();
     });
 
-    it('reverts the input to the prop value when the commit is rejected', async () => {
-      const user = userEvent.setup();
-      const onChange = jest.fn().mockRejectedValue(new Error('save failed'));
-      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
-
-      const input = screen.getByRole('textbox');
-      await user.clear(input);
-      await user.type(input, '85');
-      await user.keyboard('{Enter}');
-
-      expect(onChange).toHaveBeenCalledWith({ op: 'gte', value: 0.85, scale: 'percent' });
-      await waitFor(() => expect(input).toHaveValue('70'));
-    });
-
-    it('ignores a second commit attempt (e.g. blur right after Enter) while the first is still in flight', async () => {
-      const user = userEvent.setup();
-      let resolveOnChange: () => void;
-      const onChange = jest.fn().mockImplementation(() =>
-        new Promise<void>((resolve) => {
-          resolveOnChange = resolve;
-        })
-      );
-      render(
-        <>
-          <ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />
-          <button type="button">elsewhere</button>
-        </>,
-      );
-
-      const input = screen.getByRole('textbox');
-      await user.clear(input);
-      await user.type(input, '85');
-      await user.keyboard('{Enter}');
-      // Enter's own commit is now in flight (its mutation promise hasn't
-      // resolved yet) - a second attempt, from blurring right after, must
-      // not issue a second, possibly-out-of-order, request.
-      expect(input).toBeDisabled();
-      await user.click(screen.getByRole('button', { name: 'elsewhere' }));
-
-      expect(onChange).toHaveBeenCalledTimes(1);
-      resolveOnChange!();
-      await waitFor(() => expect(input).not.toBeDisabled());
-    });
-
     it('blocks the commit and shows the inline message when getInlineValidationMessage returns one', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       const getInlineValidationMessage = jest.fn().mockReturnValue('Duplicate score.');
       render(
         <ScoreThresholdField
@@ -162,7 +117,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('does not call onChange on blur when the input still matches the persisted value', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(
         <>
           <ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />
@@ -179,7 +134,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('does not call onChange when the typed value round-trips to the same displayed percent', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
       const input = screen.getByRole('textbox');
@@ -192,7 +147,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('reverts, rather than committing 0%, when the input is cleared entirely', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
       const input = screen.getByRole('textbox');
@@ -205,7 +160,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('blocks the commit and shows the range message for a value above 100', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
       const input = screen.getByRole('textbox');
@@ -219,7 +174,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('blocks the commit and shows the range message for a negative value', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
       const input = screen.getByRole('textbox');
@@ -233,7 +188,7 @@ describe('<ScoreThresholdField />', () => {
 
     it('blocks the commit and shows the range message for a decimal value', async () => {
       const user = userEvent.setup();
-      const onChange = jest.fn().mockResolvedValue(undefined);
+      const onChange = jest.fn();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
       const input = screen.getByRole('textbox');

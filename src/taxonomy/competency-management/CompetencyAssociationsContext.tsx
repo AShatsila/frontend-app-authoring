@@ -81,13 +81,16 @@ export interface CriteriaPlaceholder {
   rulePayload: GradeRulePayload | null;
 }
 
-/** One-shot move of the browser's keyboard focus after a delete removes the control that held it (focus would fall to <body>).
+/** One-shot move of the browser's keyboard focus after a delete removes the control that held it, or a score
+ * save remounts its rule box (focus would fall to <body>).
  * `group` targets the newly selected group's select button, `empty` the empty-panel message,
- * `subsection` the Browse Courses row for `objectId`; `expand` opens a collapsed section holding the group target. */
+ * `subsection` the Browse Courses row for `objectId`, `ruleBox` the score trigger of the rule box with that key;
+ * `expand` opens a collapsed section holding the group target. */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
   | { kind: 'empty'; }
-  | { kind: 'subsection'; objectId: string; };
+  | { kind: 'subsection'; objectId: string; }
+  | { kind: 'ruleBox'; groupId: number; ruleKey: string; };
 
 export interface CompetencyAssociationsContextValue {
   selection: CriteriaSelection | null;
@@ -132,12 +135,13 @@ export interface CompetencyAssociationsContextValue {
    * active competency.
    */
   associateSubsection: (objectId: string, courseId: string) => void;
-  /** Updates a bottom-tier group's any/all combining logic (`#760`); a
-   * rejected save is a no-op besides a failure toast.
+  /** Updates a bottom-tier group's any/all combining logic (`#760`). Resolves once the groups
+   * have refetched; rejects on failure, without a toast.
    */
-  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => void;
+  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => Promise<void>;
   /** Updates a rule box's score threshold across every criterion listed in
-   * `criterionIds` (`#759`), deriving the new selection key from the response.
+   * `criterionIds` (`#759`), deriving the new selection key from the response. Resolves once the
+   * groups have refetched; rejects on failure, without a toast.
    */
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
   /** Deletes a group, then moves selection per `selectionTargetAfterRemoval` once the refetch lands.
@@ -533,15 +537,13 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
-  const updateGroupOperator = useCallback((groupId: number, logicOperator: CompetencyGroupLogicOperator) => {
-    updateGroupOperatorMutation.mutate({ tagId, groupId, logicOperator }, {
-      onError: () => {
-        // No local rollback needed: `LogicOperatorSelect` always renders
-        // from `group.logicOperator`, which a rejected mutation never touches.
-        showToast(intl.formatMessage(messages.updateGroupOperatorFailedToastMessage));
-      },
-    });
-  }, [tagId, updateGroupOperatorMutation, showToast, intl]);
+  // A bottom-tier group's `logic_operator`: "AND" means every rule box must be met ("all"),
+  // "OR" means any one of them ("any").
+  const updateGroupOperator = useCallback(
+    (groupId: number, logicOperator: CompetencyGroupLogicOperator): Promise<void> =>
+      updateGroupOperatorMutation.mutateAsync({ tagId, groupId, logicOperator }).then(() => undefined),
+    [tagId, updateGroupOperatorMutation],
+  );
 
   const updateRuleScore = useCallback((
     groupId: number,
@@ -564,23 +566,24 @@ export const CompetencyAssociationsProvider = ({
     }
     const { ruleType } = effectiveRuleOf(anchorCriterion, systemDefaultProfile);
 
+    const visitId = latestCompetencyVisitIdRef.current;
     return updateRuleScoreMutation.mutateAsync({ tagId, groupId, criterionIds, ruleType, rulePayload })
       .then((updatedCriteria) => {
+        // The author moved to another competency while this ran; its selection is not ours to set.
+        if (visitId !== latestCompetencyVisitIdRef.current) {
+          return;
+        }
         // From the response, not the request: a "reset to default" edit can
         // echo back a shared profile reference instead of the sent values,
         // so the new selection key has to come from what was actually persisted.
         const [updatedCriterion] = updatedCriteria;
         if (updatedCriterion) {
-          setSelection({ groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) });
+          const ruleKey = ruleKeyOf(updatedCriterion, systemDefaultProfile);
+          setSelection({ groupId, ruleKey });
+          setKeyboardFocusRequest({ kind: 'ruleBox', groupId, ruleKey });
         }
-      })
-      .catch((error) => {
-        showToast(intl.formatMessage(messages.updateRuleScoreFailedToastMessage));
-        // Re-thrown so ScoreThresholdField's own commit handler also sees
-        // the rejection and reverts its local input.
-        throw error;
       });
-  }, [index, systemDefaultProfile, tagId, updateRuleScoreMutation, showToast, intl]);
+  }, [index, systemDefaultProfile, tagId, updateRuleScoreMutation]);
 
   const consumeKeyboardFocusRequest = useCallback(() => setKeyboardFocusRequest(null), []);
 

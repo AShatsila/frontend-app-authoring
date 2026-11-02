@@ -184,6 +184,12 @@
     color: var(--pgn-color-gray-700);
   }
 
+  .rule-box__score-trigger {
+    // Layers above `.rule-box__select-button`'s stretched overlay so clicks open the popover.
+    position: relative;
+    z-index: 1;
+  }
+
   .score-threshold-field__value {
     display: inline-flex;
     align-items: center;

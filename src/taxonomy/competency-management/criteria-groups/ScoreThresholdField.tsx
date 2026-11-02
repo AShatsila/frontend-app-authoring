@@ -3,16 +3,16 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Form, Icon } from '@openedx/paragon';
 import { ExpandMore } from '@openedx/paragon/icons';
-import type { IntlShape, MessageDescriptor } from 'react-intl';
 import type { GradeRulePayload } from '../data/types';
 import messages from './messages';
+import { parseScoreInput, percentOf, SUFFIX_MESSAGE_BY_OP } from './scoreInput';
 
 export interface ScoreThresholdFieldProps {
   rulePayload: GradeRulePayload;
-  /** Omitted: renders plain text. Given: renders the editable input, and the returned promise lets
-   * `saveScoreIfChanged` revert its local input on a rejected save.
+  /** Omitted: renders plain text. Given: renders the editable input used by the unsaved placeholder
+   * rule box, whose handler only stores the value and never rejects.
    */
-  onChange?: (rulePayload: GradeRulePayload) => Promise<void>;
+  onChange?: (rulePayload: GradeRulePayload) => void;
   /** Called once at commit time, from `saveScoreIfChanged` below; a non-empty return blocks the
    * commit and shows the message inline instead.
    */
@@ -25,29 +25,8 @@ export interface ScoreThresholdFieldProps {
   hintIsError?: boolean;
 }
 
-/** Which suffix follows the percentage for each comparison operator -
- * `null` for `eq`, which reads as an exact score with no suffix.
- */
-const SUFFIX_MESSAGE_BY_OP: Record<GradeRulePayload['op'], MessageDescriptor | null> = {
-  gte: messages.scoreThresholdOrHigherSuffix,
-  lte: messages.scoreThresholdOrLowerSuffix,
-  eq: null,
-};
-
-/** A score as text, such as "75% or higher", for messages that name a score. */
-export const formatScoreSummary = (intl: IntlShape, rulePayload: GradeRulePayload): string => {
-  const suffixMessage = SUFFIX_MESSAGE_BY_OP[rulePayload.op];
-  const percentText = intl.formatMessage(messages.scoreThresholdValue, {
-    percent: Math.round(rulePayload.value * 100),
-  });
-  return suffixMessage ? `${percentText} ${intl.formatMessage(suffixMessage)}` : percentText;
-};
-
-/** `rulePayload.value` is a 0.0-1.0 fraction, not a 0-100 percentage. */
-const percentOf = (rulePayload: GradeRulePayload): string => String(Math.round(rulePayload.value * 100));
-
-/** Closed-state label for a rule's score threshold: "With a score of X% or higher"/"or lower"/
- * (no suffix, for an exact match). Read-only unless `onChange` is given. */
+/** Label for a rule's score threshold: "With a score of X% or higher"/"or lower"/(no suffix, for an
+ * exact match). Read-only unless `onChange` is given, which serves the placeholder rule box. */
 const ScoreThresholdField = ({
   rulePayload,
   onChange,
@@ -62,13 +41,9 @@ const ScoreThresholdField = ({
   const suffixMessage = SUFFIX_MESSAGE_BY_OP[rulePayload.op];
 
   // Local input state, mirroring `EditableCell`'s pattern - never resynced from `rulePayload`
-  // while mounted; a rejected edit needs its own explicit revert (see `saveScoreIfChanged` below).
+  // while mounted.
   const [inputValue, setInputValue] = useState(() => percentOf(rulePayload));
   const [validationMessage, setValidationMessage] = useState('');
-  // Guards against a second commit (e.g. blur right after Enter) firing before the first
-  // mutation resolves, which could otherwise let two out-of-order responses land in the wrong order.
-  const saveInFlight = useRef(false);
-  const [isSaving, setIsSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -99,21 +74,17 @@ const ScoreThresholdField = ({
     setValidationMessage('');
   };
 
-  const saveScoreIfChanged = async () => {
-    if (saveInFlight.current) {
-      return;
-    }
-    const trimmedInput = inputValue.trim();
-    const numericPercent = Number(trimmedInput);
-    if (trimmedInput === '' || !Number.isFinite(numericPercent)) {
+  const saveScoreIfChanged = () => {
+    const parsed = parseScoreInput(inputValue, rulePayload);
+    if (parsed.kind === 'empty') {
       revertToLastPersisted();
       return;
     }
-    if (!Number.isInteger(numericPercent) || numericPercent < 0 || numericPercent > 100) {
+    if (parsed.kind === 'outOfRange') {
       setValidationMessage(intl.formatMessage(messages.scoreThresholdRangeValidationMessage));
       return;
     }
-    if (numericPercent === Math.round(rulePayload.value * 100)) {
+    if (parsed.kind === 'unchanged') {
       setValidationMessage('');
       return;
     }
@@ -123,22 +94,12 @@ const ScoreThresholdField = ({
       return;
     }
     setValidationMessage('');
-    const newRulePayload: GradeRulePayload = { ...rulePayload, value: numericPercent / 100 };
-    saveInFlight.current = true;
-    setIsSaving(true);
-    try {
-      await onChange(newRulePayload);
-    } catch {
-      revertToLastPersisted();
-    } finally {
-      saveInFlight.current = false;
-      setIsSaving(false);
-    }
+    onChange(parsed.rulePayload);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
-      void saveScoreIfChanged();
+      saveScoreIfChanged();
     } else if (event.key === 'Escape') {
       revertToLastPersisted();
     }
@@ -162,12 +123,11 @@ const ScoreThresholdField = ({
               aria-label={intl.formatMessage(messages.scoreThresholdInputAccessibleLabel)}
               aria-invalid={showAsInvalid}
               isInvalid={showAsInvalid}
-              disabled={isSaving}
               onChange={(event) =>
                 setInputValue(event.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={() => {
-                void saveScoreIfChanged();
+                saveScoreIfChanged();
               }}
             />
             %
