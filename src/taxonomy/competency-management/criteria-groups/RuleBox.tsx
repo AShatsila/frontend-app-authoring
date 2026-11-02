@@ -11,6 +11,11 @@ import { formatScoreSummary } from './scoreInput';
 import ScoreThresholdPopover from './ScoreThresholdPopover';
 import messages from './messages';
 
+type EditState =
+  | { kind: 'closed'; }
+  | { kind: 'editing'; draft?: GradeRulePayload; }
+  | { kind: 'confirming'; rulePayload: GradeRulePayload; };
+
 export interface RuleBoxProps {
   /** The group this box belongs to, and this box's own rule key - together
    * this box's identity for selection comparisons against
@@ -22,8 +27,6 @@ export interface RuleBoxProps {
   /** `null` renders this as the not-yet-saved placeholder rule box: no
    * `selectRuleBox` on click, a dashed hint box instead of chips, and its
    * `ScoreThresholdField` writes to the placeholder instead of persisting.
-   * A saved, editable box edits its score through `ScoreThresholdPopover`
-   * and an `EditConfirmationModal`.
    */
   ruleKey: string | null;
   /** The rule this box displays, given as a prop so a placeholder box with
@@ -34,7 +37,9 @@ export interface RuleBoxProps {
   subsectionNamesByUsageKey: Record<string, string>;
   /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
   courseName?: string;
+  /** Makes the score and chips editable; without it the box is read-only. */
   canEdit?: boolean;
+  /** Returns a non-empty message to block a score edit, for example a duplicate score in the group. */
   getInlineValidationMessage?: (value: string) => string;
   /** Placeholder only: guidance under the score, such as "this score is taken". */
   hint?: ReactNode;
@@ -49,7 +54,10 @@ export interface RuleBoxProps {
  * renders the not-yet-saved placeholder rule box (`#671`): a dashed hint
  * box instead of chips, no `selectRuleBox` on click, and a score field that
  * writes to `CompetencyAssociationsContext`'s `placeholder` state instead of
- * persisting.
+ * persisting. A saved, editable box edits its score through
+ * `ScoreThresholdPopover`, then an `EditConfirmationModal` (#785); the popover
+ * is closed while the confirmation is open and reopens with the typed value if
+ * the author cancels.
  */
 const RuleBox = ({
   groupId,
@@ -71,12 +79,23 @@ const RuleBox = ({
     updateRuleScore,
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   const isSelected = selection?.groupId === groupId && selection?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const [pendingRulePayload, setPendingRulePayload] = useState<GradeRulePayload | null>(null);
+  const [editState, setEditState] = useState<EditState>({ kind: 'closed' });
+  const takesKeyboardFocus = keyboardFocusRequest?.kind === 'ruleBox'
+    && keyboardFocusRequest.groupId === groupId
+    && keyboardFocusRequest.ruleKey === ruleKey;
+
+  useEffect(() => {
+    if (takesKeyboardFocus) {
+      ref.current?.querySelector<HTMLElement>('.rule-box__score-trigger')?.focus({ preventScroll: true });
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
 
   useEffect(() => {
     if (isSelected) {
@@ -97,17 +116,10 @@ const RuleBox = ({
     setPlaceholderRulePayload(rulePayload);
   };
 
-  const handlePopoverClose = () => {
-    // The popover stays open under the confirmation dialog.
-    if (pendingRulePayload === null) {
-      setIsPopoverOpen(false);
-    }
-  };
-
   const handleConfirm = async () => {
-    await updateRuleScore(groupId!, criteria.map((criterion) => criterion.id), pendingRulePayload!);
-    setPendingRulePayload(null);
-    setIsPopoverOpen(false);
+    if (!canEdit || editState.kind !== 'confirming') { return; }
+    await updateRuleScore(groupId!, criteria.map((criterion) => criterion.id), editState.rulePayload);
+    setEditState({ kind: 'closed' });
   };
 
   const oldScore = formatScoreSummary(intl, rule.rulePayload);
@@ -132,10 +144,11 @@ const RuleBox = ({
         (
           <ScoreThresholdPopover
             rulePayload={rule.rulePayload}
-            isOpen={isPopoverOpen}
-            onOpen={() => setIsPopoverOpen(true)}
-            onClose={handlePopoverClose}
-            onSave={setPendingRulePayload}
+            isOpen={editState.kind === 'editing'}
+            initialRulePayload={editState.kind === 'editing' ? editState.draft : undefined}
+            onOpen={() => setEditState({ kind: 'editing' })}
+            onClose={() => setEditState({ kind: 'closed' })}
+            onSave={(rulePayload) => setEditState({ kind: 'confirming', rulePayload })}
             getInlineValidationMessage={getInlineValidationMessage}
           />
         ) :
@@ -164,9 +177,9 @@ const RuleBox = ({
           />
         )}
       <EditConfirmationModal
-        isOpen={pendingRulePayload !== null}
+        isOpen={editState.kind === 'confirming'}
         title={intl.formatMessage(messages.scoreChangeConfirmationTitle, {
-          newScore: pendingRulePayload ? formatScoreSummary(intl, pendingRulePayload) : '',
+          newScore: editState.kind === 'confirming' ? formatScoreSummary(intl, editState.rulePayload) : '',
         })}
         body={
           <>
@@ -184,7 +197,8 @@ const RuleBox = ({
         }
         errorText={intl.formatMessage(messages.scoreChangeFailedText, { oldScore })}
         onConfirm={handleConfirm}
-        onCancel={() => setPendingRulePayload(null)}
+        onCancel={() =>
+          setEditState((state) => state.kind === 'confirming' ? { kind: 'editing', draft: state.rulePayload } : state)}
       />
     </div>
   );

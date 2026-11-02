@@ -41,7 +41,7 @@ const render70PercentRuleBox = (
   )
 );
 
-describe('<RuleBox /> editing (#794)', () => {
+describe('<RuleBox /> editing (#794, #785)', () => {
   beforeEach(() => {
     initializeMocks();
     Element.prototype.scrollIntoView = jest.fn();
@@ -111,7 +111,7 @@ describe('<RuleBox /> editing (#794)', () => {
     expect(screen.queryByText('Competency Completion Rule')).not.toBeInTheDocument();
   });
 
-  it('cancelling keeps the edit in the popover and saves nothing', async () => {
+  it('cancelling reopens the popover with the typed value focused and saves nothing', async () => {
     const user = userEvent.setup();
     const updateRuleScore = jest.fn().mockResolvedValue(undefined);
     render70PercentRuleBox({ updateRuleScore }, { canEdit: true });
@@ -120,12 +120,28 @@ describe('<RuleBox /> editing (#794)', () => {
     await saveInPopover(user);
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByRole('textbox')).toHaveValue('85');
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('85'));
+    expect(screen.getByRole('textbox')).toHaveFocus();
+    expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
     expect(updateRuleScore).not.toHaveBeenCalled();
   });
 
-  it('the popover stays open while the confirmation is open', async () => {
+  it('Escape in the confirmation cancels and keeps the edit', async () => {
+    const user = userEvent.setup();
+    const updateRuleScore = jest.fn().mockResolvedValue(undefined);
+    render70PercentRuleBox({ updateRuleScore }, { canEdit: true });
+
+    await openPopoverAndType(user, '85');
+    await saveInPopover(user);
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('85'));
+    expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
+    expect(screen.queryByText('Change this rule to 85% or higher?')).not.toBeInTheDocument();
+    expect(updateRuleScore).not.toHaveBeenCalled();
+  });
+
+  it('the popover is closed while the confirmation is open', async () => {
     const user = userEvent.setup();
     render70PercentRuleBox({}, { canEdit: true });
 
@@ -133,7 +149,64 @@ describe('<RuleBox /> editing (#794)', () => {
     await saveInPopover(user);
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Competency Completion Rule')).toBeInTheDocument();
+    expect(screen.queryByText('Competency Completion Rule')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { hidden: true })).not.toBeInTheDocument();
+  });
+
+  it('a validation failure marks the input invalid, describes it with the message, and refocuses it', async () => {
+    const user = userEvent.setup();
+    render70PercentRuleBox({}, { canEdit: true });
+
+    await openPopoverAndType(user, '150');
+    screen.getByRole('button', { name: 'Save' }).focus();
+    await saveInPopover(user);
+
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAccessibleDescription('Enter a whole number from 0 to 100.');
+    expect(input).toHaveFocus();
+  });
+
+  it('the trigger reports whether its popover is expanded, and the popover is a named dialog', async () => {
+    const user = userEvent.setup();
+    render70PercentRuleBox({}, { canEdit: true });
+
+    const trigger = screen.getByRole('button', { name: /70%/ });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
+  });
+
+  it('focuses its score trigger and consumes the request when a keyboard focus request names it', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    render70PercentRuleBox(
+      {
+        keyboardFocusRequest: { kind: 'ruleBox', groupId: 10, ruleKey: 'grade:gte:0.7:percent' },
+        consumeKeyboardFocusRequest,
+      },
+      { canEdit: true },
+    );
+
+    expect(screen.getByRole('button', { name: /70%/ })).toHaveFocus();
+    expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a keyboard focus request that names another rule box', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    render70PercentRuleBox(
+      {
+        keyboardFocusRequest: { kind: 'ruleBox', groupId: 10, ruleKey: 'grade:gte:0.9:percent' },
+        consumeKeyboardFocusRequest,
+      },
+      { canEdit: true },
+    );
+
+    expect(screen.getByRole('button', { name: /70%/ })).not.toHaveFocus();
+    expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
   });
 
   it('a failed save shows the failure and keeps the edit', async () => {
@@ -149,26 +222,8 @@ describe('<RuleBox /> editing (#794)', () => {
     expect(screen.getByText('The rule is still 70% or higher. Try again, or cancel to keep editing.'))
       .toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    // The open dialog hides the page behind it from the accessibility tree.
-    expect(screen.getByRole('textbox', { hidden: true })).toHaveValue('85');
-  });
-
-  it('the confirmation is shown with no learner data: confirming calls only updateRuleScore', async () => {
-    const user = userEvent.setup();
-    const updateRuleScore = jest.fn().mockResolvedValue(undefined);
-    const context = buildMockCompetencyAssociationsContextValue({ updateRuleScore });
-    render70PercentRuleBox(context, { canEdit: true });
-
-    await openPopoverAndType(user, '85');
-    await saveInPopover(user);
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
-
-    expect(updateRuleScore).toHaveBeenCalledTimes(1);
-    Object.values(context).forEach((value) => {
-      if (jest.isMockFunction(value) && value !== updateRuleScore) {
-        expect(value).not.toHaveBeenCalled();
-      }
-    });
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue('85'));
   });
 
   it('clicking the score trigger does not call selectRuleBox', async () => {

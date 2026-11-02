@@ -238,6 +238,21 @@ const messages = defineMessages({
     defaultMessage: '<=',
     description: 'Read-only symbol for the "at most" comparison, shown next to the score input in the popover.',
   },
+  scoreOperatorSrGte: {
+    id: 'course-authoring.competency-management.criteria-groups.score-operator-sr-gte',
+    defaultMessage: 'at least',
+    description: 'Screen-reader text for the ">=" symbol shown next to the score input in the popover.',
+  },
+  scoreOperatorSrEq: {
+    id: 'course-authoring.competency-management.criteria-groups.score-operator-sr-eq',
+    defaultMessage: 'exactly',
+    description: 'Screen-reader text for the "=" symbol shown next to the score input in the popover.',
+  },
+  scoreOperatorSrLte: {
+    id: 'course-authoring.competency-management.criteria-groups.score-operator-sr-lte',
+    defaultMessage: 'at most',
+    description: 'Screen-reader text for the "<=" symbol shown next to the score input in the popover.',
+  },
   scoreChangeConfirmationTitle: {
     id: 'course-authoring.competency-management.criteria-groups.score-change-confirmation-title',
     defaultMessage: 'Change this rule to {newScore}?',

@@ -1429,6 +1429,9 @@ describe('CompetencyAssociationsProvider', () => {
           expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10');
         });
         expect(screen.getByTestId('selection')).toHaveTextContent('"ruleKey":"grade:gte:0.7:percent"');
+        expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
+          '{"kind":"ruleBox","groupId":10,"ruleKey":"grade:gte:0.7:percent"}',
+        );
       },
     );
 

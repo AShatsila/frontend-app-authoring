@@ -201,7 +201,7 @@ describe('<RuleBoxList />', () => {
       await user.type(input, '80');
       await user.click(screen.getByRole('button', { name: 'Save' }));
 
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText('Change this rule to 80% or higher?')).not.toBeInTheDocument();
       expect(updateRuleScore).not.toHaveBeenCalled();
       expect(screen.getByText('Another rule box in this group already uses this score.')).toBeInTheDocument();
     });

@@ -81,13 +81,16 @@ export interface CriteriaPlaceholder {
   rulePayload: GradeRulePayload | null;
 }
 
-/** One-shot move of the browser's keyboard focus after a delete removes the control that held it (focus would fall to <body>).
+/** One-shot move of the browser's keyboard focus after a delete removes the control that held it, or a score
+ * save remounts its rule box (focus would fall to <body>).
  * `group` targets the newly selected group's select button, `empty` the empty-panel message,
- * `subsection` the Browse Courses row for `objectId`; `expand` opens a collapsed section holding the group target. */
+ * `subsection` the Browse Courses row for `objectId`, `ruleBox` the score trigger of the rule box with that key;
+ * `expand` opens a collapsed section holding the group target. */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
   | { kind: 'empty'; }
-  | { kind: 'subsection'; objectId: string; };
+  | { kind: 'subsection'; objectId: string; }
+  | { kind: 'ruleBox'; groupId: number; ruleKey: string; };
 
 export interface CompetencyAssociationsContextValue {
   selection: CriteriaSelection | null;
@@ -568,7 +571,9 @@ export const CompetencyAssociationsProvider = ({
         // so the new selection key has to come from what was actually persisted.
         const [updatedCriterion] = updatedCriteria;
         if (updatedCriterion) {
-          setSelection({ groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) });
+          const ruleKey = ruleKeyOf(updatedCriterion, systemDefaultProfile);
+          setSelection({ groupId, ruleKey });
+          setKeyboardFocusRequest({ kind: 'ruleBox', groupId, ruleKey });
         }
       });
   }, [index, systemDefaultProfile, tagId, updateRuleScoreMutation]);
