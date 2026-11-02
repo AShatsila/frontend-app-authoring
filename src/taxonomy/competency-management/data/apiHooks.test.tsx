@@ -190,6 +190,21 @@ describe('useUpdateCompetencyCriteriaGroupOperator', () => {
     const state = queryClient.getQueryState(competencyQueryKeys.competencyCriteriaGroups(tagId));
     expect(state?.isInvalidated).toBe(true);
   });
+
+  it('invalidates that tagId\'s groups query on failure too', async () => {
+    const { axiosMock, queryClient } = initializeMocks();
+    axiosMock.onPatch(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(500);
+    queryClient.setQueryData(competencyQueryKeys.competencyCriteriaGroups(tagId), { groups: [], criteria: [] });
+
+    const { result } = renderHook(() => useUpdateCompetencyCriteriaGroupOperator(), { wrapper: makeWrapper() });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({ tagId, groupId: 10, logicOperator: 'OR' })).rejects.toBeDefined();
+    });
+
+    const state = queryClient.getQueryState(competencyQueryKeys.competencyCriteriaGroups(tagId));
+    expect(state?.isInvalidated).toBe(true);
+  });
 });
 
 describe('useDeleteCompetencyCriterion', () => {
@@ -309,6 +324,28 @@ describe('useUpdateCompetencyCriteriaRule', () => {
         ruleType: 'grade',
         rulePayload: { op: 'gte', value: 0.8, scale: 'percent' },
       });
+    });
+
+    const state = queryClient.getQueryState(competencyQueryKeys.competencyCriteriaGroups(tagId));
+    expect(state?.isInvalidated).toBe(true);
+  });
+
+  it('invalidates that tagId\'s groups query on failure too', async () => {
+    const { axiosMock, queryClient } = initializeMocks();
+    const groupId = 10;
+    axiosMock.onPatch(apiUrls.updateCompetencyCriteriaRule(groupId)).reply(500);
+    queryClient.setQueryData(competencyQueryKeys.competencyCriteriaGroups(tagId), { groups: [], criteria: [] });
+
+    const { result } = renderHook(() => useUpdateCompetencyCriteriaRule(), { wrapper: makeWrapper() });
+
+    await act(async () => {
+      await expect(result.current.mutateAsync({
+        tagId,
+        groupId,
+        criterionIds: [101],
+        ruleType: 'grade',
+        rulePayload: { op: 'gte', value: 0.8, scale: 'percent' },
+      })).rejects.toBeDefined();
     });
 
     const state = queryClient.getQueryState(competencyQueryKeys.competencyCriteriaGroups(tagId));

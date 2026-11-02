@@ -96,4 +96,14 @@ describe('<DeleteModal />', () => {
     expect(getByRole('button', { name: messages.cancelButton.defaultMessage })).toBeInTheDocument();
     expect(getByRole('button', { name: messages.deleteButton.defaultMessage })).toBeInTheDocument();
   });
+
+  it('disables Cancel and ignores Escape while isPending', async () => {
+    const user = userEvent.setup();
+    closeMock.mockClear();
+    const { getByRole } = renderComponent({ isPending: true });
+
+    expect(getByRole('button', { name: messages.cancelButton.defaultMessage })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(closeMock).not.toHaveBeenCalled();
+  });
 });

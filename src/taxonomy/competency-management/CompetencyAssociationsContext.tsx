@@ -537,6 +537,8 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
+  // A bottom-tier group's `logic_operator`: "AND" means every rule box must be met ("all"),
+  // "OR" means any one of them ("any").
   const updateGroupOperator = useCallback(
     (groupId: number, logicOperator: CompetencyGroupLogicOperator): Promise<void> =>
       updateGroupOperatorMutation.mutateAsync({ tagId, groupId, logicOperator }).then(() => undefined),
@@ -564,8 +566,13 @@ export const CompetencyAssociationsProvider = ({
     }
     const { ruleType } = effectiveRuleOf(anchorCriterion, systemDefaultProfile);
 
+    const visitId = latestCompetencyVisitIdRef.current;
     return updateRuleScoreMutation.mutateAsync({ tagId, groupId, criterionIds, ruleType, rulePayload })
       .then((updatedCriteria) => {
+        // The author moved to another competency while this ran; its selection is not ours to set.
+        if (visitId !== latestCompetencyVisitIdRef.current) {
+          return;
+        }
         // From the response, not the request: a "reset to default" edit can
         // echo back a shared profile reference instead of the sent values,
         // so the new selection key has to come from what was actually persisted.

@@ -100,6 +100,10 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     screen.getAllByRole('button', { name, hidden: true }).find((el) => el.classList.contains('dropdown-toggle'))!
   );
 
+  const getMenuItem = (name: string) => (
+    screen.getAllByRole('button', { name }).find((el) => !el.classList.contains('dropdown-toggle'))!
+  );
+
   const chooseAll = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole('button', { name: 'any' }));
     await user.click(screen.getByRole('button', { name: 'all' }));
@@ -149,17 +153,45 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     expect(updateGroupOperator).not.toHaveBeenCalled();
   });
 
-  it('choosing any on an all group shows the any wording', async () => {
+  it.each([
+    {
+      current: 'OR' as const,
+      from: 'any',
+      to: 'all',
+      title: 'Require all content in this group?',
+      text: 'Learners will need to meet the score on every content item in this group, not just one.',
+    },
+    {
+      current: 'AND' as const,
+      from: 'all',
+      to: 'any',
+      title: 'Require any content in this group?',
+      text: 'Learners will need to meet the score on just one content item in this group, not every one.',
+    },
+  ])('choosing $to on an $from group uses the $to wording', async ({ current, from, to, title, text }) => {
     const user = userEvent.setup();
-    renderBox();
+    renderBox({}, true, { ...group, logicOperator: current });
 
-    await user.click(screen.getByRole('button', { name: 'all' }));
-    await user.click(screen.getByRole('button', { name: 'any' }));
+    await user.click(screen.getByRole('button', { name: from }));
+    await user.click(getMenuItem(to));
 
-    const dialog = screen.getByRole('dialog', { name: 'Require any content in this group?' });
-    expect(dialog).toHaveTextContent(
-      'Learners will need to meet the score on just one content item in this group, not every one.',
+    expect(screen.getByRole('dialog', { name: title })).toHaveTextContent(text);
+  });
+
+  it('closes the confirmation when a refetch shows the pending value', async () => {
+    const user = userEvent.setup();
+    const { rerender } = renderBox({}, true, anyGroup);
+
+    await chooseAll(user);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    rerender(
+      <MockCompetencyAssociationsProvider value={{ index, systemDefaultProfile }}>
+        <CriteriaGroupBox group={group} subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
     );
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('choosing the current value does nothing', async () => {
@@ -168,38 +200,35 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     renderBox({ updateGroupOperator });
 
     await user.click(screen.getByRole('button', { name: 'all' }));
-    await user.click(screen.getAllByText('all')[1]);
+    await user.click(getMenuItem('all'));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(updateGroupOperator).not.toHaveBeenCalled();
   });
 
-  it('a failed save shows the failure and keeps the pending value', async () => {
+  it.each([
+    { current: 'OR' as const, from: 'any', to: 'all', stillText: 'any' },
+    { current: 'AND' as const, from: 'all', to: 'any', stillText: 'all' },
+  ])('a failed save on an $from group shows the failure and keeps the pending value', async ({
+    current,
+    from,
+    to,
+    stillText,
+  }) => {
     const user = userEvent.setup();
     const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
-    renderBox({ updateGroupOperator }, true, anyGroup);
+    renderBox({ updateGroupOperator }, true, { ...group, logicOperator: current });
 
-    await chooseAll(user);
+    await user.click(screen.getByRole('button', { name: from }));
+    await user.click(getMenuItem(to));
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
 
     expect(await screen.findByText('Couldn\'t save this change')).toBeInTheDocument();
-    expect(screen.getByText('The group still requires any content. Try again, or cancel to keep it as it is.'))
-      .toBeInTheDocument();
+    expect(screen.getByText(
+      `The group still requires ${stillText} content. Try again, or cancel to keep it as it is.`,
+    )).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(getToggle('all')).toBeInTheDocument();
-  });
-
-  it('names the current value "all" in the failure text of an all group', async () => {
-    const user = userEvent.setup();
-    const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
-    renderBox({ updateGroupOperator });
-
-    await user.click(screen.getByRole('button', { name: 'all' }));
-    await user.click(screen.getByRole('button', { name: 'any' }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
-
-    expect(await screen.findByText('The group still requires all content. Try again, or cancel to keep it as it is.'))
-      .toBeInTheDocument();
+    expect(getToggle(to)).toBeInTheDocument();
   });
 
   it.each(['Cancel', 'Save changes'])('focus returns to the dropdown toggle after %s', async (buttonName) => {
