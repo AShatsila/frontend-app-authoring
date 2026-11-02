@@ -1808,6 +1808,34 @@ describe('CompetencyAssociationsProvider', () => {
         .toBeInTheDocument();
     });
 
+    it('leaves focus and keyboard focus alone when the competency changed during the request', async () => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(otherGroupsUrl).reply(200, noGroupsResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      let respond: () => void = () => {};
+      axiosMock.onPatch(updateRuleScoreUrl).reply(() =>
+        new Promise((resolve) => {
+          respond = () => resolve([200, [createdCriterion(10)]]);
+        })
+      );
+      const { rerender } = render(providerFor(tagId));
+      await waitForSuccess();
+
+      await click('Update rule score');
+      await waitFor(() => expect(axiosMock.history.patch).toHaveLength(1));
+      rerender(providerFor(otherTagId));
+      await waitForSuccess();
+      await click('Focus group 999');
+      await act(async () => {
+        respond();
+      });
+      await flushEffects();
+
+      expect(screen.getByText(focusOnGroup(999))).toBeInTheDocument();
+      expect(screen.getByText('Keyboard request: null')).toBeInTheDocument();
+    });
+
     it('rejects without a toast, and without changing focus', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);

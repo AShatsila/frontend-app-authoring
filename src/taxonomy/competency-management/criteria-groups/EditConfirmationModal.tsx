@@ -1,8 +1,8 @@
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Alert } from '@openedx/paragon';
 import { Error } from '@openedx/paragon/icons';
 
+import AlertMessage from '@src/generic/alert-message';
 import DeleteModal from '@src/generic/delete-modal/DeleteModal';
 import messages from './messages';
 
@@ -18,6 +18,10 @@ export interface EditConfirmationModalProps {
   onCancel: () => void;
 }
 
+/**
+ * Shared confirmation for rule edits (#775). A rejection keeps it open with an alert
+ * so the author can retry.
+ */
 const EditConfirmationModal = ({
   isOpen,
   title,
@@ -28,20 +32,23 @@ const EditConfirmationModal = ({
 }: EditConfirmationModalProps) => {
   const intl = useIntl();
   const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setHasError(false);
-    }
-  }, [isOpen]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleConfirm = async () => {
     setHasError(false);
+    setIsSaving(true);
     try {
       await onConfirm();
     } catch {
       setHasError(true);
+    } finally {
+      setIsSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setHasError(false);
+    onCancel();
   };
 
   return (
@@ -50,15 +57,18 @@ const EditConfirmationModal = ({
       title={title}
       buttonVariant="primary"
       btnLabel={intl.formatMessage(messages.editConfirmationSaveButton)}
-      close={onCancel}
+      close={handleCancel}
+      isPending={isSaving}
       onDeleteSubmit={handleConfirm}
       description={
         <>
           {hasError && (
-            <Alert variant="danger" icon={Error}>
-              <Alert.Heading>{intl.formatMessage(messages.editConfirmationErrorHeading)}</Alert.Heading>
-              <p>{errorText}</p>
-            </Alert>
+            <AlertMessage
+              variant="danger"
+              icon={Error}
+              title={intl.formatMessage(messages.editConfirmationErrorHeading)}
+              description={errorText}
+            />
           )}
           {body}
         </>

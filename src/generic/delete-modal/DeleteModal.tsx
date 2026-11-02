@@ -20,6 +20,8 @@ interface DeleteModalProps {
   icon?: React.ElementType;
   buttonVariant?: 'tertiary' | 'brand' | 'primary' | 'danger';
   cancelButtonVariant?: 'tertiary' | 'brand' | 'primary' | 'default';
+  /** While true, the confirm button shows its pending state and the dialog cannot be dismissed. */
+  isPending?: boolean;
 }
 
 const DeleteModal = ({
@@ -34,6 +36,7 @@ const DeleteModal = ({
   cancelButtonVariant = 'default',
   btnLabel,
   icon,
+  isPending,
 }: DeleteModalProps) => {
   const intl = useIntl();
 
@@ -48,10 +51,12 @@ const DeleteModal = ({
       onClose={close}
       variant={variant}
       icon={icon}
+      isBlocking={isPending}
       footerNode={
         <ActionRow>
           <Button
             variant={cancelButtonVariant}
+            disabled={isPending}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -68,6 +73,7 @@ const DeleteModal = ({
             }}
             variant={buttonVariant}
             label={defaultBtnLabel}
+            isLoading={isPending}
           />
         </ActionRow>
       }

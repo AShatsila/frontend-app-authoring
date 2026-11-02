@@ -40,12 +40,13 @@ describe('<EditConfirmationModal />', () => {
 
   it('shows the error alert and stays open when onConfirm rejects', async () => {
     const user = userEvent.setup();
-    renderModal({ onConfirm: jest.fn().mockRejectedValue(new Error('boom')) });
+    const { props } = renderModal({ onConfirm: jest.fn().mockRejectedValue(new Error('boom')) });
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Couldn\'t save this change');
     expect(alert).toHaveTextContent('Try again later.');
     expect(screen.getByRole('dialog', { name: 'Change the score?' })).toBeInTheDocument();
+    expect(props.onCancel).not.toHaveBeenCalled();
   });
 
   it('removes the alert when a retry succeeds', async () => {
@@ -72,22 +73,30 @@ describe('<EditConfirmationModal />', () => {
     const user = userEvent.setup();
     const { props } = renderModal();
     await user.keyboard('{Escape}');
-    expect(props.onCancel).toHaveBeenCalled();
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables Cancel and ignores Escape while onConfirm is pending', async () => {
+    const user = userEvent.setup();
+    const { props } = renderModal({ onConfirm: jest.fn().mockReturnValue(new Promise<void>(() => {})) });
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    await user.keyboard('{Escape}');
+    expect(props.onCancel).not.toHaveBeenCalled();
+  });
+
+  it('clears the alert when the dialog is cancelled', async () => {
+    const user = userEvent.setup();
+    const { props } = renderModal({ onConfirm: jest.fn().mockRejectedValue(new Error('boom')) });
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByRole('alert');
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('moves focus into the dialog when it opens', () => {
     renderModal();
     expect(screen.getByRole('dialog')).toContainElement(document.activeElement as HTMLElement);
-  });
-
-  it('shows no alert after closing and reopening following a failure', async () => {
-    const user = userEvent.setup();
-    const onConfirm = jest.fn().mockRejectedValue(new Error('boom'));
-    const { rerender, props } = renderModal({ onConfirm });
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-    await screen.findByRole('alert');
-    rerender(<EditConfirmationModal {...props} isOpen={false} />);
-    rerender(<EditConfirmationModal {...props} isOpen />);
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

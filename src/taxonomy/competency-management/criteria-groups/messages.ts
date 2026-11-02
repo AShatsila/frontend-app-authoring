@@ -286,14 +286,12 @@ const messages = defineMessages({
   requireAnyConfirmationTitle: {
     id: 'course-authoring.competency-management.criteria-groups.require-any-confirmation-title',
     defaultMessage: 'Require any content in this group?',
-    description: 'Title of the dialog confirming a change of a saved group from "all" to "any". The copy is '
-      + 'awaiting designer confirmation.',
+    description: 'Title of the dialog confirming a change of a saved group from "all" to "any".',
   },
   requireAnyConfirmationText: {
     id: 'course-authoring.competency-management.criteria-groups.require-any-confirmation-text',
     defaultMessage: 'Learners will need to meet the score on just one content item in this group, not every one.',
-    description: 'First paragraph of the dialog confirming a change of a saved group from "all" to "any". The copy '
-      + 'is awaiting designer confirmation.',
+    description: 'First paragraph of the dialog confirming a change of a saved group from "all" to "any".',
   },
   logicChangeFutureText: {
     id: 'course-authoring.competency-management.criteria-groups.logic-change-future-text',
@@ -304,14 +302,12 @@ const messages = defineMessages({
   groupStillRequiresAnyText: {
     id: 'course-authoring.competency-management.criteria-groups.group-still-requires-any-text',
     defaultMessage: 'The group still requires any content. Try again, or cancel to keep it as it is.',
-    description: 'Text of the error alert in the any/all change dialog when saving fails and the group is still "any". '
-      + 'The copy is awaiting designer confirmation.',
+    description: 'Text of the error alert in the any/all change dialog when saving fails and the group is still "any".',
   },
   groupStillRequiresAllText: {
     id: 'course-authoring.competency-management.criteria-groups.group-still-requires-all-text',
     defaultMessage: 'The group still requires all content. Try again, or cancel to keep it as it is.',
-    description: 'Text of the error alert in the any/all change dialog when saving fails and the group is still "all". '
-      + 'The copy is awaiting designer confirmation.',
+    description: 'Text of the error alert in the any/all change dialog when saving fails and the group is still "all".',
   },
 });
 

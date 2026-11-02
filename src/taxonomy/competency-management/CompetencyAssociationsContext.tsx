@@ -475,6 +475,8 @@ export const CompetencyAssociationsProvider = ({
   const queryClient = useQueryClient();
   // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
   // respect a click made while the request was in flight.
+  const generationRef = useRef(generation);
+  generationRef.current = generation;
   const focusRef = useRef(focus);
   focusRef.current = focus;
   const placeholderRef = useRef(placeholder);
@@ -695,6 +697,8 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
+  // A bottom-tier group's `logic_operator`: "AND" means every rule box must be met ("all"), "OR" means any one
+  // of them ("any").
   const updateGroupOperator = useCallback(
     (groupId: number, logicOperator: CompetencyGroupLogicOperator): Promise<void> =>
       updateGroupOperatorMutateAsync({ tagId, groupId, logicOperator }).then(() => undefined),
@@ -720,8 +724,13 @@ export const CompetencyAssociationsProvider = ({
     }
     const { ruleType } = effectiveRuleOf(anchorCriterion, systemDefaultProfile);
 
+    const visitGeneration = generationRef.current;
     return updateRuleScoreMutateAsync({ tagId, groupId, criterionIds, ruleType, rulePayload })
       .then((updatedCriteria) => {
+        // The author moved to another competency while this ran; its focus is not ours to set.
+        if (visitGeneration !== generationRef.current) {
+          return;
+        }
         // Keyed from the response: a "reset to default" edit can echo back a shared profile reference.
         const [updatedCriterion] = updatedCriteria;
         if (updatedCriterion) {

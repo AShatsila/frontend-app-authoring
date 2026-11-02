@@ -115,6 +115,21 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     expect(updateGroupOperator).not.toHaveBeenCalled();
   });
 
+  it('closes the confirmation when a refetch shows the pending value', async () => {
+    const { rerender } = renderBox();
+
+    await chooseAll();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    rerender(
+      <MockCompetencyAssociationsProvider>
+        <CriteriaGroupBox group={allGroup} subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
+    );
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('a failed save shows the failure and keeps the pending value', async () => {
     const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
     renderBox({ updateGroupOperator });

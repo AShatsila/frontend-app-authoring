@@ -78,8 +78,8 @@ export const useCreateCompetencyCriterion = () => {
 
 /**
  * Build the mutation to update a bottom-tier group's any/all combining
- * logic (`#760`). Invalidates that competency's criteria-groups query on
- * success so the new operator shows up without a manual refetch.
+ * logic (`#760`). Refetches that competency's criteria-groups query on success and failure alike,
+ * and stays pending until that refetch lands.
  */
 export const useUpdateCompetencyCriteriaGroupOperator = () => {
   const queryClient = useQueryClient();
@@ -95,7 +95,7 @@ export const useUpdateCompetencyCriteriaGroupOperator = () => {
         logicOperator: CompetencyGroupLogicOperator;
       },
     ) => api.updateCompetencyCriteriaGroupOperator(tagId, groupId, logicOperator),
-    onSuccess: (_data, { tagId }) =>
+    onSettled: (_data, _error, { tagId }) =>
       queryClient.invalidateQueries({
         queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
       }),
@@ -104,9 +104,9 @@ export const useUpdateCompetencyCriteriaGroupOperator = () => {
 
 /**
  * Build the mutation to batch-update a rule box's score threshold (`#759`).
- * Invalidates that competency's criteria-groups query on success so the new score shows up
- * without a manual refetch. `tagId` is only used for that invalidation - the endpoint's own
- * URL isn't nested under a competency.
+ * Refetches that competency's criteria-groups query on success and failure alike, and stays
+ * pending until that refetch lands. `tagId` is only used for that invalidation - the endpoint's
+ * own URL isn't nested under a competency.
  */
 export const useUpdateCompetencyCriteriaRule = () => {
   const queryClient = useQueryClient();
@@ -124,7 +124,7 @@ export const useUpdateCompetencyCriteriaRule = () => {
         rulePayload: GradeRulePayload;
       },
     ) => api.updateCompetencyCriteriaRule(groupId, criterionIds, ruleType, rulePayload),
-    onSuccess: (_data, { tagId }) =>
+    onSettled: (_data, _error, { tagId }) =>
       queryClient.invalidateQueries({
         queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId),
       }),

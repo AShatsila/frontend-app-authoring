@@ -76,21 +76,24 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
   const selectButtonRef = useRef<HTMLButtonElement>(null);
   const operatorRef = useRef<HTMLSpanElement>(null);
   const [pendingLogicOperator, setPendingLogicOperator] = useState<CompetencyGroupLogicOperator | null>(null);
-  const hadPendingLogicOperator = useRef(false);
-  // The dialog's focus trap returns focus to the clicked menu item after this effect runs, so the toggle is
-  // focused one tick later.
+  const focusTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(focusTimer.current), []);
+
+  // A refetch that already shows the pending value makes the confirmation moot.
   useEffect(() => {
-    if (pendingLogicOperator !== null) {
-      hadPendingLogicOperator.current = true;
-      return undefined;
+    if (group && pendingLogicOperator === group.logicOperator) {
+      setPendingLogicOperator(null);
     }
-    if (!hadPendingLogicOperator.current) {
-      return undefined;
-    }
-    hadPendingLogicOperator.current = false;
-    const timer = setTimeout(() => operatorRef.current?.querySelector('button')?.focus(), 0);
-    return () => clearTimeout(timer);
-  }, [pendingLogicOperator]);
+  }, [group?.logicOperator, pendingLogicOperator]);
+
+  // Closes the confirmation, or only if it is still for `confirmed`. react-bootstrap keeps the menu mounted but
+  // hidden after it closes, so the dialog's focus return lands on the hidden menu item and fails; the toggle is
+  // focused on the next tick, after that.
+  const closeConfirmation = (confirmed?: CompetencyGroupLogicOperator) => {
+    setPendingLogicOperator((current) => (confirmed === undefined || current === confirmed ? null : current));
+    clearTimeout(focusTimer.current);
+    focusTimer.current = setTimeout(() => operatorRef.current?.querySelector('button')?.focus(), 0);
+  };
   const takesKeyboardFocus = group !== undefined
     && keyboardFocusRequest?.kind === 'group'
     && keyboardFocusRequest.groupId === group.id;
@@ -109,8 +112,9 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
   };
 
   const handleConfirm = async () => {
-    await updateGroupOperator(group!.id, pendingLogicOperator!);
-    setPendingLogicOperator(null);
+    const confirmed = pendingLogicOperator!;
+    await updateGroupOperator(group!.id, confirmed);
+    closeConfirmation(confirmed);
   };
 
   const requiresAll = pendingLogicOperator === 'AND';
@@ -229,7 +233,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
             group.logicOperator === 'OR' ? messages.groupStillRequiresAnyText : messages.groupStillRequiresAllText,
           )}
           onConfirm={handleConfirm}
-          onCancel={() => setPendingLogicOperator(null)}
+          onCancel={() => closeConfirmation()}
         />
       )}
     </>
