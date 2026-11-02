@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import {
@@ -60,24 +60,20 @@ const ScoreForm = ({
   const [draft, setDraft] = useState(() => percentOf(initialRulePayload ?? rulePayload));
   const [validationMessage, setValidationMessage] = useState('');
 
-  // The failed submit's message is rendered by now; send focus back to the field it describes.
-  useEffect(() => {
-    if (validationMessage) {
-      inputRef.current?.focus();
-    }
-  }, [validationMessage]);
-
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     const parsed = parseScoreInput(draft, rulePayload);
     if (parsed.kind === 'empty' || parsed.kind === 'outOfRange') {
       setValidationMessage(intl.formatMessage(messages.scoreThresholdRangeValidationMessage));
+      inputRef.current?.focus();
     } else if (parsed.kind === 'unchanged') {
       onClose();
     } else {
       const message = getInlineValidationMessage?.(draft) ?? '';
       setValidationMessage(message);
-      if (!message) {
+      if (message) {
+        inputRef.current?.focus();
+      } else {
         onSave(parsed.rulePayload);
       }
     }
@@ -144,7 +140,7 @@ const ScoreThresholdPopover = ({
         ref={setTarget}
         variant="link"
         size="inline"
-        className="score-threshold-field rule-box__score-trigger"
+        className="rule-box__score-trigger p-0 border-0"
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={onOpen}

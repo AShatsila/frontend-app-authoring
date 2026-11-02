@@ -209,6 +209,20 @@ describe('<RuleBox /> editing (#794, #785)', () => {
     expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
   });
 
+  it('ignores a keyboard focus request with the same rule key in another group', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    render70PercentRuleBox(
+      {
+        keyboardFocusRequest: { kind: 'ruleBox', groupId: 11, ruleKey: 'grade:gte:0.7:percent' },
+        consumeKeyboardFocusRequest,
+      },
+      { canEdit: true },
+    );
+
+    expect(screen.getByRole('button', { name: /70%/ })).not.toHaveFocus();
+    expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+  });
+
   it('a failed save shows the failure and keeps the edit', async () => {
     const user = userEvent.setup();
     const updateRuleScore = jest.fn().mockRejectedValue(new Error('boom'));

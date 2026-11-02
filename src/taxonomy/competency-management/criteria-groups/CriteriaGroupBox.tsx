@@ -80,11 +80,9 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
     }
   }, [group?.logicOperator, pendingLogicOperator]);
 
-  // Closes the confirmation, or only if it is still for `confirmed`. react-bootstrap keeps the
-  // menu mounted but hidden after it closes, so the dialog's focus return lands on the hidden
-  // menu item and fails; the toggle is focused on the next tick, after that.
-  const closeConfirmation = (confirmed?: CompetencyGroupLogicOperator) => {
-    setPendingLogicOperator((current) => (confirmed === undefined || current === confirmed ? null : current));
+  // The menu stays mounted but hidden, so the dialog's focus return fails; focus the toggle next tick.
+  const closeConfirmation = () => {
+    setPendingLogicOperator(null);
     clearTimeout(focusTimer.current);
     focusTimer.current = setTimeout(() => operatorRef.current?.querySelector('button')?.focus(), 0);
   };
@@ -107,9 +105,8 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
   };
 
   const handleConfirm = async () => {
-    const confirmed = pendingLogicOperator!;
-    await updateGroupOperator(group!.id, confirmed);
-    closeConfirmation(confirmed);
+    await updateGroupOperator(group!.id, pendingLogicOperator!);
+    closeConfirmation();
   };
 
   const requiresAll = pendingLogicOperator === 'AND';
@@ -217,9 +214,9 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
           </div>
         )}
       </div>
-      {group && (
+      {group && pendingLogicOperator !== null && (
         <EditConfirmationModal
-          isOpen={pendingLogicOperator !== null}
+          isOpen
           title={intl.formatMessage(
             requiresAll ? messages.requireAllConfirmationTitle : messages.requireAnyConfirmationTitle,
           )}
@@ -237,7 +234,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
             group.logicOperator === 'OR' ? messages.groupStillRequiresAnyText : messages.groupStillRequiresAllText,
           )}
           onConfirm={handleConfirm}
-          onCancel={() => closeConfirmation()}
+          onCancel={closeConfirmation}
         />
       )}
     </>

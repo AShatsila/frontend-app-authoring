@@ -74,7 +74,7 @@ const renderBox = (
   )
 );
 
-describe('<CriteriaGroupBox /> editing (#794)', () => {
+describe('<CriteriaGroupBox /> editing (#785, #794)', () => {
   beforeEach(() => {
     initializeMocks();
     Element.prototype.scrollIntoView = jest.fn();
@@ -192,6 +192,29 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     );
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('a reopened confirmation shows no stale error after a refetch closed it', async () => {
+    const user = userEvent.setup();
+    const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
+    const { rerender } = renderBox({ updateGroupOperator }, true, anyGroup);
+
+    await chooseAll(user);
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Couldn\'t save this change')).toBeInTheDocument();
+
+    rerender(
+      <MockCompetencyAssociationsProvider value={{ index, systemDefaultProfile, updateGroupOperator }}>
+        <CriteriaGroupBox group={group} subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(getToggle('all'));
+    await user.click(getMenuItem('any'));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByText('Couldn\'t save this change')).not.toBeInTheDocument();
   });
 
   it('choosing the current value does nothing', async () => {
