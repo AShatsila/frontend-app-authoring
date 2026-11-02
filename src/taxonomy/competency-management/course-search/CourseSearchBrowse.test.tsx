@@ -14,6 +14,7 @@ import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { CompetencyAssociationsProvider } from '../CompetencyAssociationsContext';
 import { apiUrls as competencyManagementApiUrls } from '../data/api';
 import type { CompetencyTreeNode } from '../CompetencyTree';
+import { mockHeldGroupsRefetch } from '../testHelpers';
 import CourseRow from './CourseRow';
 import CourseSearchBrowse from './CourseSearchBrowse';
 
@@ -397,17 +398,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
           },
         ],
       };
-      // Replaces `beforeEach`'s empty reply: the first read has the association, every later one is held.
-      let release: () => void = () => {};
-      let reads = 0;
-      axiosMock.onGet(groupsUrl).reply(() => {
-        reads += 1;
-        return reads === 1
-          ? [200, withOneAssociation]
-          : new Promise((resolve) => {
-            release = () => resolve([200, { groups: [], criteria: [] }]);
-          });
-      });
+      const reads = mockHeldGroupsRefetch(axiosMock, tagId, withOneAssociation, { groups: [], criteria: [] });
       axiosMock.onDelete(competencyManagementApiUrls.deleteCompetencyCriterion(tagId, 901))
         .reply(200, { id: 901, archived: false });
       axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([course]));
@@ -441,11 +432,11 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       );
       await user.click(screen.getByRole('button', { name: 'Remove rule' }));
 
-      await waitFor(() => expect(reads).toBe(2));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
       expect(within(coursesContainer).getByRole('button', { name: /Subsection 1B/ })).toBeDisabled();
 
       await act(async () => {
-        release();
+        reads.release();
       });
       await waitFor(() =>
         expect(within(coursesContainer).getByRole('button', { name: /Subsection 1B/ })).toBeEnabled()

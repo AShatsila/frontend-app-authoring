@@ -15,6 +15,7 @@ import {
 import { CompetencyAssociationsProvider, useCompetencyAssociations } from './CompetencyAssociationsContext';
 import { apiUrls } from './data/api';
 import type { CompetencyCriteriaGroupsResponse, CompetencyCriterion } from './data/types';
+import { mockHeldGroupsRefetch } from './testHelpers';
 
 let axiosMock: ReturnType<typeof initializeMocks>['axiosMock'];
 let mockShowToast: ReturnType<typeof initializeMocks>['mockShowToast'];
@@ -414,21 +415,21 @@ const renderProvider = () =>
     </CompetencyAssociationsProvider>,
   );
 
-/** Serves `initial` once, then `refetched` (held until `release` is called) for every later GET. */
+/** Clears the initial selection the way an author can: by starting a placeholder rule box and discarding it. */
+const selectNothing = async () => {
+  await userEvent.click(screen.getByText('add-placeholder-rule-10'));
+  await userEvent.click(screen.getByText('discard-placeholder'));
+  expect(screen.getByTestId('selection')).toHaveTextContent('null');
+};
+
+/** `mockHeldGroupsRefetch` for this competency, plus the profile and course A outline reads. */
 const mockGroupsReads = (
   initial: CompetencyCriteriaGroupsResponse,
   refetched: CompetencyCriteriaGroupsResponse,
 ) => {
-  const control = { release: () => {} };
-  axiosMock.onGet(groupsUrl).replyOnce(200, initial);
-  axiosMock.onGet(groupsUrl).reply(() => (
-    new Promise((resolve) => {
-      control.release = () => resolve([200, refetched]);
-    })
-  ));
   axiosMock.onGet(profileUrl).reply(200, profileResponse);
   axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
-  return control;
+  return mockHeldGroupsRefetch(axiosMock, tagId, initial, refetched);
 };
 
 describe('CompetencyAssociationsProvider', () => {
@@ -920,7 +921,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('true');
     });
 
-    it('discardPlaceholder clears selection, and with it the placeholder', async () => {
+    it('discardPlaceholder clears selection, and with it the placeholder and its choices', async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseExpansionResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
@@ -929,10 +930,14 @@ describe('CompetencyAssociationsProvider', () => {
       await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
 
       fireEvent.click(screen.getByText('add-placeholder-group-1'));
+      fireEvent.click(screen.getByText('set-placeholder-rule-payload'));
       fireEvent.click(screen.getByText('discard-placeholder'));
 
       expect(screen.getByTestId('selection')).toHaveTextContent('null');
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+      expect(screen.getByTestId('placeholder')).toHaveTextContent(
+        '{"parentRuleGroupId":null,"logicOperator":"OR","rulePayload":null}',
+      );
     });
 
     it('course expansion leaves selection unchanged when no placeholder exists', async () => {
@@ -1536,13 +1541,19 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
     });
 
-    it('requests the empty state when the delete leaves no course group', async () => {
+    it.each([
+      { selected: 'the group', setUp: async () => {} },
+      { selected: 'nothing', setUp: selectNothing },
+    ])('requests the empty state when the delete leaves no course group and $selected was selected', async (
+      { setUp },
+    ) => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10'));
+      await setUp();
 
-      fireEvent.click(screen.getByText('delete-group-10'));
+      await userEvent.click(screen.getByText('delete-group-10'));
       await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
       await act(async () => {
         reads.release();
@@ -1759,46 +1770,36 @@ describe('CompetencyAssociationsProvider', () => {
       );
     });
 
-    it('leaves the selection on another box of the same group, and asks the group to take keyboard focus', async () => {
+    it.each([
+      {
+        selected: 'on another box of the same group',
+        selectLabel: 'selection-rulebox-10',
+        selectionText: `{"groupId":10,"ruleKey":"${defaultRuleKey}"}`,
+        focusGroupId: 10,
+      },
+      {
+        selected: 'in another group',
+        selectLabel: 'selection-group-11',
+        selectionText: `{"groupId":11,"ruleKey":"${defaultRuleKey}"}`,
+        focusGroupId: 11,
+      },
+      { selected: 'none', selectLabel: null, selectionText: 'null', focusGroupId: 10 },
+    ])('keeps the selection ($selected) and asks group $focusGroupId to take keyboard focus', async (
+      { selectLabel, selectionText, focusGroupId },
+    ) => {
       mockDeletes(901, 903, 904);
       const reads = mockGroupsReads(threeBoxesInGroupResponse, withoutCriteria(threeBoxesInGroupResponse, [903]));
       await renderLoaded();
-      await userEvent.click(screen.getByText('selection-rulebox-10'));
+      if (selectLabel !== null) {
+        await userEvent.click(screen.getByText(selectLabel));
+      }
+      expect(screen.getByTestId('selection')).toHaveTextContent(selectionText);
 
       await clickAndSettle('delete-rule-box-10-80', reads);
 
-      expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
+      expect(screen.getByTestId('selection')).toHaveTextContent(selectionText);
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
-        '{"kind":"group","groupId":10,"expand":false}',
-      );
-    });
-
-    it('leaves a selection in another group alone, and asks that group to take keyboard focus', async () => {
-      mockDeletes(901, 903, 904);
-      const reads = mockGroupsReads(threeBoxesInGroupResponse, withoutCriteria(threeBoxesInGroupResponse, [903]));
-      await renderLoaded();
-      await userEvent.click(screen.getByText('selection-group-11'));
-      const selectionBefore = screen.getByTestId('selection').textContent;
-
-      await clickAndSettle('delete-rule-box-10-80', reads);
-
-      expect(screen.getByTestId('selection').textContent).toEqual(selectionBefore);
-      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
-        '{"kind":"group","groupId":11,"expand":false}',
-      );
-    });
-
-    it('asks the box\'s group to take keyboard focus when nothing was selected and the group survives', async () => {
-      mockDeletes(901, 903, 904);
-      const reads = mockGroupsReads(threeBoxesInGroupResponse, withoutCriteria(threeBoxesInGroupResponse, [903]));
-      await renderLoaded();
-      expect(screen.getByTestId('selection')).toHaveTextContent('null');
-
-      await clickAndSettle('delete-rule-box-10-80', reads);
-
-      expect(screen.getByTestId('selection')).toHaveTextContent('null');
-      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
-        '{"kind":"group","groupId":10,"expand":false}',
+        `{"kind":"group","groupId":${focusGroupId},"expand":false}`,
       );
     });
 
@@ -1870,26 +1871,17 @@ describe('CompetencyAssociationsProvider', () => {
       );
     });
 
-    it('clears the selection and requests the empty state when the last box on the page goes', async () => {
+    it.each([
+      { selected: 'its group', setUp: async () => {} },
+      { selected: 'nothing', setUp: selectNothing },
+    ])('requests the empty state when the last box on the page goes and $selected was selected', async (
+      { setUp },
+    ) => {
       mockDeletes(900);
       const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
       renderProvider();
       await waitFor(() => expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10'));
-
-      await clickAndSettle('delete-rule-box-10-70', reads);
-
-      expect(screen.getByTestId('selection')).toHaveTextContent('null');
-      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('{"kind":"empty"}');
-    });
-
-    it('requests the empty state when nothing was selected and the last box on the page goes', async () => {
-      mockDeletes(900);
-      const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
-      renderProvider();
-      await waitFor(() => expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":10'));
-      await userEvent.click(screen.getByText('add-placeholder-rule-10'));
-      await userEvent.click(screen.getByText('discard-placeholder'));
-      expect(screen.getByTestId('selection')).toHaveTextContent('null');
+      await setUp();
 
       await clickAndSettle('delete-rule-box-10-70', reads);
 
@@ -1928,7 +1920,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
     });
 
-    it('stops at a failure partway, shows the failure toast, and keeps the selection', async () => {
+    it('stops at a failure partway, shows the partial-failure toast, and keeps the selection', async () => {
       mockDeletes(901, 906, 903);
       axiosMock.onDelete(deleteUrlOf(905)).reply(500);
       const reads = mockGroupsReads(boxOfThreeResponse, withoutCriteria(boxOfThreeResponse, [901]));
@@ -1939,7 +1931,9 @@ describe('CompetencyAssociationsProvider', () => {
 
       expect(sentDeleteUrls()).toEqual([deleteUrlOf(901), deleteUrlOf(905)]);
       expect(mockShowToast).toHaveBeenCalledTimes(1);
-      expect(mockShowToast).toHaveBeenCalledWith('Couldn\'t remove the rule. The panel was refreshed.');
+      expect(mockShowToast).toHaveBeenCalledWith(
+        'Some of the rule\'s content couldn\'t be removed. The panel was refreshed.',
+      );
       expect(screen.getByTestId('criterion-ids')).toHaveTextContent('[905,906,903]');
       expect(screen.getByTestId('selection')).toHaveTextContent(`{"groupId":10,"ruleKey":"${defaultRuleKey}"}`);
       expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent(
@@ -1947,7 +1941,7 @@ describe('CompetencyAssociationsProvider', () => {
       );
     });
 
-    it('shows the same failure toast when the first request fails', async () => {
+    it('shows the nothing-removed toast, not the partial one, when the first request fails', async () => {
       axiosMock.onDelete(deleteUrlOf(901)).reply(500);
       mockDeletes(905, 906, 903);
       const reads = mockGroupsReads(boxOfThreeResponse, boxOfThreeResponse);
@@ -2203,6 +2197,44 @@ describe('CompetencyAssociationsProvider', () => {
     });
   });
 
+  describe('a delete that settles after the competency changed', () => {
+    const otherTagId = 43;
+    const ui = (id: number) => (
+      <CompetencyAssociationsProvider tagId={id} competencyName="Competency" competencyExternalId="CCRS-1.3">
+        <TestConsumer />
+      </CompetencyAssociationsProvider>
+    );
+
+    it.each([
+      { label: 'delete-group-10' },
+      { label: 'remove-sub-a-chip' },
+      { label: 'delete-rule-box-10-70' },
+    ])('leaves the new competency\'s selection and keyboard focus alone ($label)', async ({ label }) => {
+      axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {});
+      axiosMock.onDelete(apiUrls.deleteCompetencyCriterion(tagId, 901)).reply(200, { id: 901, archived: false });
+      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      axiosMock.onGet(apiUrls.competencyCriteriaGroups(otherTagId)).reply(200, courseBGroupsResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      const { rerender } = render(ui(tagId));
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      await userEvent.click(screen.getByText(label));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+
+      rerender(ui(otherTagId));
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      await userEvent.click(screen.getByText('selection-group-20'));
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":20');
+      await act(async () => {
+        reads.release();
+      });
+
+      await waitFor(() => expect(screen.getByTestId('is-deleting')).toHaveTextContent('false'));
+      expect(screen.getByTestId('selection')).toHaveTextContent('"groupId":20');
+      expect(screen.getByTestId('keyboard-focus-request')).toHaveTextContent('null');
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+  });
+
   describe('removePlaceholderGroup', () => {
     it('sends no request, and selects the last saved group of the placeholder\'s course with a keyboard request', async () => {
       axiosMock.onGet(groupsUrl).reply(200, twoGroupsWithCriteriaResponse);
@@ -2271,6 +2303,18 @@ describe('CompetencyAssociationsProvider', () => {
       expect(axiosMock.history.delete).toHaveLength(0);
       expect(axiosMock.history.patch).toHaveLength(0);
       expect(axiosMock.history.post).toHaveLength(0);
+    });
+
+    it('clears a duplicate rejection along with the placeholder', async () => {
+      await renderWithPlaceholderRuleBox(twoBoxesInGroupResponse);
+      // The untouched placeholder's default score duplicates the group's saved default box.
+      await userEvent.click(screen.getByText('associate-course-a'));
+      expect(screen.getByTestId('duplicate-rejected')).toHaveTextContent('true');
+
+      await userEvent.click(screen.getByText('remove-placeholder-rule-box'));
+
+      expect(screen.getByTestId('has-placeholder')).toHaveTextContent('false');
+      expect(screen.getByTestId('duplicate-rejected')).toHaveTextContent('false');
     });
 
     it('clears the selection when the group has no saved box to return to', async () => {

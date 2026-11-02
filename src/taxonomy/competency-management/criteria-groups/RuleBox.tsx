@@ -49,7 +49,8 @@ export interface RuleBoxProps {
  * box instead of chips, no `selectRuleBox` on click, and a score field that
  * writes to `CompetencyAssociationsContext`'s `placeholder` state instead of
  * persisting. In a saved group, each box has a ⋮ menu whose Remove rule
- * item deletes it, or discards the placeholder (`#833`).
+ * item deletes it, or discards the placeholder; without `canEdit` the menu
+ * is not rendered at all.
  */
 const RuleBox = ({
   groupId,
@@ -129,7 +130,10 @@ const RuleBox = ({
         </button>
       )}
       <div className="d-flex align-items-start">
-        {/* A wrapper, so the field's span root is not blockified and given `.pgn__form-group`'s bottom margin. */}
+        {
+          /* As a flex child, the field's span root would become a block and take `.pgn__form-group`'s bottom margin;
+            inside this wrapper it stays inline, where that margin has no effect. */
+        }
         <div className="flex-grow-1">
           <ScoreThresholdField
             rulePayload={rule.rulePayload}
@@ -140,7 +144,10 @@ const RuleBox = ({
             hintIsError={isRejected}
           />
         </div>
-        {/* The placeholder group's own menu removes its placeholder rule box too. */}
+        {
+          /* `groupId` is null only inside a placeholder group, so its rule box gets no menu here; the group's own
+            menu removes the box with the group. */
+        }
         {canEdit && groupId !== null && (
           <Dropdown>
             <Dropdown.Toggle

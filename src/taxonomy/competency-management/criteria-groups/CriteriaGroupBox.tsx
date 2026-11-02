@@ -14,7 +14,7 @@ import LogicOperatorSelect from './LogicOperatorSelect';
 import RuleBoxList from './RuleBoxList';
 import messages from './messages';
 
-const isTextEntryElement = (element: Element | null): boolean => (
+const isInputOrEditableElement = (element: Element | null): boolean => (
   element instanceof HTMLInputElement
   || element instanceof HTMLTextAreaElement
   || element instanceof HTMLSelectElement
@@ -78,7 +78,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   useEffect(() => {
     if (takesKeyboardFocus && selectButtonRef.current) {
       // Stealing focus from a text field would blur it, and `ScoreThresholdField` saves on blur.
-      if (!isTextEntryElement(document.activeElement)) {
+      if (!isInputOrEditableElement(document.activeElement)) {
         selectButtonRef.current.focus({ preventScroll: true });
       }
       consumeKeyboardFocusRequest();

@@ -42,8 +42,10 @@ export function usePlaceholderState(setSelection: Dispatch<SetStateAction<Criter
     setDuplicateRejected(false);
   }, []);
 
-  const discardPlaceholder = useCallback(() => {
-    setSelection(null);
+  // The placeholder is `selection` with `ruleKey === null`, so moving `selection` to `next` is what removes it.
+  const discardPlaceholder = useCallback((next: CriteriaSelection | null = null) => {
+    setSelection(next);
+    setPlaceholder(EMPTY_PLACEHOLDER);
     setDuplicateRejected(false);
   }, [setSelection]);
 
