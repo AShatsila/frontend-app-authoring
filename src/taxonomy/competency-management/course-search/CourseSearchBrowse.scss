@@ -68,6 +68,11 @@
     --pgn-size-search-field-border-radius: var(--pgn-size-border-radius-base);
   }
 
+  &__summary {
+    overflow-wrap: anywhere;
+    min-height: 1.5em;
+  }
+
   // Shared white envelope for `&__associations` and `&__container` below,
   // so the two read as one continuous column instead of two separate boxes.
   // `flex: 1` (this element is a flex child of the root `.course-search-
@@ -158,17 +163,17 @@
     letter-spacing: normal;
   }
 
-  // Always shown: there's no backend endpoint yet to list a competency's
-  // actual associations (see `CourseSearchBrowse.tsx`).
   &__associations-empty-state {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 13rem;
     margin-top: 8px;
-    font-size: 15.8px;
-    line-height: 24.5px;
-    letter-spacing: normal;
+    padding: 32px 16px;
     background-color: var(--pgn-color-info-100);
-    border-radius: 12px; // approximate "border-radius/lg" token value - confirm later
+    border-radius: var(--pgn-size-border-radius-base);
+    box-shadow: $block-shadow;
     text-align: center;
-    padding: 32px 16px; // approximate - not directly readable from the inspector screenshot, confirm later
   }
 
   // A node with children's own envelope, recursing to any depth - shared by

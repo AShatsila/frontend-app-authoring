@@ -1,6 +1,15 @@
 import type { UseQueryResult } from '@tanstack/react-query';
-import { initializeMocks, render, screen } from '@src/testUtils';
-import { buildMockCompetencyAssociationsContextValue, MockCompetencyAssociationsProvider } from '../testHelpers';
+import {
+  initializeMocks,
+  render,
+  screen,
+  within,
+} from '@src/testUtils';
+import {
+  buildMockCompetencyAssociationsContextValue,
+  byTextContent,
+  MockCompetencyAssociationsProvider,
+} from '../testHelpers';
 import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from '../data/types';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import CourseGroupList from './CourseGroupList';
@@ -13,7 +22,12 @@ const systemDefaultProfile: CompetencyRuleProfile = {
   archived: false,
 };
 
-const emptyGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [] };
+const emptyGroupsResponse: CompetencyCriteriaGroupsResponse = {
+  groups: [],
+  criteria: [],
+  criteriaCount: 0,
+  totalCriteriaCount: 0,
+};
 
 const populatedGroupsResponse: CompetencyCriteriaGroupsResponse = {
   groups: [
@@ -39,23 +53,32 @@ const populatedGroupsResponse: CompetencyCriteriaGroupsResponse = {
     },
   ],
   criteria: [],
+  criteriaCount: 0,
+  totalCriteriaCount: 0,
 };
 
 const buildQueryResult = <T,>(overrides: Partial<UseQueryResult<T>>): UseQueryResult<T> => ({
+  isPending: false,
   isLoading: false,
   isError: false,
   data: undefined,
   ...overrides,
 } as UseQueryResult<T>);
 
-const loadingGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ isLoading: true });
+const loadingGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ isPending: true, isLoading: true });
+/** Disabled until the course list reports its keys: pending, but not loading, since nothing is fetching. */
+const awaitingCourseKeysGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({
+  isPending: true,
+  isLoading: false,
+  fetchStatus: 'idle',
+});
 const loadedEmptyGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ data: emptyGroupsResponse });
 const loadedPopulatedGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({
   data: populatedGroupsResponse,
 });
 const erroredGroupsQuery = buildQueryResult<CompetencyCriteriaGroupsResponse>({ isError: true });
 
-const loadingProfileQuery = buildQueryResult<CompetencyRuleProfile>({ isLoading: true });
+const loadingProfileQuery = buildQueryResult<CompetencyRuleProfile>({ isPending: true, isLoading: true });
 const loadedProfileQuery = buildQueryResult<CompetencyRuleProfile>({ data: systemDefaultProfile });
 const erroredProfileQuery = buildQueryResult<CompetencyRuleProfile>({ isError: true });
 
@@ -77,6 +100,13 @@ describe('<CourseGroupList />', () => {
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
+  it('renders a loading state, not the empty state, while the groups query waits for course keys', () => {
+    renderList({ groupsQuery: awaitingCourseKeysGroupsQuery, profileQuery: loadedProfileQuery });
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Test Competency yet.'))).not
+      .toBeInTheDocument();
+  });
+
   it('renders a loading state while the default-rule-profile query is still loading, even if groups already loaded', () => {
     renderList({ groupsQuery: loadedEmptyGroupsQuery, profileQuery: loadingProfileQuery });
     expect(screen.getByRole('status')).toBeInTheDocument();
@@ -92,7 +122,8 @@ describe('<CourseGroupList />', () => {
       areCourseOutlinesLoading: true,
     });
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Test Competency yet.'))).not
+      .toBeInTheDocument();
   });
 
   it('renders a failed state when the groups query errors', () => {
@@ -124,8 +155,8 @@ describe('<CourseGroupList />', () => {
       systemDefaultProfile,
       accessibleCourseGroups: [],
     });
-    expect(screen.getByText('No content associated.')).toBeInTheDocument();
-    expect(screen.getByText('Make content selections to associate this competency with course content.'))
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.'))).toBeInTheDocument();
+    expect(screen.getByText('Make content selections to create competency criteria associations.'))
       .toBeInTheDocument();
   });
 
@@ -142,9 +173,51 @@ describe('<CourseGroupList />', () => {
         // check, so it must render identically to no associations at all.
         accessibleCourseGroups: [],
       });
-      expect(screen.getByText('No content associated.')).toBeInTheDocument();
+      expect(screen.getByText(byTextContent('No content associated with Test Competency yet.'))).toBeInTheDocument();
     },
   );
+
+  it('takes keyboard focus on the empty state once course outlines load, when a request was waiting', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    const value = {
+      groupsQuery: loadedEmptyGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index: buildCompetencyCriteriaGroupsIndex(emptyGroupsResponse),
+      systemDefaultProfile,
+      accessibleCourseGroups: [],
+      keyboardFocusRequest: { kind: 'empty' } as const,
+      consumeKeyboardFocusRequest,
+    };
+    const { rerender } = render(
+      <MockCompetencyAssociationsProvider value={{ ...value, areCourseOutlinesLoading: true }}>
+        <CourseGroupList />
+      </MockCompetencyAssociationsProvider>,
+    );
+    expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+
+    rerender(
+      <MockCompetencyAssociationsProvider value={{ ...value, areCourseOutlinesLoading: false }}>
+        <CourseGroupList />
+      </MockCompetencyAssociationsProvider>,
+    );
+
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.')).parentElement)
+      .toHaveFocus();
+    expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the accessible course group sections without waiting on other courses\' outlines', async () => {
+    const index = buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse);
+    renderList({
+      groupsQuery: loadedPopulatedGroupsQuery,
+      profileQuery: loadedProfileQuery,
+      index,
+      systemDefaultProfile,
+      accessibleCourseGroups: index.courseGroups,
+      areCourseOutlinesLoading: true,
+    });
+    expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
+  });
 
   it('renders course group sections for every accessible course-level group', async () => {
     const index = buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse);
@@ -155,7 +228,8 @@ describe('<CourseGroupList />', () => {
       systemDefaultProfile,
       accessibleCourseGroups: index.courseGroups,
     });
-    expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
+    expect(screen.queryByText(byTextContent('No content associated with Test Competency yet.'))).not
+      .toBeInTheDocument();
     // The outline isn't mocked here, so it degrades to the raw course id via
     // its defensive fallback - enough to prove a real `CourseGroupSection`
     // was mounted.
@@ -174,7 +248,8 @@ describe('<CourseGroupList />', () => {
       consumeKeyboardFocusRequest,
     });
 
-    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.')).parentElement)
+      .toHaveFocus();
     expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
   });
 
@@ -187,6 +262,74 @@ describe('<CourseGroupList />', () => {
       accessibleCourseGroups: [],
     });
 
-    expect(screen.getByText('No content associated.').parentElement).not.toHaveFocus();
+    expect(screen.getByText(byTextContent('No content associated with Test Competency yet.')).parentElement).not
+      .toHaveFocus();
+  });
+
+  describe('the empty state when no associations are in the listed courses', () => {
+    const noAssociationsMessage = 'No content associated with Test Competency yet.';
+    const noAssociationsPromptMessage = 'Make content selections to create competency criteria associations.';
+    const outOfViewMessage = 'No content associated with Test Competency in the courses listed here.';
+
+    /** Only the counts decide the message, so the empty arrays here needn't agree with them. */
+    const buildCountsResponse = (criteriaCount: number, totalCriteriaCount: number) => ({
+      ...emptyGroupsResponse,
+      criteriaCount,
+      totalCriteriaCount,
+    });
+
+    const renderEmptyList = (
+      data: CompetencyCriteriaGroupsResponse,
+      overrides: Parameters<typeof buildMockCompetencyAssociationsContextValue>[0] = {},
+    ) =>
+      renderList({
+        groupsQuery: buildQueryResult<CompetencyCriteriaGroupsResponse>({ data }),
+        profileQuery: loadedProfileQuery,
+        index: buildCompetencyCriteriaGroupsIndex(data),
+        systemDefaultProfile,
+        accessibleCourseGroups: [],
+        ...overrides,
+      });
+
+    it('says "no content associated" only when the competency has no associations anywhere', () => {
+      renderEmptyList(buildCountsResponse(0, 0));
+      const firstLine = screen.getByText(byTextContent(noAssociationsMessage));
+      expect(firstLine).toBeInTheDocument();
+      expect(within(firstLine).getByText('Test Competency', { selector: 'strong' })).toBeInTheDocument();
+      expect(screen.getByText(noAssociationsPromptMessage)).toBeInTheDocument();
+    });
+
+    it.each([
+      // Some of the competency's criteria are in courses not listed.
+      { criteriaCount: 0, totalCriteriaCount: 1 },
+      { criteriaCount: 1, totalCriteriaCount: 3 },
+      // The listed courses hold every criterion, but none of those courses is accessible.
+      { criteriaCount: 2, totalCriteriaCount: 2 },
+    ])(
+      'says none are in the listed courses, never "no content associated", when $criteriaCount of '
+        + '$totalCriteriaCount associations are in them',
+      ({ criteriaCount, totalCriteriaCount }) => {
+        renderEmptyList(buildCountsResponse(criteriaCount, totalCriteriaCount));
+        const firstLine = screen.getByText(byTextContent(outOfViewMessage));
+        expect(firstLine).toBeInTheDocument();
+        expect(within(firstLine).getByText('Test Competency', { selector: 'strong' })).toBeInTheDocument();
+        expect(screen.getByText(noAssociationsPromptMessage)).toBeInTheDocument();
+        expect(screen.queryByText(byTextContent(noAssociationsMessage))).not.toBeInTheDocument();
+      },
+    );
+
+    it.each([
+      { state: 'the groups query is pending', overrides: { groupsQuery: loadingGroupsQuery } },
+      { state: 'the groups query waits for course keys', overrides: { groupsQuery: awaitingCourseKeysGroupsQuery } },
+      { state: 'the default-rule-profile query is pending', overrides: { profileQuery: loadingProfileQuery } },
+      { state: 'course outlines are loading', overrides: { areCourseOutlinesLoading: true } },
+      { state: 'the groups query errored', overrides: { groupsQuery: erroredGroupsQuery } },
+      { state: 'the default-rule-profile query errored', overrides: { profileQuery: erroredProfileQuery } },
+    ])('shows no empty state while $state', ({ overrides }) => {
+      renderEmptyList(buildCountsResponse(1, 3), overrides);
+      expect(screen.queryByText(byTextContent(noAssociationsMessage))).not.toBeInTheDocument();
+      expect(screen.queryByText(byTextContent(outOfViewMessage))).not.toBeInTheDocument();
+      expect(screen.queryByText(noAssociationsPromptMessage)).not.toBeInTheDocument();
+    });
   });
 });

@@ -75,6 +75,86 @@ const messages = defineMessages({
       + 'calendar, filtering the course list to courses starting on or after the chosen start date and/or on or '
       + 'before the chosen end date. Always reads this fixed text, even once a range is picked.',
   },
+  coursesSummary: {
+    id: 'course-authoring.competency-management.course-search.courses-summary',
+    defaultMessage: 'Showing <strong>{listedCount}</strong> of '
+      + '<strong>{totalCount, plural, one {# Course} other {# Courses}}</strong>'
+      + ', and <strong>{listedAssociationCount}</strong> of <strong>{totalAssociationCount, plural, '
+      + 'one {# Competency Criteria Association} other {# Competency Criteria Associations}}</strong>',
+    description: 'Summary line under the course search field when no search term or start-date filter is '
+      + 'applied. {listedCount} is the number of courses on the current page of the course list; {totalCount} is '
+      + 'every course the user can access, ignoring any search or filter.'
+      + ' {listedAssociationCount} is the number of the competency\'s criteria associations in the listed '
+      + 'courses; {totalAssociationCount} is every one of its associations, in any course.',
+  },
+  coursesSummaryWithSearch: {
+    id: 'course-authoring.competency-management.course-search.courses-summary-with-search',
+    defaultMessage: 'Showing <strong>{listedCount}</strong> of '
+      + '<strong>{totalCount, plural, one {# Course} other {# Courses}}</strong> containing <strong>“{searchTerm}”</strong>'
+      + ', and <strong>{listedAssociationCount}</strong> of <strong>{totalAssociationCount, plural, '
+      + 'one {# Competency Criteria Association} other {# Competency Criteria Associations}}</strong>',
+    description: 'Summary line under the course search field when only a search term is applied. {listedCount} '
+      + 'is the number of courses on the current page of the course list; {totalCount} is every course the user '
+      + 'can access, ignoring any search or filter; {searchTerm} is the search term, possibly truncated.'
+      + ' {listedAssociationCount} is the number of the competency\'s criteria associations in the listed '
+      + 'courses; {totalAssociationCount} is every one of its associations, in any course.',
+  },
+  coursesSummaryWithStartDate: {
+    id: 'course-authoring.competency-management.course-search.courses-summary-with-start-date',
+    defaultMessage: 'Showing <strong>{listedCount}</strong> of '
+      + '<strong>{totalCount, plural, one {# Course} other {# Courses}}</strong> starting on or after '
+      + '<strong>{startDate}</strong>'
+      + ', and <strong>{listedAssociationCount}</strong> of <strong>{totalAssociationCount, plural, '
+      + 'one {# Competency Criteria Association} other {# Competency Criteria Associations}}</strong>',
+    description: 'Summary line under the course search field when only a start date (no end date) is picked in '
+      + 'the start-date filter. {listedCount} is the number of courses on the current page of the course list; '
+      + '{totalCount} is every course the user can access, ignoring any search or filter; {startDate} is the '
+      + 'picked date.'
+      + ' {listedAssociationCount} is the number of the competency\'s criteria associations in the listed '
+      + 'courses; {totalAssociationCount} is every one of its associations, in any course.',
+  },
+  coursesSummaryWithDateRange: {
+    id: 'course-authoring.competency-management.course-search.courses-summary-with-date-range',
+    defaultMessage: 'Showing <strong>{listedCount}</strong> of '
+      + '<strong>{totalCount, plural, one {# Course} other {# Courses}}</strong> starting between '
+      + '<strong>{startDate}</strong> and <strong>{endDate}</strong>'
+      + ', and <strong>{listedAssociationCount}</strong> of <strong>{totalAssociationCount, plural, '
+      + 'one {# Competency Criteria Association} other {# Competency Criteria Associations}}</strong>',
+    description: 'Summary line under the course search field when a start and end date are picked in the '
+      + 'start-date filter. {listedCount} is the number of courses on the current page of the course list; '
+      + '{totalCount} is every course the user can access, ignoring any search or filter; {startDate} and '
+      + '{endDate} are the picked dates.'
+      + ' {listedAssociationCount} is the number of the competency\'s criteria associations in the listed '
+      + 'courses; {totalAssociationCount} is every one of its associations, in any course.',
+  },
+  coursesSummaryWithSearchAndStartDate: {
+    id: 'course-authoring.competency-management.course-search.courses-summary-with-search-and-start-date',
+    defaultMessage: 'Showing <strong>{listedCount}</strong> of '
+      + '<strong>{totalCount, plural, one {# Course} other {# Courses}}</strong> containing <strong>“{searchTerm}”</strong>, '
+      + 'starting on or after <strong>{startDate}</strong>'
+      + ', and <strong>{listedAssociationCount}</strong> of <strong>{totalAssociationCount, plural, '
+      + 'one {# Competency Criteria Association} other {# Competency Criteria Associations}}</strong>',
+    description: 'Summary line under the course search field when a search term and a start date (no end date) '
+      + 'are applied. {listedCount} is the number of courses on the current page of the course list; {totalCount} '
+      + 'is every course the user can access, ignoring any search or filter; {searchTerm} is the search term, '
+      + 'possibly truncated; {startDate} is the picked date.'
+      + ' {listedAssociationCount} is the number of the competency\'s criteria associations in the listed '
+      + 'courses; {totalAssociationCount} is every one of its associations, in any course.',
+  },
+  coursesSummaryWithSearchAndDateRange: {
+    id: 'course-authoring.competency-management.course-search.courses-summary-with-search-and-date-range',
+    defaultMessage: 'Showing <strong>{listedCount}</strong> of '
+      + '<strong>{totalCount, plural, one {# Course} other {# Courses}}</strong> containing <strong>“{searchTerm}”</strong>, '
+      + 'starting between <strong>{startDate}</strong> and <strong>{endDate}</strong>'
+      + ', and <strong>{listedAssociationCount}</strong> of <strong>{totalAssociationCount, plural, '
+      + 'one {# Competency Criteria Association} other {# Competency Criteria Associations}}</strong>',
+    description: 'Summary line under the course search field when a search term and a start and end date are '
+      + 'applied. {listedCount} is the number of courses on the current page of the course list; {totalCount} is '
+      + 'every course the user can access, ignoring any search or filter; {searchTerm} is the search term, '
+      + 'possibly truncated; {startDate} and {endDate} are the picked dates.'
+      + ' {listedAssociationCount} is the number of the competency\'s criteria associations in the listed '
+      + 'courses; {totalAssociationCount} is every one of its associations, in any course.',
+  },
   clearDateRangeButtonLabel: {
     id: 'course-authoring.competency-management.course-search.clear-date-range-button-label',
     defaultMessage: 'Clear dates',
@@ -94,15 +174,24 @@ const messages = defineMessages({
   },
   noAssociationsMessage: {
     id: 'course-authoring.competency-management.course-search.no-associations-message',
-    defaultMessage: 'No content associated.',
+    defaultMessage: 'No content associated with {competencyName} yet.',
     description: 'First line of the empty state shown in the associations block when the selected competency '
-      + 'has no course content associated with it yet.',
+      + 'has no criteria associations in any course. {competencyName} is the selected competency\'s name, '
+      + 'shown in bold.',
+  },
+  noAssociationsInListedCoursesMessage: {
+    id: 'course-authoring.competency-management.course-search.no-associations-in-listed-courses-message',
+    defaultMessage: 'No content associated with {competencyName} in the courses listed here.',
+    description: 'First line of the empty state shown in the associations block when the selected competency has '
+      + 'criteria associations, but none in the courses currently listed in the course list below that the user '
+      + 'can view. {competencyName} is the selected competency\'s name, shown in bold. The summary line above the '
+      + 'course list gives the counts.',
   },
   noAssociationsPromptMessage: {
     id: 'course-authoring.competency-management.course-search.no-associations-prompt-message',
-    defaultMessage: 'Make content selections to associate this competency with course content.',
-    description: 'Second line of the static empty state shown in the associations block, prompting the user '
-      + 'to make content selections below.',
+    defaultMessage: 'Make content selections to create competency criteria associations.',
+    description: 'Second line of the empty state shown in the associations block, prompting the user '
+      + 'to make content selections in the course list below.',
   },
   competencyIdAccessibleLabel: {
     id: 'course-authoring.competency-management.course-search.competency-id.accessible-label',

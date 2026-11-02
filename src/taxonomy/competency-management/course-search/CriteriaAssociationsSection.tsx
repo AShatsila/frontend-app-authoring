@@ -1,6 +1,7 @@
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Badge } from '@openedx/paragon';
 
+import CenteredSpinner from '@src/taxonomy/competency-management/CenteredSpinner';
 import type { CompetencyTreeNode } from '../CompetencyTree';
 import { CourseGroupList } from '../criteria-groups';
 import messages from './messages';
@@ -10,6 +11,12 @@ export interface CriteriaAssociationsSectionProps {
    * For" line along with its Competency ID badge.
    */
   competency: CompetencyTreeNode;
+  /** The status of the course list below this section, as the groups see it:
+   * they are scoped to the listed courses, so `CourseGroupList` only renders
+   * once that list has loaded and the context's scope matches it. The parent
+   * passes `'pending'` for the commit in between (see `CourseSearchBrowse`).
+   */
+  courseListStatus: 'pending' | 'error' | 'success';
 }
 
 /** The associations section above "Courses & Content": the selected
@@ -21,7 +28,7 @@ export interface CriteriaAssociationsSectionProps {
  * label/mastery lines, which need `competency` directly since the context
  * doesn't track its name.
  */
-const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSectionProps) => {
+const CriteriaAssociationsSection = ({ competency, courseListStatus }: CriteriaAssociationsSectionProps) => {
   const intl = useIntl();
 
   return (
@@ -46,7 +53,8 @@ const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSection
           </>
         )}
       </div>
-      <CourseGroupList />
+      {courseListStatus === 'pending' && <CenteredSpinner />}
+      {courseListStatus === 'success' && <CourseGroupList />}
     </div>
   );
 };

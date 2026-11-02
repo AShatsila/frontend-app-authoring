@@ -39,7 +39,7 @@ export const buildMockCompetencyAssociationsContextValue = (
     isLoading: false,
     isError: false,
     isSuccess: true,
-    data: { groups: [], criteria: [] },
+    data: { groups: [], criteria: [], criteriaCount: 0, totalCriteriaCount: 0 },
   } as unknown as CompetencyAssociationsContextValue['groupsQuery'],
   profileQuery: {
     isLoading: false,
@@ -47,15 +47,24 @@ export const buildMockCompetencyAssociationsContextValue = (
     isSuccess: true,
     data: undefined,
   } as unknown as CompetencyAssociationsContextValue['profileQuery'],
+  isLoadingAssociations: false,
   index: undefined,
   systemDefaultProfile: undefined,
   associatedObjectIds: new Set(),
   accessibleCourseGroups: [],
   areCourseOutlinesLoading: false,
   competencyExternalId: null,
+  notifyCoursesDisplayed: jest.fn(),
+  displayedCourseKeys: undefined,
   competencyName: 'Test Competency',
   ...overrides,
 });
+
+/** Matches the element whose `textContent` is `text`. Testing Library's string matcher reads only an element's
+ * own text nodes, so it misses text split by a `<strong>`.
+ */
+export const byTextContent = (text: string) => (_content: string, element: Element | null) =>
+  element?.textContent === text;
 
 export interface MockCompetencyAssociationsProviderProps {
   value?: Partial<CompetencyAssociationsContextValue>;

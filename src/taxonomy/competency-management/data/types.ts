@@ -17,7 +17,7 @@
 export type CompetencyGroupLogicOperator = 'AND' | 'OR';
 
 /** One criteria-group row, as returned flat in
- * `CompetencyCriteriaGroupsResponse.groups`. The API models a three-level
+ * `CompetencyCriteriaTree.groups`. The API models a three-level
  * tree per competency (tag) with no `depth` field of its own, so a group's
  * level is inferred structurally from `parentId`/`courseKey`:
  * - root: `parentId: null`, `courseKey: null` - one per competency,
@@ -82,15 +82,25 @@ export interface CompetencyCriterion {
   rulePayloadOverride: GradeRulePayload | null;
 }
 
-/** `#681`'s documented response shape: a flat `groups` array (root,
- * course-level, and leaf rows mixed - see `CompetencyCriteriaGroup`) plus a
- * flat `criteria` array, each criterion pointing at its leaf group by id.
- * See `buildCompetencyCriteriaGroupsIndex` in `../utils` for the tree this
- * gets indexed into.
+/** The flat groups-plus-criteria tree `#681`'s endpoint returns: a flat
+ * `groups` array (root, course-level, and leaf rows mixed - see
+ * `CompetencyCriteriaGroup`) plus a flat `criteria` array, each criterion
+ * pointing at its leaf group by id. See `buildCompetencyCriteriaGroupsIndex`
+ * in `../utils` for the tree this gets indexed into.
  */
-export interface CompetencyCriteriaGroupsResponse {
+export interface CompetencyCriteriaTree {
   groups: CompetencyCriteriaGroup[];
   criteria: CompetencyCriterion[];
+}
+
+/** `#681`'s response: the `CompetencyCriteriaTree`, scoped to the requested
+ * `course_keys`, plus the two counts `#682` adds.
+ */
+export interface CompetencyCriteriaGroupsResponse extends CompetencyCriteriaTree {
+  /** The number of criteria in this response, i.e. after scoping to `course_keys` (`#682`). */
+  criteriaCount: number;
+  /** The competency's non-archived criteria across the whole instance, ignoring `course_keys` (`#682`). */
+  totalCriteriaCount: number;
 }
 
 /** One competency rule profile (`#773`) - the studio-wide default is the
