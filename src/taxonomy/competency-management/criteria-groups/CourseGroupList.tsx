@@ -49,7 +49,8 @@ const CourseGroupList = () => {
     );
   }
 
-  if (groupsQuery.isError || profileQuery.isError || !index || !profileQuery.data) {
+  // A failed refetch keeps the cached groups listed, so an item whose delete failed stays on the page.
+  if ((groupsQuery.isError && !groupsQuery.data) || profileQuery.isError || !index || !profileQuery.data) {
     return (
       <AlertMessage
         variant="danger"

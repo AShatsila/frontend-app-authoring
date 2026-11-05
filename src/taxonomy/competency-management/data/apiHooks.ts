@@ -168,9 +168,8 @@ export const useDeleteCompetencyCriterion = () => {
 };
 
 /**
- * Deletes a rule box's criteria, one request at a time: the backend removes a group only when a delete finds
- * it empty, so concurrent deletes would each see the others' criteria and leave an empty group stored.
- * Stops at the first failure; a 404 means the criterion is already gone, so it doesn't count as one.
+ * Deletes a rule box's criteria, one request at a time, so it stops at the first failure and the dialog can
+ * report what is left. A 404 means the criterion is already gone, so it doesn't count as a failure.
  * `onSettled` returns the refetch promise, so `isPending` stays true until the panel is fresh: otherwise the
  * stale box would briefly show an enabled ⋮ whose next click re-sends ids that are already gone.
  */

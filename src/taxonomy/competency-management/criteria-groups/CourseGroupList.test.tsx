@@ -107,6 +107,21 @@ describe('<CourseGroupList />', () => {
       .toBeInTheDocument();
   });
 
+  it('keeps the cached groups listed, with no failed state, when a refetch fails', async () => {
+    const index = buildCompetencyCriteriaGroupsIndex(populatedGroupsResponse);
+    renderList({
+      groupsQuery: buildQueryResult<CompetencyCriteriaGroupsResponse>({ isError: true, data: populatedGroupsResponse }),
+      profileQuery: loadedProfileQuery,
+      index,
+      systemDefaultProfile,
+      accessibleCourseGroups: index.courseGroups,
+    });
+
+    expect(await screen.findByText('course-v1:OrgX+CS101+2024')).toBeInTheDocument();
+    expect(screen.queryByText('There was a problem loading this competency\'s associations. Please try again.'))
+      .not.toBeInTheDocument();
+  });
+
   it('renders no "+ Rule"/"+ Rule Group" add control on a failed load', () => {
     renderList({ groupsQuery: erroredGroupsQuery, profileQuery: loadedProfileQuery });
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
