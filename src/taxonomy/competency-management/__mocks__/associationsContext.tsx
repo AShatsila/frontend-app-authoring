@@ -50,6 +50,7 @@ export const buildMockCompetencyAssociationsContextValue = (
     hasPermissionsError: false,
     expansionCountByCourseId: {},
     canEditCourse: () => true,
+    isCourseGroupArchived: () => false,
     associatedObjectIds: new Set(),
     accessibleCourseGroups: [],
     competencyExternalId: null,

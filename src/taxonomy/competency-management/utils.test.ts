@@ -106,6 +106,7 @@ const fixtureResponse: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: { op: 'lte', value: 0.5, scale: 'percent' },
     }),
   ],
+  archivedCourseKeys: [],
 };
 
 describe('buildCompetencyCriteriaGroupsIndex', () => {
@@ -227,6 +228,7 @@ const reversedIdsResponse: CompetencyCriteriaGroupsResponse = {
     },
   ],
   criteria: [],
+  archivedCourseKeys: [],
 };
 
 describe('bottomTierGroupsForCourse', () => {
@@ -288,6 +290,7 @@ describe('lastBottomTierGroupForCourse', () => {
         },
       ],
       criteria: [],
+      archivedCourseKeys: [],
     };
     const index = buildCompetencyCriteriaGroupsIndex(tieResponse);
     const last = lastBottomTierGroupForCourse(index, 'course-v1:OrgX+CS101+2024');
@@ -313,6 +316,7 @@ describe('lastBottomTierGroupForCourse', () => {
         },
       ],
       criteria: [],
+      archivedCourseKeys: [],
     };
     const index = buildCompetencyCriteriaGroupsIndex(noChildrenResponse);
     expect(lastBottomTierGroupForCourse(index, 'course-v1:OrgX+CS101+2024')).toBeNull();
@@ -424,6 +428,7 @@ const buildTree = (courses: Array<{ id: number; ruleGroupIds: number[]; }>) => {
       ]),
     ],
     criteria: [],
+    archivedCourseKeys: [],
   };
   return buildCompetencyCriteriaGroupsIndex(response);
 };

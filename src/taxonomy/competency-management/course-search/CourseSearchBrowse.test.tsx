@@ -14,11 +14,13 @@ import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { CompetencyAssociationsProvider } from '../CompetencyAssociationsContext';
 import { defaultProfileResponse, MockCompetencyAssociationsProvider } from '../__mocks__';
 import { apiUrls as competencyManagementApiUrls } from '../data/api';
+import { competencyQueryKeys } from '../data/apiHooks';
 import type { CompetencyTreeNode } from '../CompetencyTree';
 import CourseRow from './CourseRow';
 import CourseSearchBrowse from './CourseSearchBrowse';
 
 let axiosMock;
+let queryClient: ReturnType<typeof initializeMocks>['queryClient'];
 
 const coursesApiUrl = `${getApiBaseUrl()}/api/contentstore/v2/home/courses`;
 
@@ -85,7 +87,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
   });
 
   beforeEach(() => {
-    ({ axiosMock } = initializeMocks());
+    ({ axiosMock, queryClient } = initializeMocks());
     axiosMock.onGet(competencyManagementApiUrls.competencyCriteriaGroups(Number(activeCompetency.id)))
       .reply(200, { groups: [], criteria: [] });
     axiosMock.onGet(competencyManagementApiUrls.defaultCompetencyRuleProfile()).reply(200, defaultProfileResponse);
@@ -492,6 +494,73 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       // sent as an empty query param, which is what these assertions rule out.
       expect(lastRequestParams().start_date_on_or_after).toBeUndefined();
       expect(lastRequestParams().start_date_on_or_before).toBeUndefined();
+    });
+  });
+
+  describe('archived courses', () => {
+    it('swaps an expanded course\'s outline for the archived message when a refetch archives it', async () => {
+      const courseA = buildCourse();
+      const courseB = buildCourse({
+        courseKey: 'course-v1:OrgX+CS102+2024',
+        displayName: 'Advanced Testing',
+        url: '/course/course-v1:OrgX+CS102+2024',
+      });
+      const archivedMessage = /This course's rules for this competency were archived/;
+      const groupsUrl = competencyManagementApiUrls.competencyCriteriaGroups(Number(activeCompetency.id));
+      let groupsRequests = 0;
+      let releaseRefetch = () => {};
+      axiosMock.onGet(groupsUrl).reply(() => {
+        groupsRequests += 1;
+        if (groupsRequests === 1) {
+          return [200, { groups: [], criteria: [], archived_course_keys: [courseB.courseKey] }];
+        }
+        return new Promise((resolve) => {
+          releaseRefetch = () =>
+            resolve([200, {
+              groups: [],
+              criteria: [],
+              archived_course_keys: [courseA.courseKey, courseB.courseKey],
+            }]);
+        });
+      });
+      axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA, courseB]));
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(
+        200,
+        buildOutlineIndex({
+          sections: [{
+            id: 'section-1',
+            displayName: 'Section 1',
+            children: [{ id: 'sub-1a', displayName: 'Subsection 1A', overrides: { graded: true } }],
+          }],
+        }),
+      );
+      renderCourseSearchBrowse();
+      await screen.findByText('No content associated.');
+
+      // Course B first: once course A's outline renders, its own section toggle is also named "Expand".
+      fireEvent.click(screen.getAllByRole('button', { name: 'Expand' })[1]);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Expand' })[0]);
+      expect(await screen.findByText('Section 1')).toBeInTheDocument();
+      expect(screen.getAllByText(archivedMessage)).toHaveLength(1);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+      act(() => {
+        void queryClient.invalidateQueries({
+          queryKey: competencyQueryKeys.competencyCriteriaGroups(Number(activeCompetency.id)),
+        });
+      });
+      await waitFor(() => expect(groupsRequests).toBe(2));
+      expect(screen.getByText('Section 1')).toBeInTheDocument();
+      expect(screen.getAllByText(archivedMessage)).toHaveLength(1);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+      await act(async () => {
+        releaseRefetch();
+      });
+
+      await waitFor(() => expect(screen.getAllByText(archivedMessage)).toHaveLength(2));
+      expect(screen.queryByText('Section 1')).not.toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
   });
 

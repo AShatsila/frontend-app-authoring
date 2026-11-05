@@ -60,6 +60,10 @@ export interface CompetencyCriterion {
 export interface CompetencyCriteriaGroupsResponse {
   groups: CompetencyCriteriaGroup[];
   criteria: CompetencyCriterion[];
+  /** Course run keys whose course-level group for this competency is archived (`#840`).
+   * A missing field, from a backend without #840, reads as empty.
+   */
+  archivedCourseKeys: string[];
 }
 
 export interface CompetencyRuleProfile {

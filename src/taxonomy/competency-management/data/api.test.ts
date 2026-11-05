@@ -16,7 +16,7 @@ const tagId = 42;
 describe('competency-management api calls', () => {
   it('gets a competency\'s criteria groups', async () => {
     const { axiosMock } = initializeMocks();
-    const mockResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [] };
+    const mockResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [], archivedCourseKeys: [] };
     axiosMock.onGet(apiUrls.competencyCriteriaGroups(tagId)).reply(200, mockResponse);
 
     const result = await getCompetencyCriteriaGroups(tagId);
