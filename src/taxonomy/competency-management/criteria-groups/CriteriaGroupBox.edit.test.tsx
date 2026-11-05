@@ -58,6 +58,7 @@ const response: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: null,
     },
   ],
+  archivedCourseKeys: [],
 };
 
 const index = buildCompetencyCriteriaGroupsIndex(response);

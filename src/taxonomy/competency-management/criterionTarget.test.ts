@@ -51,6 +51,7 @@ const response: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: { op: 'lte', value: 0.5, scale: 'percent' },
     }),
   ],
+  archivedCourseKeys: [],
 };
 
 const index = buildCompetencyCriteriaGroupsIndex(response);

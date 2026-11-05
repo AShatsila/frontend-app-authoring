@@ -36,11 +36,12 @@ export const buildMockCompetencyAssociationsContextValue = (
   consumeKeyboardFocusRequest: jest.fn(),
   updateRuleScore: jest.fn().mockResolvedValue(undefined),
   canEditCourse: () => true,
+  isCourseGroupArchived: () => false,
   groupsQuery: {
     isLoading: false,
     isError: false,
     isSuccess: true,
-    data: { groups: [], criteria: [] },
+    data: { groups: [], criteria: [], archivedCourseKeys: [] },
   } as unknown as CompetencyAssociationsContextValue['groupsQuery'],
   profileQuery: {
     isLoading: false,

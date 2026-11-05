@@ -13,10 +13,12 @@ import {
 } from '@src/testUtils';
 import { CompetencyAssociationsProvider, useCompetencyAssociations } from './CompetencyAssociationsContext';
 import { apiUrls } from './data/api';
+import { competencyQueryKeys } from './data/apiHooks';
 import type { CompetencyCriteriaGroupsResponse } from './data/types';
 
 let axiosMock: ReturnType<typeof initializeMocks>['axiosMock'];
 let mockShowToast: ReturnType<typeof initializeMocks>['mockShowToast'];
+let queryClient: ReturnType<typeof initializeMocks>['queryClient'];
 
 const tagId = 42;
 const courseA = 'course-v1:OrgX+CS101+2024';
@@ -86,6 +88,7 @@ const singleGroupResponse: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: null,
     },
   ],
+  archivedCourseKeys: [],
 };
 
 /** Same course-level group, but two leaf groups (10 and 11) - so "exactly
@@ -117,6 +120,7 @@ const twoGroupsResponse: CompetencyCriteriaGroupsResponse = {
     { id: 11, parentId: 1, tagId, courseKey: null, name: 'leaf', ordering: 1, logicOperator: 'AND', archived: false },
   ],
   criteria: [],
+  archivedCourseKeys: [],
 };
 
 /** Like `singleGroupResponse`, but its only box is gte 75%, so the 70% default is free. */
@@ -134,7 +138,7 @@ const uniqueDefaultResponse: CompetencyCriteriaGroupsResponse = {
   ],
 };
 
-const noGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [] };
+const noGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [], archivedCourseKeys: [] };
 
 /** Two course-level groups under the same root: courseA (id 1, leaf group
  * 10) and courseB (id 2, leaf group 20) - used to prove a course whose own
@@ -177,6 +181,7 @@ const twoCoursesResponse: CompetencyCriteriaGroupsResponse = {
     { id: 20, parentId: 2, tagId, courseKey: null, name: 'leaf', ordering: 0, logicOperator: 'AND', archived: false },
   ],
   criteria: [],
+  archivedCourseKeys: [],
 };
 
 /** courseA (id 1, leaf 10) and courseB (id 2) with two leaves listed out of
@@ -200,6 +205,7 @@ const courseBGroupsResponse: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: { op: 'eq', value: 1, scale: 'percent' },
     },
   ],
+  archivedCourseKeys: [],
 };
 
 /** Like `twoCoursesResponse`, but group 20 has a criterion, so selecting it yields a real rule key. */
@@ -233,6 +239,7 @@ const twoGroupsWithCriteriaResponse: CompetencyCriteriaGroupsResponse = {
 const afterDeletingGroup10Response: CompetencyCriteriaGroupsResponse = {
   groups: twoGroupsWithCriteriaResponse.groups.filter((group) => group.id !== 10),
   criteria: twoGroupsWithCriteriaResponse.criteria.filter((criterion) => criterion.groupId !== 10),
+  archivedCourseKeys: [],
 };
 
 /** One rule group (10) with two subsections at different grade thresholds, so it renders two rule boxes.
@@ -286,6 +293,8 @@ const TestConsumer = () => {
   return (
     <div>
       <div data-testid="can-edit-course-b">{String(ctx.canEditCourse(courseB))}</div>
+      <div data-testid="is-course-a-archived">{String(ctx.isCourseGroupArchived(courseA))}</div>
+      <div data-testid="is-course-b-archived">{String(ctx.isCourseGroupArchived(courseB))}</div>
       <div data-testid="selection">{JSON.stringify(ctx.selection)}</div>
       <div data-testid="placeholder">{JSON.stringify(ctx.placeholder)}</div>
       <div data-testid="has-placeholder">{String(ctx.hasPlaceholder)}</div>
@@ -382,7 +391,7 @@ describe('CompetencyAssociationsProvider', () => {
   beforeEach(() => {
     delete updateOutcomes.operator;
     delete updateOutcomes.score;
-    ({ axiosMock, mockShowToast } = initializeMocks());
+    ({ axiosMock, mockShowToast, queryClient } = initializeMocks());
   });
 
   describe('initial selection', () => {
@@ -596,6 +605,51 @@ describe('CompetencyAssociationsProvider', () => {
     });
 
     expect(screen.getByTestId('can-edit-course-b')).toHaveTextContent('true');
+  });
+
+  describe('isCourseGroupArchived', () => {
+    it('is true for a course run listed in archivedCourseKeys and false for any other', async () => {
+      const { archivedCourseKeys, ...responseWithoutField } = twoCoursesResponse;
+      axiosMock.onGet(groupsUrl).reply(200, { ...responseWithoutField, archived_course_keys: [courseB] });
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      renderProvider();
+
+      await waitFor(() => expect(screen.getByTestId('is-course-b-archived')).toHaveTextContent('true'));
+      expect(screen.getByTestId('is-course-a-archived')).toHaveTextContent('false');
+    });
+
+    it('is false for every course when the response has no archivedCourseKeys', async () => {
+      const { archivedCourseKeys, ...responseWithoutField } = twoCoursesResponse;
+      axiosMock.onGet(groupsUrl).reply(200, responseWithoutField);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      renderProvider();
+
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      expect(screen.getByTestId('is-course-a-archived')).toHaveTextContent('false');
+      expect(screen.getByTestId('is-course-b-archived')).toHaveTextContent('false');
+    });
+
+    it('flips to true after a refetch that adds the course to archivedCourseKeys, without a remount', async () => {
+      axiosMock.onGet(groupsUrl).replyOnce(200, twoCoursesResponse);
+      axiosMock.onGet(groupsUrl).reply(200, { ...twoCoursesResponse, archivedCourseKeys: [courseB] });
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineFixture);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
+      renderProvider();
+      await waitFor(() => expect(screen.getByTestId('groups-status')).toHaveTextContent('groups-success'));
+      expect(screen.getByTestId('is-course-b-archived')).toHaveTextContent('false');
+
+      await act(async () => {
+        await queryClient.invalidateQueries({ queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId) });
+      });
+
+      await waitFor(() => expect(screen.getByTestId('is-course-b-archived')).toHaveTextContent('true'));
+      expect(screen.getByTestId('is-course-a-archived')).toHaveTextContent('false');
+    });
   });
 
   describe('notifyCourseExpanded selection', () => {
@@ -1621,6 +1675,7 @@ describe('CompetencyAssociationsProvider', () => {
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
         groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 2 && group.id !== 20),
         criteria: twoCoursesWithCriteriaResponse.criteria.filter((criterion) => criterion.groupId === 10),
+        archivedCourseKeys: [],
       });
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineFixture);
       renderProvider();
@@ -1685,6 +1740,7 @@ describe('CompetencyAssociationsProvider', () => {
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
         groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 1 && group.id !== 10),
         criteria: twoCoursesWithCriteriaResponse.criteria.filter((criterion) => criterion.groupId === 20),
+        archivedCourseKeys: [],
       });
       await renderWithSelectionOnGroup10();
 

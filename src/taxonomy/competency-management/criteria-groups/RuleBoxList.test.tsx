@@ -60,6 +60,7 @@ const response: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: { op: 'lte', value: 0.9, scale: 'percent' },
     },
   ],
+  archivedCourseKeys: [],
 };
 
 describe('<RuleBoxList />', () => {
@@ -173,6 +174,7 @@ describe('<RuleBoxList />', () => {
           rulePayloadOverride: { op: 'gte', value: 0.8, scale: 'percent' },
         },
       ],
+      archivedCourseKeys: [],
     };
 
     const renderEditableBoxes = (updateRuleScore: jest.Mock) => {
@@ -232,6 +234,7 @@ describe('<RuleBoxList />', () => {
           rulePayloadOverride: { op: 'gte', value: 0.75, scale: 'percent' },
         },
       ],
+      archivedCourseKeys: [],
     };
 
     const renderWithPlaceholder = (

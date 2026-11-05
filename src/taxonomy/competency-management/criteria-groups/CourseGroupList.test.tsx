@@ -13,7 +13,7 @@ const systemDefaultProfile: CompetencyRuleProfile = {
   archived: false,
 };
 
-const emptyGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [] };
+const emptyGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [], archivedCourseKeys: [] };
 
 const populatedGroupsResponse: CompetencyCriteriaGroupsResponse = {
   groups: [
@@ -39,6 +39,7 @@ const populatedGroupsResponse: CompetencyCriteriaGroupsResponse = {
     },
   ],
   criteria: [],
+  archivedCourseKeys: [],
 };
 
 const buildQueryResult = <T,>(overrides: Partial<UseQueryResult<T>>): UseQueryResult<T> => ({

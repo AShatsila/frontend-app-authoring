@@ -87,6 +87,7 @@ const response: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: null,
     },
   ],
+  archivedCourseKeys: [],
 };
 
 const systemDefaultProfile: CompetencyRuleProfile = {
