@@ -474,6 +474,24 @@ describe('CompetencyAssociationsProvider', () => {
       },
     );
 
+    it('keeps the loaded groups and the success status when a groups refetch fails', async () => {
+      axiosMock.onGet(groupsUrl).replyOnce(200, singleGroupResponse).onGet(groupsUrl).reply(500);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      renderProvider();
+      await waitForSuccess();
+
+      await act(async () => {
+        await queryClient.invalidateQueries({ queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId) });
+      });
+
+      await waitFor(() => expect(axiosMock.history.get.filter((request) => request.url === groupsUrl)).toHaveLength(2));
+      expect(screen.getByText('Status: success')).toBeInTheDocument();
+      expect(screen.getByText('Error: none')).toBeInTheDocument();
+      expect(screen.getByText('Groups index: loaded')).toBeInTheDocument();
+      expect(accessibleCourses()).toHaveTextContent(courseA);
+    });
+
     it('reports an error when a course outline refetch fails after the status was success', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -1558,7 +1576,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });
 
-    it('clears selection when the refetch after a successful delete fails', async () => {
+    it('keeps the loaded groups and clears selection when the refetch after a successful delete fails', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       axiosMock.onGet(groupsUrl).replyOnce(200, twoGroupsWithCriteriaResponse).onGet(groupsUrl).reply(500);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -1567,8 +1585,11 @@ describe('CompetencyAssociationsProvider', () => {
 
       await requestAndConfirm('Delete group 10');
 
-      expect(await screen.findByText('Status: error')).toBeInTheDocument();
       await waitFor(() => expect(screen.getByText('Deleting: false')).toBeInTheDocument());
+      await waitFor(() => expect(groupsReads()).toHaveLength(2));
+      expect(screen.getByText('Status: success')).toBeInTheDocument();
+      expect(screen.getByText('Error: none')).toBeInTheDocument();
+      expect(screen.getByText('Groups index: loaded')).toBeInTheDocument();
       expect(noSelection()).toBeInTheDocument();
     });
 
