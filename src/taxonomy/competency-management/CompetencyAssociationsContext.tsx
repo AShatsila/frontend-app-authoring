@@ -41,6 +41,7 @@ import type {
   CreateCompetencyCriterionPayload,
   GradeRulePayload,
 } from './data/types';
+import type { RemovalFailure } from './constants';
 import { courseKeyOfSelection, resolveCreateTarget } from './criterionTarget';
 import messages from './messages';
 import { usePlaceholderState } from './usePlaceholderState';
@@ -98,11 +99,25 @@ export type KeyboardFocusRequest =
   | { kind: 'empty'; }
   | { kind: 'subsection'; objectId: string; };
 
+/** Where focus goes after one association is removed: back to the Courses & Content row it was removed from, else to
+ * its group's header while the group still exists. `null` keeps the request `resolveSelectionAfterDelete` made. */
+const focusRequestAfterAssociationRemoval = (
+  returnFocusTo: 'group' | 'subsection',
+  objectId: string,
+  groupId: number,
+  isGroupStillPresent: boolean,
+): KeyboardFocusRequest | null => {
+  if (returnFocusTo === 'subsection') {
+    return { kind: 'subsection', objectId };
+  }
+  return isGroupStillPresent ? { kind: 'group', groupId, expand: false } : null;
+};
+
 /** A removal awaiting confirmation. */
 export interface PendingRemoval {
   target: RemovalTarget;
   summary: RemovalSummary;
-  failure: 'nothing-removed' | 'partly-removed' | null;
+  failure: RemovalFailure | null;
 }
 
 export interface CompetencyAssociationsContextValue {
@@ -761,10 +776,9 @@ export const CompetencyAssociationsProvider = ({
       if (isGroupStillPresent) {
         moveSelectionOffVanishedRuleBox(groupId, indexAfterRemoval);
       }
-      if (returnFocusTo === 'subsection') {
-        setKeyboardFocusRequest({ kind: 'subsection', objectId });
-      } else if (isGroupStillPresent) {
-        setKeyboardFocusRequest({ kind: 'group', groupId, expand: false });
+      const focusRequest = focusRequestAfterAssociationRemoval(returnFocusTo, objectId, groupId, isGroupStillPresent);
+      if (focusRequest) {
+        setKeyboardFocusRequest(focusRequest);
       }
     }
   }, [

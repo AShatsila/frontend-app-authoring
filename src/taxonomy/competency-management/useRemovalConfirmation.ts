@@ -10,16 +10,59 @@ import { courseOutlineQueryKeys } from '@src/course-outline/data/queryKeys';
 import { useToastContext } from '@src/generic/toast-context';
 
 import type { PendingRemoval } from './CompetencyAssociationsContext';
-import { RemovalTargetKind } from './constants';
+import { RemovalFailure, RemovalTargetKind } from './constants';
 import { competencyQueryKeys } from './data/apiHooks';
 import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from './data/types';
 import messages from './messages';
-import type { CompetencyCriteriaGroupsIndex, RemovalTarget } from './utils';
+import type { CompetencyCriteriaGroupsIndex, RemovalSummary, RemovalTarget } from './utils';
 import {
   buildCompetencyCriteriaGroupsIndex,
   subsectionNamesFromOutline,
   summarizeRemoval,
 } from './utils';
+
+interface OutlineNames {
+  courseNamesByKey: Map<string, string>;
+  subsectionNamesByUsageKey: Record<string, string>;
+}
+
+/** Rebuilds a failed removal's dialog from the refetched groups, so a retry describes and sends only what is left.
+ * Returns `null` when the target is gone, which is the outcome the author asked for. `summary` is `null` when there
+ * is no fresh data to rebuild it from, and the dialog keeps the one it shows.
+ */
+const pendingRemovalAfterFailure = (
+  target: RemovalTarget,
+  freshData: CompetencyCriteriaGroupsResponse | undefined,
+  systemDefaultProfile: CompetencyRuleProfile | undefined,
+  { courseNamesByKey, subsectionNamesByUsageKey }: OutlineNames,
+): Omit<PendingRemoval, 'summary'> & { summary: RemovalSummary | null; } | null => {
+  const freshSummary = freshData && systemDefaultProfile
+    ? summarizeRemoval(
+      target,
+      buildCompetencyCriteriaGroupsIndex(freshData),
+      systemDefaultProfile,
+      courseNamesByKey,
+      subsectionNamesByUsageKey,
+    )
+    : null;
+  if (freshData && systemDefaultProfile && freshSummary === null) {
+    return null;
+  }
+  if (target.kind !== RemovalTargetKind.RuleBox || !freshData) {
+    return { target, summary: freshSummary, failure: RemovalFailure.NothingRemoved };
+  }
+  // A rule box's deletes stop at the first failure, so the criteria before it may be gone.
+  const remainingIds = freshData.criteria
+    .filter((criterion) => criterion.groupId === target.groupId && target.criterionIds.includes(criterion.id))
+    .map((criterion) => criterion.id);
+  return {
+    target: { ...target, criterionIds: remainingIds },
+    summary: freshSummary,
+    failure: remainingIds.length < target.criterionIds.length
+      ? RemovalFailure.PartlyRemoved
+      : RemovalFailure.NothingRemoved,
+  };
+};
 
 interface UseRemovalConfirmationArgs {
   tagId: number;
@@ -114,45 +157,19 @@ export function useRemovalConfirmation({
         showToast(intl.formatMessage(messages.removalFailedAfterCancelToastMessage));
         return;
       }
-      // The refetch has landed, so the summary is rebuilt from it: a retry then describes what is left.
-      const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
-        competencyQueryKeys.competencyCriteriaGroups(tagId),
+      // The refetch has landed, so the dialog is rebuilt from it.
+      const afterFailure = pendingRemovalAfterFailure(
+        target,
+        queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(competencyQueryKeys.competencyCriteriaGroups(tagId)),
+        systemDefaultProfile,
+        outlineNames(),
       );
-      const { courseNamesByKey, subsectionNamesByUsageKey } = outlineNames();
-      const freshSummary = freshData && systemDefaultProfile
-        ? summarizeRemoval(
-          target,
-          buildCompetencyCriteriaGroupsIndex(freshData),
-          systemDefaultProfile,
-          courseNamesByKey,
-          subsectionNamesByUsageKey,
-        )
-        : null;
-      if (freshData && systemDefaultProfile && freshSummary === null) {
+      if (!afterFailure) {
         // The target is gone from the refetched data, which is the outcome the author asked for.
         setPendingRemoval(null);
         return;
       }
-      // A retry sends only what is left of a rule box.
-      const remainingIds = target.kind === RemovalTargetKind.RuleBox && freshData
-        ? freshData.criteria
-          .filter((criterion) => criterion.groupId === target.groupId && target.criterionIds.includes(criterion.id))
-          .map((criterion) => criterion.id)
-        : null;
-      const isPartlyRemoved = target.kind === RemovalTargetKind.RuleBox && remainingIds !== null
-        && remainingIds.length < target.criterionIds.length;
-      setPendingRemoval((prev) => {
-        if (!prev) {
-          return prev;
-        }
-        return {
-          target: target.kind === RemovalTargetKind.RuleBox && remainingIds
-            ? { ...target, criterionIds: remainingIds }
-            : prev.target,
-          summary: freshSummary ?? prev.summary,
-          failure: isPartlyRemoved ? 'partly-removed' : 'nothing-removed',
-        };
-      });
+      setPendingRemoval((prev) => prev && { ...afterFailure, summary: afterFailure.summary ?? prev.summary });
     }
   }, [
     isDeleting,

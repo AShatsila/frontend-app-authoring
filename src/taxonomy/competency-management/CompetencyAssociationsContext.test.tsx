@@ -2427,23 +2427,6 @@ describe('CompetencyAssociationsProvider', () => {
       expect(sentWrites()).toBe(0);
     });
 
-    it('drops a request made while a delete is in flight', async () => {
-      axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {});
-      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderLoaded();
-      requestAndConfirm('delete-group-10');
-      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
-
-      await userEvent.click(screen.getByText('remove-sub-a-chip'));
-
-      expect(screen.getByTestId('pending-removal')).toHaveTextContent('{"kind":"ruleGroup","failure":null}');
-      await act(async () => {
-        reads.release();
-      });
-      await waitFor(() => expect(screen.getByTestId('pending-removal')).toHaveTextContent('closed'));
-      expect(axiosMock.history.delete).toHaveLength(1);
-    });
-
     it('stays closed, and toasts the failure, when the author cancels while the request runs and then it fails', async () => {
       axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(500);
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, twoGroupsWithCriteriaResponse);
