@@ -1,9 +1,17 @@
-import { useState } from 'react';
+import {
+  type MutableRefObject,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { IconButton } from '@openedx/paragon';
 import { ExpandLess, ExpandMore } from '@openedx/paragon/icons';
 
+import { LoadingSpinner } from '@src/generic/Loading';
 import type { Course } from '@src/studio-home/data/api';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import CourseOutlineSubtree from './CourseOutlineSubtree';
@@ -12,6 +20,21 @@ import messages from './messages';
 export interface CourseRowProps {
   course: Course;
 }
+
+interface OutlineWrapperProps {
+  hadFocusRef: MutableRefObject<boolean>;
+  children: ReactNode;
+}
+
+/** Records into `hadFocusRef` whether focus was inside it when it unmounts. */
+const OutlineWrapper = ({ hadFocusRef, children }: OutlineWrapperProps) => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  // A layout-effect cleanup runs before React detaches the node, so `activeElement` still points inside it.
+  useLayoutEffect(() => () => {
+    hadFocusRef.current = wrapperRef.current?.contains(document.activeElement) ?? false;
+  }, [hadFocusRef]);
+  return <div ref={wrapperRef}>{children}</div>;
+};
 
 /** CourseRow
  * One row of the competency management course search/browse list: a
@@ -24,8 +47,30 @@ export interface CourseRowProps {
  */
 const CourseRow = ({ course }: CourseRowProps) => {
   const intl = useIntl();
-  const { notifyCourseExpanded } = useCompetencyAssociations();
+  const {
+    notifyCourseExpanded,
+    isCourseGroupArchived,
+    groupsQuery,
+    profileQuery,
+  } = useCompetencyAssociations();
   const [isExpanded, setIsExpanded] = useState(false);
+
+  const showsSpinner = groupsQuery.isLoading || profileQuery.isLoading;
+  const isGroupArchived = isCourseGroupArchived(course.courseKey);
+  const showsOutline = isExpanded && !showsSpinner && !isGroupArchived;
+
+  const messageRef = useRef<HTMLDivElement>(null);
+  const outlineHadFocus = useRef(false);
+
+  useEffect(() => {
+    if (showsOutline) {
+      return;
+    }
+    if (outlineHadFocus.current) {
+      messageRef.current?.focus();
+    }
+    outlineHadFocus.current = false;
+  }, [showsOutline]);
 
   const toggleLabel = isExpanded
     ? intl.formatMessage(messages.collapseRowButtonLabel)
@@ -59,7 +104,23 @@ const CourseRow = ({ course }: CourseRowProps) => {
         />
         <div className="course-search-browse__course-title ml-2">{course.displayName}</div>
       </div>
-      {isExpanded && <CourseOutlineSubtree courseId={course.courseKey} />}
+      {isExpanded && showsSpinner && (
+        <div className="course-search-browse__outline pt-2">
+          <LoadingSpinner size="sm" />
+        </div>
+      )}
+      {isExpanded && !showsSpinner && isGroupArchived && (
+        <div className="course-search-browse__outline pt-2">
+          <div className="small" tabIndex={-1} ref={messageRef}>
+            {intl.formatMessage(messages.archivedCourseRulesMessage)}
+          </div>
+        </div>
+      )}
+      {showsOutline && (
+        <OutlineWrapper hadFocusRef={outlineHadFocus}>
+          <CourseOutlineSubtree courseId={course.courseKey} />
+        </OutlineWrapper>
+      )}
     </div>
   );
 };

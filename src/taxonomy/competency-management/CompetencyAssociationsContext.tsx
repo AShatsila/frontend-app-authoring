@@ -168,6 +168,10 @@ export interface CompetencyAssociationsContextValue {
    * check.
    */
   canEditCourse: (courseId: string) => boolean;
+  /** Whether this course run's course-level group for the active competency is archived
+   * (`archivedCourseKeys`), so no new association can be added there.
+   */
+  isCourseGroupArchived: (courseId: string) => boolean;
   groupsQuery: UseQueryResult<CompetencyCriteriaGroupsResponse>;
   profileQuery: UseQueryResult<CompetencyRuleProfile>;
   /** Built from `groupsQuery.data`; `undefined` until that query resolves. */
@@ -470,6 +474,15 @@ export const CompetencyAssociationsProvider = ({
     [permissionsByCourseId],
   );
 
+  const archivedCourseKeySet = useMemo(
+    () => new Set(groupsQuery.data?.archivedCourseKeys),
+    [groupsQuery.data],
+  );
+  const isCourseGroupArchived = useCallback(
+    (courseId: string) => archivedCourseKeySet.has(courseId),
+    [archivedCourseKeySet],
+  );
+
   const associateSubsection = useCallback((objectId: string, courseId: string) => {
     if (associatedIds.has(objectId)) {
       // Not a real failure - the backend is still the real backstop for a
@@ -759,6 +772,7 @@ export const CompetencyAssociationsProvider = ({
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
     canEditCourse,
+    isCourseGroupArchived,
     groupsQuery,
     profileQuery,
     index,
@@ -791,6 +805,7 @@ export const CompetencyAssociationsProvider = ({
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
     canEditCourse,
+    isCourseGroupArchived,
     groupsQuery,
     profileQuery,
     index,

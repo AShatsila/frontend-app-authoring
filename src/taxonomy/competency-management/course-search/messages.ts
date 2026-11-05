@@ -68,6 +68,13 @@ const messages = defineMessages({
     description: 'Message shown in an expanded course row when the course outline contains no subsections '
       + 'marked as graded, in place of the section/subsection list.',
   },
+  archivedCourseRulesMessage: {
+    id: 'course-authoring.competency-management.course-search.archived-course-rules-message',
+    defaultMessage: 'This course\'s rules for this competency were archived, so no new competency criteria '
+      + 'associations can be added. This applies only to this course run. Learners\' recorded progress is kept.',
+    description: 'Message shown in an expanded course row, in place of its outline, when the active competency\'s '
+      + 'rules for that course run were archived.',
+  },
   dateRangeLabel: {
     id: 'course-authoring.competency-management.course-search.date-range-label',
     defaultMessage: 'Start Date',

@@ -100,7 +100,7 @@ const allUngradedOutline = buildOutlineIndex({
 
 const noSubsectionsOutline = buildOutlineIndex([]);
 
-const loadedIndex = buildCompetencyCriteriaGroupsIndex({ groups: [], criteria: [] });
+const loadedIndex = buildCompetencyCriteriaGroupsIndex({ groups: [], criteria: [], archivedCourseKeys: [] });
 const loadedProfile: CompetencyRuleProfile = {
   id: 1,
   scopeType: 'system_default',
