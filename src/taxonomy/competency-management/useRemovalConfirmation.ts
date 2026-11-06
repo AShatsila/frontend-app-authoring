@@ -1,0 +1,189 @@
+import { useCallback, useRef } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
+import { useIntl } from '@edx/frontend-platform/i18n';
+import { useQueryClient } from '@tanstack/react-query';
+
+import type { CourseOutline } from '@src/course-outline/data';
+// Bypasses the public barrel for the same reason the provider does: this is
+// the key its outline fetches are cached under.
+import { courseOutlineQueryKeys } from '@src/course-outline/data/queryKeys';
+import { useToastContext } from '@src/generic/toast-context';
+
+import type { PendingRemoval } from './CompetencyAssociationsContext';
+import { RemovalFailure, RemovalTargetKind } from './constants';
+import { competencyQueryKeys } from './data/apiHooks';
+import type { CompetencyCriteriaGroupsResponse, CompetencyRuleProfile } from './data/types';
+import messages from './messages';
+import type { CompetencyCriteriaGroupsIndex, RemovalSummary, RemovalTarget } from './utils';
+import {
+  buildCompetencyCriteriaGroupsIndex,
+  subsectionNamesFromOutline,
+  summarizeRemoval,
+} from './utils';
+
+interface OutlineNames {
+  courseNamesByKey: Map<string, string>;
+  subsectionNamesByUsageKey: Record<string, string>;
+}
+
+/** Rebuilds a failed removal's dialog from the refetched groups, so a retry describes and sends only what is left.
+ * Returns `null` when the target is gone, which is the outcome the author asked for. `summary` is `null` when there
+ * is no fresh data to rebuild it from, and the dialog keeps the one it shows.
+ */
+const pendingRemovalAfterFailure = (
+  target: RemovalTarget,
+  freshData: CompetencyCriteriaGroupsResponse | undefined,
+  systemDefaultProfile: CompetencyRuleProfile | undefined,
+  { courseNamesByKey, subsectionNamesByUsageKey }: OutlineNames,
+): Omit<PendingRemoval, 'summary'> & { summary: RemovalSummary | null; } | null => {
+  const freshSummary = freshData && systemDefaultProfile
+    ? summarizeRemoval(
+      target,
+      buildCompetencyCriteriaGroupsIndex(freshData),
+      systemDefaultProfile,
+      courseNamesByKey,
+      subsectionNamesByUsageKey,
+    )
+    : null;
+  if (freshData && systemDefaultProfile && freshSummary === null) {
+    return null;
+  }
+  if (target.kind !== RemovalTargetKind.RuleBox || !freshData) {
+    return { target, summary: freshSummary, failure: RemovalFailure.NothingRemoved };
+  }
+  // A rule box's deletes stop at the first failure, so the criteria before it may be gone.
+  const remainingIds = freshData.criteria
+    .filter((criterion) => criterion.groupId === target.groupId && target.criterionIds.includes(criterion.id))
+    .map((criterion) => criterion.id);
+  return {
+    target: { ...target, criterionIds: remainingIds },
+    summary: freshSummary,
+    failure: remainingIds.length < target.criterionIds.length
+      ? RemovalFailure.PartlyRemoved
+      : RemovalFailure.NothingRemoved,
+  };
+};
+
+interface UseRemovalConfirmationArgs {
+  tagId: number;
+  index: CompetencyCriteriaGroupsIndex | undefined;
+  systemDefaultProfile: CompetencyRuleProfile | undefined;
+  /** The courses whose cached outlines name the dialog's courses and subsections. */
+  courseIdsWithGroups: string[];
+  /** Kept in the provider, whose `tagId` reset clears it during render, before the delete callbacks below exist. */
+  pendingRemoval: PendingRemoval | null;
+  setPendingRemoval: Dispatch<SetStateAction<PendingRemoval | null>>;
+  isDeleting: boolean;
+  removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => Promise<void>;
+  deleteRuleBox: (groupId: number, criterionIds: number[]) => Promise<void>;
+  deleteGroup: (groupId: number) => Promise<void>;
+}
+
+/** Owns the removal confirmation flow (`#786`): opening it, running the delete it names, and reporting a failure. */
+export function useRemovalConfirmation({
+  tagId,
+  index,
+  systemDefaultProfile,
+  courseIdsWithGroups,
+  pendingRemoval,
+  setPendingRemoval,
+  isDeleting,
+  removeAssociation,
+  deleteRuleBox,
+  deleteGroup,
+}: UseRemovalConfirmationArgs) {
+  const intl = useIntl();
+  const { showToast } = useToastContext();
+  const queryClient = useQueryClient();
+
+  // Read once the delete settles, to see a cancel made while it ran.
+  const pendingRemovalRef = useRef(pendingRemoval);
+  pendingRemovalRef.current = pendingRemoval;
+
+  // Reuses the outline fetches that decide which courses are accessible.
+  const outlineNames = useCallback(() => {
+    const courseNamesByKey = new Map<string, string>();
+    let subsectionNamesByUsageKey: Record<string, string> = {};
+    courseIdsWithGroups.forEach((courseId) => {
+      const outline = queryClient.getQueryData<CourseOutline>(courseOutlineQueryKeys.index(courseId));
+      if (outline) {
+        courseNamesByKey.set(courseId, outline.courseStructure.displayName);
+        subsectionNamesByUsageKey = {
+          ...subsectionNamesByUsageKey,
+          ...subsectionNamesFromOutline(outline.courseStructure),
+        };
+      }
+    });
+    return { courseNamesByKey, subsectionNamesByUsageKey };
+  }, [courseIdsWithGroups, queryClient]);
+
+  const requestRemoval = useCallback((target: RemovalTarget) => {
+    if (isDeleting || !index || !systemDefaultProfile) {
+      return;
+    }
+    const { courseNamesByKey, subsectionNamesByUsageKey } = outlineNames();
+    const summary = summarizeRemoval(target, index, systemDefaultProfile, courseNamesByKey, subsectionNamesByUsageKey);
+    if (summary) {
+      setPendingRemoval({ target, summary, failure: null });
+    }
+  }, [isDeleting, index, systemDefaultProfile, outlineNames, setPendingRemoval]);
+
+  const cancelRemoval = useCallback(() => setPendingRemoval(null), [setPendingRemoval]);
+
+  const confirmRemoval = useCallback(async () => {
+    const pending = pendingRemovalRef.current;
+    if (!pending || isDeleting) {
+      return;
+    }
+    const { target } = pending;
+    setPendingRemoval({ ...pending, failure: null });
+    try {
+      switch (target.kind) {
+        case RemovalTargetKind.Association:
+          await removeAssociation(target.criterionId, target.returnFocusTo);
+          break;
+        case RemovalTargetKind.RuleBox:
+          await deleteRuleBox(target.groupId, target.criterionIds);
+          break;
+        case RemovalTargetKind.RuleGroup:
+        case RemovalTargetKind.CourseGroup:
+          await deleteGroup(target.groupId);
+          break;
+      }
+      setPendingRemoval(null);
+    } catch {
+      if (pendingRemovalRef.current === null) {
+        // Cancelled while the request ran, so there is no dialog left to report the failure in.
+        showToast(intl.formatMessage(messages.removalFailedAfterCancelToastMessage));
+        return;
+      }
+      // The refetch has landed, so the dialog is rebuilt from it.
+      const afterFailure = pendingRemovalAfterFailure(
+        target,
+        queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(competencyQueryKeys.competencyCriteriaGroups(tagId)),
+        systemDefaultProfile,
+        outlineNames(),
+      );
+      if (!afterFailure) {
+        // The target is gone from the refetched data, which is the outcome the author asked for.
+        setPendingRemoval(null);
+        return;
+      }
+      setPendingRemoval((prev) => prev && { ...afterFailure, summary: afterFailure.summary ?? prev.summary });
+    }
+  }, [
+    isDeleting,
+    setPendingRemoval,
+    removeAssociation,
+    deleteRuleBox,
+    deleteGroup,
+    queryClient,
+    tagId,
+    systemDefaultProfile,
+    outlineNames,
+    showToast,
+    intl,
+  ]);
+
+  return { requestRemoval, confirmRemoval, cancelRemoval };
+}

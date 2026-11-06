@@ -9,7 +9,25 @@ const messages = defineMessages({
   removeRuleGroupMenuItem: {
     id: 'course-authoring.competency-management.criteria-groups.remove-rule-group-menu-item',
     defaultMessage: 'Remove group',
-    description: 'Menu item that removes a rule group, or discards the unsaved one, with its rule boxes.',
+    description: 'Menu item that opens the confirmation for removing a rule group with its rule boxes, or discards '
+      + 'the unsaved one.',
+  },
+  ruleBoxMoreActionsLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.rule-box-more-actions-label',
+    defaultMessage: 'More actions for the rule with a score of {score}',
+    description: 'Accessible label for the ⋮ button that opens a saved rule box\'s actions menu. {score} is the '
+      + 'box\'s score with its comparison, such as "75% or higher".',
+  },
+  placeholderRuleBoxMoreActionsLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.placeholder-rule-box-more-actions-label',
+    defaultMessage: 'More actions for the new rule',
+    description: 'Accessible label for the ⋮ button on a new, not-yet-saved rule box.',
+  },
+  removeRuleBoxMenuItem: {
+    id: 'course-authoring.competency-management.criteria-groups.remove-rule-box-menu-item',
+    defaultMessage: 'Remove rule',
+    description: 'Menu item that opens the confirmation for removing a rule box and all of its content, or discards '
+      + 'the unsaved one.',
   },
   courseGroupMoreActionsLabel: {
     id: 'course-authoring.competency-management.criteria-groups.course-group-more-actions-label',
@@ -20,7 +38,8 @@ const messages = defineMessages({
   removeFromCompetencyMenuItem: {
     id: 'course-authoring.competency-management.criteria-groups.remove-from-competency-menu-item',
     defaultMessage: 'Remove from {competencyName}',
-    description: 'Menu item that removes a course group, with all its rule groups, from the active competency. '
+    description: 'Menu item that opens the confirmation for removing a course group, with all its rule groups, from '
+      + 'the active competency. '
       + '{competencyName} is the name of that competency.',
   },
   logicOperatorAnyLabel: {

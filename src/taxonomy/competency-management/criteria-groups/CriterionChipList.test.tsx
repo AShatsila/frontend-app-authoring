@@ -1,6 +1,7 @@
 import { initializeMocks, render, screen, userEvent } from '@src/testUtils';
 import type { CompetencyCriterion } from '@src/taxonomy/competency-management/data/types';
 import { MockCompetencyAssociationsProvider } from '@src/taxonomy/competency-management/testHelpers';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import CriterionChipList from './CriterionChipList';
 
 const renderList = (
@@ -64,22 +65,26 @@ describe('<CriterionChipList />', () => {
     expect(screen.queryByRole('button', { name: 'Remove the association with Subsection A' })).not.toBeInTheDocument();
   });
 
-  it('removes the clicked chip\'s association by its criterion id', async () => {
+  it('asks to remove the clicked chip\'s association by its criterion id', async () => {
     const user = userEvent.setup();
-    const removeAssociation = jest.fn();
+    const requestRemoval = jest.fn();
     renderList(
       {
         criteria: [buildCriterion({ id: 1, objectId: 'block-a' }), buildCriterion({ id: 2, objectId: 'block-b' })],
         subsectionNamesByUsageKey: { 'block-a': 'Subsection A', 'block-b': 'Subsection B' },
         canEdit: true,
       },
-      { removeAssociation },
+      { requestRemoval },
     );
 
     await user.click(screen.getByRole('button', { name: 'Remove the association with Subsection B' }));
 
-    expect(removeAssociation).toHaveBeenCalledTimes(1);
-    expect(removeAssociation).toHaveBeenCalledWith(2, 'group');
+    expect(requestRemoval).toHaveBeenCalledTimes(1);
+    expect(requestRemoval).toHaveBeenCalledWith({
+      kind: RemovalTargetKind.Association,
+      criterionId: 2,
+      returnFocusTo: 'group',
+    });
   });
 
   it('takes the remove button out of the tab order while a delete is in flight', () => {

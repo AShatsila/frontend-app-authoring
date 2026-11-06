@@ -1,6 +1,7 @@
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { useCompetencyAssociations } from '@src/taxonomy/competency-management/CompetencyAssociationsContext';
 import type { CompetencyCriterion } from '@src/taxonomy/competency-management/data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import CriterionChip from './CriterionChip';
 import messages from './messages';
 
@@ -24,7 +25,7 @@ export interface CriterionChipListProps {
  */
 const CriterionChipList = ({ criteria, subsectionNamesByUsageKey, canEdit = false }: CriterionChipListProps) => {
   const intl = useIntl();
-  const { removeAssociation, isDeleting } = useCompetencyAssociations();
+  const { requestRemoval, isDeleting } = useCompetencyAssociations();
 
   if (criteria.length === 0) {
     return null;
@@ -38,7 +39,10 @@ const CriterionChipList = ({ criteria, subsectionNamesByUsageKey, canEdit = fals
           displayName={subsectionNamesByUsageKey[criterion.objectId] ??
             intl.formatMessage(messages.unknownSubsectionLabel)}
           disabled={isDeleting}
-          onRemove={canEdit ? () => removeAssociation(criterion.id, 'group') : undefined}
+          onRemove={canEdit
+            ? () =>
+              requestRemoval({ kind: RemovalTargetKind.Association, criterionId: criterion.id, returnFocusTo: 'group' })
+            : undefined}
         />
       ))}
     </div>

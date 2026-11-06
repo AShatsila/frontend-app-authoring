@@ -4,6 +4,7 @@ import {
   initializeMocks,
   render,
   screen,
+  userEvent,
   waitFor,
   within,
 } from '@src/testUtils';
@@ -13,6 +14,7 @@ import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { CompetencyAssociationsProvider } from '../CompetencyAssociationsContext';
 import { apiUrls as competencyManagementApiUrls } from '../data/api';
 import type { CompetencyTreeNode } from '../CompetencyTree';
+import { mockHeldGroupsRefetch } from '../testHelpers';
 import CourseRow from './CourseRow';
 import CourseSearchBrowse from './CourseSearchBrowse';
 
@@ -368,6 +370,147 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       // sent as an empty query param, which is what these assertions rule out.
       expect(lastRequestParams().start_date_on_or_after).toBeUndefined();
       expect(lastRequestParams().start_date_on_or_before).toBeUndefined();
+    });
+  });
+
+  /** One course whose `sub-1a` is associated, with every groups read after the first held until `release`. */
+  const renderWithAssociatedSubsection1A = async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    Element.prototype.scrollIntoView = jest.fn();
+    const course = buildCourse();
+    const tagId = Number(activeCompetency.id);
+    const groupsUrl = competencyManagementApiUrls.competencyCriteriaGroups(tagId);
+    const group = { tagId, name: 'x', ordering: 0, logicOperator: 'AND', archived: false } as const;
+    const withOneAssociation = {
+      groups: [
+        { ...group, id: 500, parentId: null, courseKey: null, name: 'root' },
+        { ...group, id: 1, parentId: 500, courseKey: course.courseKey, name: 'course' },
+        { ...group, id: 10, parentId: 1, courseKey: null, name: 'leaf' },
+      ],
+      criteria: [
+        {
+          id: 901,
+          objectId: 'sub-1a',
+          groupId: 10,
+          ruleProfileId: 1,
+          ruleTypeOverride: null,
+          rulePayloadOverride: null,
+        },
+      ],
+    };
+    const run = mockHeldGroupsRefetch(axiosMock, tagId, withOneAssociation, { groups: [], criteria: [] });
+    axiosMock.onDelete(competencyManagementApiUrls.deleteCompetencyCriterion(tagId, 901))
+      .reply(200, { id: 901, archived: false });
+    axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([course]));
+    axiosMock.onGet(getCourseOutlineIndexApiUrl(course.courseKey)).reply(
+      200,
+      buildOutlineIndex({
+        sections: [{
+          id: 'section-1',
+          displayName: 'Section 1',
+          children: [
+            { id: 'sub-1a', displayName: 'Subsection 1A', overrides: { graded: true } },
+            { id: 'sub-1b', displayName: 'Subsection 1B', overrides: { graded: true } },
+          ],
+        }],
+      }),
+    );
+    renderCourseSearchBrowse();
+    const coursesContainer = screen.getByText('Courses & Content').closest(
+      '.course-search-browse__container',
+    ) as HTMLElement;
+    await user.click(await within(coursesContainer).findByRole('button', { name: 'Expand' }));
+    await user.click(await within(coursesContainer).findByRole('button', { name: 'Expand' }));
+    return { user, coursesContainer, run, groupsUrl };
+  };
+
+  describe('removing an association (#786)', () => {
+    it('asks for confirmation before removing from the courses panel, and sends nothing until Remove', async () => {
+      const { user, coursesContainer, run, groupsUrl } = await renderWithAssociatedSubsection1A();
+
+      await user.click(
+        await within(coursesContainer).findByRole('button', { name: 'Remove the association with Subsection 1A' }),
+      );
+
+      const dialog = await screen.findByRole('dialog', { name: 'Remove Subsection 1A from Test Competency?' });
+      expect(axiosMock.history.delete).toHaveLength(0);
+
+      await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+      expect(axiosMock.history.delete).toHaveLength(1);
+      await act(async () => {
+        run.release();
+      });
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('returns keyboard focus to the subsection\'s row once the dialog closes', async () => {
+      const { user, coursesContainer, run, groupsUrl } = await renderWithAssociatedSubsection1A();
+      await user.click(
+        await within(coursesContainer).findByRole('button', { name: 'Remove the association with Subsection 1A' }),
+      );
+      const dialog = await screen.findByRole('dialog', { name: 'Remove Subsection 1A from Test Competency?' });
+
+      await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+      await act(async () => {
+        run.release();
+      });
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(within(coursesContainer).getByRole('button', { name: 'Subsection 1A' })).toHaveFocus()
+      );
+    });
+
+    // The courses panel gives the dialog's focus return a nearby target, which the empty state must win against.
+    it('moves keyboard focus to the empty state once the dialog closes on the last rule', async () => {
+      const { user, run, groupsUrl } = await renderWithAssociatedSubsection1A();
+      await user.click(
+        await screen.findByRole('button', { name: 'More actions for the rule with a score of 70% or higher' }),
+      );
+      await user.click(screen.getByRole('button', { name: 'Remove rule' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Remove this rule from Test Competency?' });
+
+      await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+      await act(async () => {
+        run.release();
+      });
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText('No content associated.').parentElement).toHaveFocus());
+    });
+  });
+
+  describe('removing a rule box (#833)', () => {
+    it('disables a subsection\'s select button, in the courses panel, until the refetch lands', async () => {
+      const { user, coursesContainer, run, groupsUrl } = await renderWithAssociatedSubsection1A();
+      const selectButton = await within(coursesContainer).findByRole('button', { name: /Subsection 1B/ });
+      expect(selectButton).toBeEnabled();
+      expect(within(coursesContainer).queryByRole('button', { name: 'Subsection 1A' })).not.toBeInTheDocument();
+
+      await user.click(
+        await screen.findByRole('button', {
+          name: 'More actions for the rule with a score of 70% or higher',
+        }),
+      );
+      await user.click(screen.getByRole('button', { name: 'Remove rule' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Remove this rule from Test Competency?' });
+      expect(axiosMock.history.delete).toHaveLength(0);
+      await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+      await waitFor(() => expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(2));
+      // The open dialog hides the panel from the accessibility tree.
+      expect(within(coursesContainer).getByRole('button', { name: /Subsection 1B/, hidden: true })).toBeDisabled();
+
+      await act(async () => {
+        run.release();
+      });
+      await waitFor(() =>
+        expect(within(coursesContainer).getByRole('button', { name: /Subsection 1B/ })).toBeEnabled()
+      );
+      expect(within(coursesContainer).getByRole('button', { name: 'Subsection 1A' })).toBeEnabled();
     });
   });
 
