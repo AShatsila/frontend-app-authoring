@@ -27,6 +27,7 @@ import {
   useCreateCompetencyCriterion,
   useDefaultCompetencyRuleProfile,
   useDeleteCompetencyCriteriaGroup,
+  useDeleteCompetencyCriterion,
   useUpdateCompetencyCriteriaGroupOperator,
   useUpdateCompetencyCriteriaRule,
 } from './data/apiHooks';
@@ -69,9 +70,12 @@ export interface CriteriaFocus {
 /** A one-shot request for the browser's keyboard focus, left by a delete because the trash button that had it is
  * gone. Kept here because the cards can unmount (or be collapsed) before the new target renders. `group` names the
  * bottom-tier group card that takes it, and `expand` whether a collapsed course-level group holding that card opens
- * for it. `empty` is the "no associations" message.
+ * for it. `empty` is the "no associations" message, and `subsection` the content panel's row for `objectId`.
  */
-export type KeyboardFocusRequest = { kind: 'group'; groupId: number; expand: boolean; } | { kind: 'empty'; };
+export type KeyboardFocusRequest =
+  | { kind: 'group'; groupId: number; expand: boolean; }
+  | { kind: 'empty'; }
+  | { kind: 'subsection'; objectId: string; };
 
 /** The author's choices on the placeholder group or rule box. The rule payload is shared by both shapes, since only
  * one placeholder exists at a time.
@@ -109,10 +113,13 @@ export interface CompetencyAssociationsContextBase {
    * lands. Dropped while another delete is in flight. A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
-  /** True while a delete request or its refetch is in flight, which disables every delete control and the content
-   * panel's subsection pills.
+  /** True while any delete, or its refetch, is in flight. */
+  isDeleting: boolean;
+  /** Deletes the criterion with this id, and drops the call during another delete. Keyboard focus returns to the
+   * group box or the subsection row. When the group is removed with it, `deleteGroup`'s neighbor and empty-state
+   * logic applies.
    */
-  isDeletingGroup: boolean;
+  removeAssociation: (criterionId: number, returnFocusTo: 'group' | 'subsection') => void;
   /** Discards the placeholder group without a request and focuses the last saved group in its course group. */
   removePlaceholderGroup: () => void;
   keyboardFocusRequest: KeyboardFocusRequest | null;
@@ -458,7 +465,9 @@ export const CompetencyAssociationsProvider = ({
   const isAssociating = isCreatePending && variables?.tagId === tagId;
   const { mutate: updateGroupOperatorMutate } = useUpdateCompetencyCriteriaGroupOperator();
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
-  const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
+  const { mutate: mutateDeleteGroup, isPending: isGroupDeletePending } = useDeleteCompetencyCriteriaGroup();
+  const { mutate: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
+  const isDeleting = isGroupDeletePending || isCriterionDeletePending;
   const queryClient = useQueryClient();
   // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
   // respect a click made while the request was in flight.
@@ -807,6 +816,53 @@ export const CompetencyAssociationsProvider = ({
     });
   }, [groupsIndex, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveFocusAfterDelete, showToast, intl]);
 
+  const removeAssociation = useCallback((criterionId: number, returnFocusTo: 'group' | 'subsection') => {
+    const criterion = groupsQuery.data?.criteria.find((c) => c.id === criterionId);
+    if (isDeleting || !groupsIndex || !criterion) {
+      return;
+    }
+    const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
+    const { groupId, objectId } = criterion;
+    mutateDeleteCriterion({ tagId, criterionId }, {
+      onSettled: () => {
+        resolveFocusAfterDelete(groupId, snapshot);
+        const dataAfterRemoval = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
+          competencyQueryKeys.competencyCriteriaGroups(tagId),
+        );
+        if (!dataAfterRemoval) {
+          return;
+        }
+        // A 404 leaves the criterion gone, so a failure shows only when it is still there after the refetch.
+        if (dataAfterRemoval.criteria.some((c) => c.id === criterionId)) {
+          showToast(intl.formatMessage(messages.removeAssociationFailedToastMessage), undefined, undefined, ErrorIcon);
+          if (returnFocusTo === 'subsection') {
+            dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: { kind: 'subsection', objectId } });
+          }
+          return;
+        }
+        if (returnFocusTo === 'subsection') {
+          dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: { kind: 'subsection', objectId } });
+        } else if (dataAfterRemoval.groups.some((group) => group.id === groupId)) {
+          dispatch({
+            type: 'keyboardFocusRequested',
+            keyboardFocusRequest: { kind: 'group', groupId, expand: false },
+          });
+        }
+      },
+    });
+  }, [
+    groupsQuery.data,
+    isDeleting,
+    groupsIndex,
+    accessibleCourseGroups,
+    tagId,
+    mutateDeleteCriterion,
+    resolveFocusAfterDelete,
+    queryClient,
+    showToast,
+    intl,
+  ]);
+
   const removePlaceholderGroup = useCallback(() => {
     const { parentRuleGroupId } = placeholder;
     const parentGroup = parentRuleGroupId !== null ? groupsIndex?.groupsById.get(parentRuleGroupId) : undefined;
@@ -839,7 +895,8 @@ export const CompetencyAssociationsProvider = ({
       updateGroupOperator,
       updateRuleScore,
       deleteGroup,
-      isDeletingGroup,
+      isDeleting,
+      removeAssociation,
       removePlaceholderGroup,
       keyboardFocusRequest,
       consumeKeyboardFocusRequest,
@@ -875,7 +932,8 @@ export const CompetencyAssociationsProvider = ({
     updateGroupOperator,
     updateRuleScore,
     deleteGroup,
-    isDeletingGroup,
+    isDeleting,
+    removeAssociation,
     removePlaceholderGroup,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,

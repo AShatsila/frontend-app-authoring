@@ -355,7 +355,7 @@ describe('<CourseGroupSection />', () => {
 
     it('disables the menu button while a delete is in flight', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-      renderSection({ isDeletingGroup: true, canEditCourse: () => true });
+      renderSection({ isDeleting: true, canEditCourse: () => true });
 
       expect(await screen.findByRole('button', { name: 'More actions for Demo Course' })).toBeDisabled();
     });
