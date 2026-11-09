@@ -80,20 +80,23 @@ const courseBGroup = group(2, 500, courseB, 1);
 export const singleGroupResponse: CompetencyCriteriaGroupsResponse = {
   groups: [rootGroup, courseAGroup, group(10, 1, null, 0)],
   criteria: [criterion(900, 'existing-sub', 10)],
+  archivedCourseKeys: [],
 };
 
 /** Course A with two leaf groups (10 and 11). */
 export const twoGroupsResponse: CompetencyCriteriaGroupsResponse = {
   groups: [rootGroup, courseAGroup, group(10, 1, null, 0), group(11, 1, null, 1)],
   criteria: [],
+  archivedCourseKeys: [],
 };
 
-export const noGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [] };
+export const noGroupsResponse: CompetencyCriteriaGroupsResponse = { groups: [], criteria: [], archivedCourseKeys: [] };
 
 /** Course A (leaf 10) and course B (leaf 20). */
 export const twoCoursesResponse: CompetencyCriteriaGroupsResponse = {
   groups: [rootGroup, courseAGroup, group(10, 1, null, 0), courseBGroup, group(20, 2, null, 0)],
   criteria: [],
+  archivedCourseKeys: [],
 };
 
 /** Course A (leaf 10) and course B with leaves 21 (ordering 1) and 20 (ordering 0), listed
@@ -116,6 +119,7 @@ export const courseBGroupsResponse: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: eqRule,
     }),
   ],
+  archivedCourseKeys: [],
 };
 
 /** `singleGroupResponse` with its leaf renamed to 30, so switching between the
@@ -124,4 +128,5 @@ export const courseBGroupsResponse: CompetencyCriteriaGroupsResponse = {
 export const otherSingleGroupResponse: CompetencyCriteriaGroupsResponse = {
   groups: singleGroupResponse.groups.map((item) => (item.id === 10 ? { ...item, id: 30 } : item)),
   criteria: [],
+  archivedCourseKeys: [],
 };

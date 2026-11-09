@@ -30,6 +30,7 @@ const response: CompetencyCriteriaGroupsResponse = {
       rulePayloadOverride: { op: 'lte', value: 0.9, scale: 'percent' },
     }),
   ],
+  archivedCourseKeys: [],
 };
 
 const boxes = ruleBoxesForGroup(10, buildCompetencyCriteriaGroupsIndex(response), systemDefaultProfile);
@@ -82,6 +83,7 @@ describe('<RuleBoxList />', () => {
           rulePayloadOverride: systemDefaultProfile.rulePayload,
         }),
       ],
+      archivedCourseKeys: [],
     });
     renderList(null, ruleBoxesForGroup(10, sameRuleIndex, systemDefaultProfile));
 
@@ -125,6 +127,7 @@ describe('<RuleBoxList />', () => {
           rulePayloadOverride: { op: 'gte', value: 0.8, scale: 'percent' },
         }),
       ],
+      archivedCourseKeys: [],
     };
     const editableBoxes = ruleBoxesForGroup(
       10,
@@ -213,6 +216,7 @@ describe('<RuleBoxList />', () => {
             rulePayloadOverride: { op: 'gte', value: 0.75, scale: 'percent' },
           }),
         ],
+        archivedCourseKeys: [],
       }),
       systemDefaultProfile,
     );

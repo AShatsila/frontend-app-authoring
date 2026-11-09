@@ -40,6 +40,7 @@ const [courseGroup] = index.courseGroups;
 const threeGroupsIndex = buildCompetencyCriteriaGroupsIndex({
   groups: [...twoGroupsResponse.groups, group(12, 1, null, 2)],
   criteria: response.criteria,
+  archivedCourseKeys: [],
 });
 const [threeGroupsCourseGroup] = threeGroupsIndex.courseGroups;
 

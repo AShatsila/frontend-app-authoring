@@ -164,6 +164,10 @@ export interface CompetencyAssociationsContextBase {
    * (`courses.manage_tags`).
    */
   canEditCourse: (courseId: string) => boolean;
+  /** Whether this course run's course-level group for the active competency is archived
+   * (`archivedCourseKeys`), so no new association can be added there.
+   */
+  isCourseGroupArchived: (courseId: string) => boolean;
   /** The `objectId` of every criterion in the tree, for the duplicate guard
    * and the content panel's "already associated" marking.
    */
@@ -628,6 +632,15 @@ export const CompetencyAssociationsProvider = ({
     [permissionsByCourseId],
   );
 
+  const archivedCourseKeySet = useMemo(
+    () => new Set(groupsQuery.data?.archivedCourseKeys),
+    [groupsQuery.data],
+  );
+  const isCourseGroupArchived = useCallback(
+    (courseId: string) => archivedCourseKeySet.has(courseId),
+    [archivedCourseKeySet],
+  );
+
   const associateSubsection = useCallback((objectId: string, courseId: string) => {
     if (associatedIds.has(objectId)) {
       showToast(intl.formatMessage(messages.alreadyAssociatedToastMessage), undefined, undefined, InfoOutline);
@@ -909,6 +922,7 @@ export const CompetencyAssociationsProvider = ({
       expansionCountByCourseId,
       hasPermissionsError,
       canEditCourse,
+      isCourseGroupArchived,
       associatedObjectIds: associatedIds,
       accessibleCourseGroups,
       competencyExternalId,
@@ -946,6 +960,7 @@ export const CompetencyAssociationsProvider = ({
     expansionCountByCourseId,
     hasPermissionsError,
     canEditCourse,
+    isCourseGroupArchived,
     groupsIndex,
     systemDefaultProfile,
     associatedIds,

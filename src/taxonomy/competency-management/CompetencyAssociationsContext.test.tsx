@@ -194,6 +194,8 @@ const TestConsumer = () => {
       <p>Competency: {String(ctx.competencyExternalId)}</p>
       <p>Can edit course B: {String(ctx.canEditCourse(courseB))}</p>
       <p>Can edit another course: {String(ctx.canEditCourse(courseOther))}</p>
+      <p>Course A archived: {String(ctx.isCourseGroupArchived(courseA))}</p>
+      <p>Course B archived: {String(ctx.isCourseGroupArchived(courseB))}</p>
       <ul aria-label="Associated object ids">
         {Array.from(ctx.associatedObjectIds).map((id) => <li key={id}>{id}</li>)}
       </ul>
@@ -764,6 +766,54 @@ describe('CompetencyAssociationsProvider', () => {
 
       await screen.findByText('Can edit course B: true');
       expect(screen.getByText('Can edit another course: false')).toBeInTheDocument();
+    });
+  });
+
+  describe('isCourseGroupArchived', () => {
+    const withoutArchivedKeys = () => {
+      const { archivedCourseKeys, ...rest } = twoCoursesResponse;
+      return rest;
+    };
+    const mockTwoCourses = (groupsReply: Record<string, unknown>) => {
+      axiosMock.onGet(groupsUrl).reply(200, groupsReply);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      axiosMock.onGet(courseBOutlineUrl).reply(200, outlineFixture);
+    };
+
+    it('is true for a course run listed in archivedCourseKeys and false for any other', async () => {
+      mockTwoCourses({ ...withoutArchivedKeys(), archived_course_keys: [courseB] });
+      renderProvider();
+
+      await screen.findByText('Course B archived: true');
+      expect(screen.getByText('Course A archived: false')).toBeInTheDocument();
+    });
+
+    it('is false for every course when the response has no archivedCourseKeys', async () => {
+      mockTwoCourses(withoutArchivedKeys());
+      renderProvider();
+
+      await waitForSuccess();
+      expect(screen.getByText('Course A archived: false')).toBeInTheDocument();
+      expect(screen.getByText('Course B archived: false')).toBeInTheDocument();
+    });
+
+    it('flips to true after a refetch that adds the course to archivedCourseKeys, without a remount', async () => {
+      axiosMock.onGet(groupsUrl).replyOnce(200, twoCoursesResponse);
+      axiosMock.onGet(groupsUrl).reply(200, { ...twoCoursesResponse, archivedCourseKeys: [courseB] });
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      axiosMock.onGet(courseBOutlineUrl).reply(200, outlineFixture);
+      renderProvider();
+      await waitForSuccess();
+      expect(screen.getByText('Course B archived: false')).toBeInTheDocument();
+
+      await act(async () => {
+        await queryClient.invalidateQueries({ queryKey: competencyQueryKeys.competencyCriteriaGroups(tagId) });
+      });
+
+      await screen.findByText('Course B archived: true');
+      expect(screen.getByText('Course A archived: false')).toBeInTheDocument();
     });
   });
 

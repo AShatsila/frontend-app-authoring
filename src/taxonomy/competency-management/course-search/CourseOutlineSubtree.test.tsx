@@ -79,7 +79,7 @@ const allUngradedOutline = buildOutlineIndex({
 
 const noSubsectionsOutline = buildOutlineIndex([]);
 
-const loadedIndex = buildCompetencyCriteriaGroupsIndex({ groups: [], criteria: [] });
+const loadedIndex = buildCompetencyCriteriaGroupsIndex({ groups: [], criteria: [], archivedCourseKeys: [] });
 
 const renderSubtree = () => render(<CourseOutlineSubtree courseId={courseId} />);
 
@@ -360,6 +360,7 @@ describe('<CourseOutlineSubtree />', () => {
         groupsIndex: buildCompetencyCriteriaGroupsIndex({
           groups: singleGroupResponse.groups,
           criteria: [criterion(77, 'sub-1a', 10)],
+          archivedCourseKeys: [],
         }),
         removeAssociation,
       });
