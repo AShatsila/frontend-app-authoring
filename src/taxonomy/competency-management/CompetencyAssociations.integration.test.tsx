@@ -7,7 +7,6 @@ import {
   screen,
   userEvent,
   waitFor,
-  within,
 } from '@src/testUtils';
 import {
   courseA,
@@ -72,7 +71,7 @@ const groupHeaders = () => Array.from(document.querySelectorAll<HTMLElement>('.c
 const ruleBoxControls = () => Array.from(document.querySelectorAll<HTMLElement>('.rule-box__select-button'));
 const ruleBoxWithScore = (percent: string) => {
   const control = ruleBoxControls().find((candidate) => (
-    within(candidate.closest<HTMLElement>('.rule-box')!).queryByDisplayValue(percent)
+    candidate.closest('.rule-box')!.textContent?.includes(`With a score of ${percent}%`)
   ));
   if (!control) {
     throw new Error(`No rule box with a score of ${percent}`);

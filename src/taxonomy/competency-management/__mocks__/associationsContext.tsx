@@ -38,7 +38,7 @@ export const buildMockCompetencyAssociationsContextValue = (
     focusRuleBox: jest.fn(),
     notifyCourseExpanded: jest.fn(),
     associateSubsection: jest.fn(),
-    updateGroupOperator: jest.fn(),
+    updateGroupOperator: jest.fn().mockResolvedValue(undefined),
     updateRuleScore: jest.fn().mockResolvedValue(undefined),
     deleteGroup: jest.fn(),
     isDeleting: false,

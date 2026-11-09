@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Stack } from '@openedx/paragon';
@@ -6,8 +6,16 @@ import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
 import CriterionChipList from './CriterionChipList';
+import EditConfirmationModal from './EditConfirmationModal';
 import ScoreThresholdField from './ScoreThresholdField';
+import ScoreThresholdPopover from './ScoreThresholdPopover';
+import { formatScoreSummary } from './scoreInput';
 import messages from './messages';
+
+type EditState =
+  | { kind: 'closed'; }
+  | { kind: 'editing'; draft?: GradeRulePayload; }
+  | { kind: 'confirming'; rulePayload: GradeRulePayload; };
 
 export interface RuleBoxProps {
   /** `null` only for the placeholder rule box in the placeholder group. */
@@ -19,9 +27,9 @@ export interface RuleBoxProps {
   subsectionNamesByUsageKey: Record<string, string>;
   /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
   courseName?: string;
-  /** Whether the author can edit the score threshold. */
+  /** Makes the score and chips editable; without it the box is read-only. */
   canEdit?: boolean;
-  /** Duplicate-score check for this box, used only when `canEdit`. */
+  /** Returns a non-empty message to block a score edit, for example a duplicate score in the group. */
   getInlineValidationMessage?: (value: string) => string;
   /** Placeholder only: guidance under the score, such as "this score is taken". */
   hint?: ReactNode;
@@ -45,14 +53,28 @@ const RuleBox = ({
   const intl = useIntl();
   const {
     focus,
+    competencyName,
     focusRuleBox,
     updateRuleScore,
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   const isFocused = focus?.groupId === groupId && focus?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
+  const [editState, setEditState] = useState<EditState>({ kind: 'closed' });
+  const takesKeyboardFocus = keyboardFocusRequest?.kind === 'ruleBox'
+    && keyboardFocusRequest.groupId === groupId
+    && keyboardFocusRequest.ruleKey === ruleKey;
+
+  useEffect(() => {
+    if (takesKeyboardFocus) {
+      ref.current?.querySelector<HTMLElement>('.rule-box__score-trigger')?.focus({ preventScroll: true });
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
 
   useEffect(() => {
     if (isFocused) {
@@ -69,14 +91,21 @@ const RuleBox = ({
     }
   }, [isRejected]);
 
-  const handleScoreChange = (rulePayload: GradeRulePayload): Promise<void> => {
-    // With no criteria yet, the score stays in the context until content is picked.
-    if (isPlaceholder || groupId === null) {
-      setPlaceholderRulePayload(rulePayload);
-      return Promise.resolve();
-    }
-    return updateRuleScore(groupId, criteria.map((criterion) => criterion.id), rulePayload);
+  // With no criteria yet, the score stays in the context until content is picked.
+  const handlePlaceholderScoreChange = (rulePayload: GradeRulePayload) => {
+    setPlaceholderRulePayload(rulePayload);
   };
+
+  const handleConfirm = async () => {
+    if (!canEdit || editState.kind !== 'confirming') {
+      return;
+    }
+    await updateRuleScore(groupId!, criteria.map((criterion) => criterion.id), editState.rulePayload);
+    setEditState({ kind: 'closed' });
+  };
+
+  const oldScore = formatScoreSummary(intl, rule.rulePayload);
+  const richText = { b: (chunks: ReactNode) => <span className="font-weight-bold">{chunks}</span> };
 
   const selectRuleBox = () => {
     if (groupId !== null && ruleKey !== null) {
@@ -104,14 +133,28 @@ const RuleBox = ({
                 <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
               </button>
             )}
-            <ScoreThresholdField
-              rulePayload={rule.rulePayload}
-              onChange={handleScoreChange}
-              getInlineValidationMessage={getInlineValidationMessage}
-              autoFocusSelect={autoFocusSelect}
-              hint={hint}
-              hintIsError={isRejected}
-            />
+            {isPlaceholder
+              ? (
+                <ScoreThresholdField
+                  rulePayload={rule.rulePayload}
+                  onChange={handlePlaceholderScoreChange}
+                  getInlineValidationMessage={getInlineValidationMessage}
+                  autoFocusSelect={autoFocusSelect}
+                  hint={hint}
+                  hintIsError={isRejected}
+                />
+              )
+              : (
+                <ScoreThresholdPopover
+                  rulePayload={rule.rulePayload}
+                  isOpen={editState.kind === 'editing'}
+                  initialRulePayload={editState.kind === 'editing' ? editState.draft : undefined}
+                  onOpen={() => setEditState({ kind: 'editing' })}
+                  onClose={() => setEditState({ kind: 'closed' })}
+                  onSave={(rulePayload) => setEditState({ kind: 'confirming', rulePayload })}
+                  getInlineValidationMessage={getInlineValidationMessage}
+                />
+              )}
           </>
         )
         : (
@@ -138,6 +181,34 @@ const RuleBox = ({
             canEdit={canEdit}
           />
         )}
+      {editState.kind === 'confirming' && (
+        <EditConfirmationModal
+          isOpen
+          title={intl.formatMessage(messages.scoreChangeConfirmationTitle, {
+            newScore: formatScoreSummary(intl, editState.rulePayload),
+          })}
+          body={
+            <>
+              <p>
+                {intl.formatMessage(messages.scoreChangeConfirmationItemsText, { count: criteria.length, ...richText })}
+              </p>
+              <p>
+                {intl.formatMessage(messages.scoreChangeConfirmationFutureText, {
+                  competencyName,
+                  oldScore,
+                  ...richText,
+                })}
+              </p>
+            </>
+          }
+          errorText={intl.formatMessage(messages.scoreChangeFailedText, { oldScore })}
+          onConfirm={handleConfirm}
+          onCancel={() =>
+            setEditState((state) => (
+              state.kind === 'confirming' ? { kind: 'editing', draft: state.rulePayload } : state
+            ))}
+        />
+      )}
     </Stack>
   );
 };

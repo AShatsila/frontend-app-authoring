@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import {
   Dropdown,
@@ -8,9 +9,10 @@ import {
 import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
-import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
+import type { BottomTierCompetencyCriteriaGroup, CompetencyGroupLogicOperator } from '../data/types';
 import { ruleBoxesForGroup } from '../utils';
 import AddControl from './AddControl';
+import EditConfirmationModal from './EditConfirmationModal';
 import LogicOperatorSelect from './LogicOperatorSelect';
 import RuleBoxList from './RuleBoxList';
 import messages from './messages';
@@ -37,6 +39,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
   const intl = useIntl();
   const {
     focus,
+    competencyName,
     placeholder,
     focusGroup,
     status,
@@ -71,6 +74,24 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
   }, [isFocused, hasFocusedBox]);
 
   const selectButtonRef = useRef<HTMLButtonElement>(null);
+  const operatorRef = useRef<HTMLSpanElement>(null);
+  const [pendingLogicOperator, setPendingLogicOperator] = useState<CompetencyGroupLogicOperator | null>(null);
+  const focusTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(focusTimer.current), []);
+
+  // A refetch that already shows the pending value makes the confirmation moot.
+  useEffect(() => {
+    if (group && pendingLogicOperator === group.logicOperator) {
+      setPendingLogicOperator(null);
+    }
+  }, [group?.logicOperator, pendingLogicOperator]);
+
+  // The menu stays mounted but hidden, so the dialog's focus return fails; focus the toggle next tick.
+  const closeConfirmation = () => {
+    setPendingLogicOperator(null);
+    clearTimeout(focusTimer.current);
+    focusTimer.current = setTimeout(() => operatorRef.current?.querySelector('button')?.focus(), 0);
+  };
   const takesKeyboardFocus = group !== undefined
     && keyboardFocusRequest?.kind === 'group'
     && keyboardFocusRequest.groupId === group.id;
@@ -82,6 +103,20 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
     }
   }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
 
+  const handleLogicOperatorChange = (newLogicOperator: CompetencyGroupLogicOperator) => {
+    if (newLogicOperator !== group?.logicOperator) {
+      setPendingLogicOperator(newLogicOperator);
+    }
+  };
+
+  const handleConfirm = async () => {
+    await updateGroupOperator(group!.id, pendingLogicOperator!);
+    closeConfirmation();
+  };
+
+  const requiresAll = pendingLogicOperator === 'AND';
+  const richText = { b: (chunks: ReactNode) => <span className="font-weight-bold">{chunks}</span> };
+
   const sentenceLabel = intl.formatMessage(messages.criteriaGroupBoxLabel, {
     operator: logicOperator === 'AND'
       ? intl.formatMessage(messages.logicOperatorAllLabel)
@@ -89,94 +124,116 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdi
   });
   const sentence = intl.formatMessage(messages.criteriaGroupBoxLabel, {
     operator: (
-      <LogicOperatorSelect
-        key="operator"
-        className="criteria-group-box__header-operator"
-        value={logicOperator}
-        labels={{
-          and: intl.formatMessage(messages.logicOperatorAllLabel),
-          or: intl.formatMessage(messages.logicOperatorAnyLabel),
-        }}
-        onChange={canEdit
-          ? (newLogicOperator) => (
-            group ? updateGroupOperator(group.id, newLogicOperator) : setPlaceholderLogicOperator(newLogicOperator)
-          )
-          : undefined}
-      />
+      <span key="operator" ref={operatorRef}>
+        <LogicOperatorSelect
+          className="criteria-group-box__header-operator"
+          value={pendingLogicOperator ?? logicOperator}
+          labels={{
+            and: intl.formatMessage(messages.logicOperatorAllLabel),
+            or: intl.formatMessage(messages.logicOperatorAnyLabel),
+          }}
+          onChange={canEdit ? (group ? handleLogicOperatorChange : setPlaceholderLogicOperator) : undefined}
+        />
+      </span>
     ),
   });
 
   return (
-    <div
-      ref={ref}
-      className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
-    >
-      {canEdit
-        ? (
-          // The operator dropdown is a button, so the select control is a sibling laid over the band.
-          <div className="criteria-group-box__header-row d-flex align-items-center">
-            <div className="criteria-group-box__header flex-grow-1">
-              {group && (
-                <button
-                  ref={selectButtonRef}
-                  type="button"
-                  className="criteria-group-box__select-button"
-                  aria-current={isFocused}
-                  onClick={() => focusGroup(group.id)}
-                >
-                  <span className="sr-only">{sentenceLabel}</span>
-                </button>
-              )}
-              {sentence}
+    <>
+      <div
+        ref={ref}
+        className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
+      >
+        {canEdit
+          ? (
+            // The operator dropdown is a button, so the select control is a sibling laid over the band.
+            <div className="criteria-group-box__header-row d-flex align-items-center">
+              <div className="criteria-group-box__header flex-grow-1">
+                {group && (
+                  <button
+                    ref={selectButtonRef}
+                    type="button"
+                    className="criteria-group-box__select-button"
+                    aria-current={isFocused}
+                    onClick={() => focusGroup(group.id)}
+                  >
+                    <span className="sr-only">{sentenceLabel}</span>
+                  </button>
+                )}
+                {sentence}
+              </div>
+              <Dropdown>
+                <Dropdown.Toggle
+                  id={`rule-group-menu-toggle-${group?.id ?? 'placeholder'}`}
+                  as={IconButton}
+                  src={MoreVert}
+                  iconAs={Icon}
+                  variant="primary"
+                  aria-label={intl.formatMessage(messages.ruleGroupMoreActionsLabel)}
+                  size="inline"
+                  disabled={isDeleting}
+                />
+                <Dropdown.Menu>
+                  <Dropdown.Item onClick={() => (group ? deleteGroup(group.id) : removePlaceholderGroup())}>
+                    {intl.formatMessage(messages.removeRuleGroupMenuItem)}
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
             </div>
-            <Dropdown>
-              <Dropdown.Toggle
-                id={`rule-group-menu-toggle-${group?.id ?? 'placeholder'}`}
-                as={IconButton}
-                src={MoreVert}
-                iconAs={Icon}
-                variant="primary"
-                aria-label={intl.formatMessage(messages.ruleGroupMoreActionsLabel)}
-                size="inline"
-                disabled={isDeleting}
-              />
-              <Dropdown.Menu>
-                <Dropdown.Item onClick={() => (group ? deleteGroup(group.id) : removePlaceholderGroup())}>
-                  {intl.formatMessage(messages.removeRuleGroupMenuItem)}
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown>
-          </div>
-        )
-        : (
-          <button
-            type="button"
-            className="criteria-group-box__header"
-            aria-current={isFocused}
-            onClick={() => group && focusGroup(group.id)}
-          >
-            {sentence}
-          </button>
-        )}
-      {status === 'success' && (
-        <div className="criteria-group-box__rules">
-          <RuleBoxList
-            groupId={groupId}
-            boxes={boxes}
-            subsectionNamesByUsageKey={subsectionNamesByUsageKey}
-            courseName={courseName}
-            canEdit={canEdit}
-          />
-          {canEdit && groupId !== null && (
-            <AddControl
-              label={intl.formatMessage(messages.addRuleButtonLabel)}
-              disabled={hasPlaceholder}
-              onClick={() => addPlaceholderRuleBox(groupId)}
-            />
+          )
+          : (
+            <button
+              type="button"
+              className="criteria-group-box__header"
+              aria-current={isFocused}
+              onClick={() => group && focusGroup(group.id)}
+            >
+              {sentence}
+            </button>
           )}
-        </div>
+        {status === 'success' && (
+          <div className="criteria-group-box__rules">
+            <RuleBoxList
+              groupId={groupId}
+              boxes={boxes}
+              subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+              courseName={courseName}
+              canEdit={canEdit}
+            />
+            {canEdit && groupId !== null && (
+              <AddControl
+                label={intl.formatMessage(messages.addRuleButtonLabel)}
+                disabled={hasPlaceholder}
+                onClick={() => addPlaceholderRuleBox(groupId)}
+              />
+            )}
+          </div>
+        )}
+      </div>
+      {group && pendingLogicOperator !== null && (
+        <EditConfirmationModal
+          isOpen
+          title={intl.formatMessage(
+            requiresAll ? messages.requireAllConfirmationTitle : messages.requireAnyConfirmationTitle,
+          )}
+          body={
+            <>
+              <p>
+                {intl.formatMessage(
+                  requiresAll ? messages.requireAllConfirmationText : messages.requireAnyConfirmationText,
+                )}
+              </p>
+              <p>{intl.formatMessage(messages.logicChangeFutureText, { competencyName, ...richText })}</p>
+            </>
+          }
+          errorText={intl.formatMessage(
+            group.logicOperator === 'OR' ? messages.groupStillRequiresAnyText : messages.groupStillRequiresAllText,
+          )}
+          onConfirm={handleConfirm}
+          onCancel={closeConfirmation}
+        />
       )}
-    </div>
+    </>
   );
 };
 

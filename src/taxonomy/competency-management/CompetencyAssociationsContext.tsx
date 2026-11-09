@@ -68,14 +68,16 @@ export interface CriteriaFocus {
 }
 
 /** A one-shot request for the browser's keyboard focus, left by a delete because the trash button that had it is
- * gone. Kept here because the cards can unmount (or be collapsed) before the new target renders. `group` names the
- * bottom-tier group card that takes it, and `expand` whether a collapsed course-level group holding that card opens
- * for it. `empty` is the "no associations" message, and `subsection` the content panel's row for `objectId`.
+ * gone, or by a score save that remounts its rule box. Kept here because the cards can unmount (or be collapsed)
+ * before the new target renders. `group` names the bottom-tier group card that takes it, and `expand` whether a
+ * collapsed course-level group holding that card opens for it. `empty` is the "no associations" message,
+ * `subsection` the content panel's row for `objectId`, and `ruleBox` the score trigger of the rule box with that key.
  */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
   | { kind: 'empty'; }
-  | { kind: 'subsection'; objectId: string; };
+  | { kind: 'subsection'; objectId: string; }
+  | { kind: 'ruleBox'; groupId: number; ruleKey: string; };
 
 /** The author's choices on the placeholder group or rule box. The rule payload is shared by both shapes, since only
  * one placeholder exists at a time.
@@ -141,10 +143,12 @@ export interface CompetencyAssociationsContextBase {
    * associated or the groups tree or default profile has not loaded.
    */
   associateSubsection: (objectId: string, courseId: string) => void;
-  /** Updates a bottom-tier group's any/all combining logic. A rejected save only shows a failure toast. */
-  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => void;
-  /** Updates a rule box's score threshold across `criterionIds`, keeping the box's current rule type.
-   * Rejects on failure so `ScoreThresholdField` can revert its local input.
+  /** Updates a bottom-tier group's any/all combining logic. Resolves once the groups have refetched, and rejects on
+   * failure without a toast, so the confirmation dialog can show the error.
+   */
+  updateGroupOperator: (groupId: number, logicOperator: CompetencyGroupLogicOperator) => Promise<void>;
+  /** Updates a rule box's score threshold across `criterionIds`, keeping the box's current rule type. Resolves once
+   * the groups have refetched, and rejects on failure without a toast.
    */
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
   isAssociating: boolean;
@@ -463,7 +467,7 @@ export const CompetencyAssociationsProvider = ({
   const profileQuery = useDefaultCompetencyRuleProfile();
   const { mutateAsync: createCriterion, isPending: isCreatePending, variables } = useCreateCompetencyCriterion();
   const isAssociating = isCreatePending && variables?.tagId === tagId;
-  const { mutate: updateGroupOperatorMutate } = useUpdateCompetencyCriteriaGroupOperator();
+  const { mutateAsync: updateGroupOperatorMutateAsync } = useUpdateCompetencyCriteriaGroupOperator();
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
   const { mutate: mutateDeleteGroup, isPending: isGroupDeletePending } = useDeleteCompetencyCriteriaGroup();
   const { mutate: mutateDeleteCriterion, isPending: isCriterionDeletePending } = useDeleteCompetencyCriterion();
@@ -471,6 +475,8 @@ export const CompetencyAssociationsProvider = ({
   const queryClient = useQueryClient();
   // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
   // respect a click made while the request was in flight.
+  const generationRef = useRef(generation);
+  generationRef.current = generation;
   const focusRef = useRef(focus);
   focusRef.current = focus;
   const placeholderRef = useRef(placeholder);
@@ -691,14 +697,13 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
-  const updateGroupOperator = useCallback((groupId: number, logicOperator: CompetencyGroupLogicOperator) => {
-    updateGroupOperatorMutate({ tagId, groupId, logicOperator }, {
-      // `LogicOperatorSelect` renders from `group.logicOperator`, which a rejected mutation never touches.
-      onError: () => {
-        showToast(intl.formatMessage(messages.updateGroupOperatorFailedToastMessage), undefined, undefined, ErrorIcon);
-      },
-    });
-  }, [tagId, updateGroupOperatorMutate, showToast, intl]);
+  // A bottom-tier group's `logic_operator`: "AND" means every rule box must be met ("all"), "OR" means any one
+  // of them ("any").
+  const updateGroupOperator = useCallback(
+    (groupId: number, logicOperator: CompetencyGroupLogicOperator): Promise<void> =>
+      updateGroupOperatorMutateAsync({ tagId, groupId, logicOperator }).then(() => undefined),
+    [tagId, updateGroupOperatorMutateAsync],
+  );
 
   const updateRuleScore = useCallback((
     groupId: number,
@@ -719,22 +724,22 @@ export const CompetencyAssociationsProvider = ({
     }
     const { ruleType } = effectiveRuleOf(anchorCriterion, systemDefaultProfile);
 
+    const visitGeneration = generationRef.current;
     return updateRuleScoreMutateAsync({ tagId, groupId, criterionIds, ruleType, rulePayload })
       .then((updatedCriteria) => {
+        // The author moved to another competency while this ran; its focus is not ours to set.
+        if (visitGeneration !== generationRef.current) {
+          return;
+        }
         // Keyed from the response: a "reset to default" edit can echo back a shared profile reference.
         const [updatedCriterion] = updatedCriteria;
         if (updatedCriterion) {
-          dispatch({
-            type: 'setFocus',
-            focus: { groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) },
-          });
+          const ruleKey = ruleKeyOf(updatedCriterion, systemDefaultProfile);
+          dispatch({ type: 'setFocus', focus: { groupId, ruleKey } });
+          dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: { kind: 'ruleBox', groupId, ruleKey } });
         }
-      })
-      .catch((updateError) => {
-        showToast(intl.formatMessage(messages.updateRuleScoreFailedToastMessage), undefined, undefined, ErrorIcon);
-        throw updateError;
       });
-  }, [groupsIndex, systemDefaultProfile, tagId, updateRuleScoreMutateAsync, showToast, intl]);
+  }, [groupsIndex, systemDefaultProfile, tagId, updateRuleScoreMutateAsync]);
 
   const consumeKeyboardFocusRequest = useCallback(() => {
     dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: null });

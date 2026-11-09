@@ -223,7 +223,16 @@
     color: var(--pgn-color-gray-700);
   }
 
+  .rule-box__score-trigger {
+    // Layers above `.rule-box__select-button` so clicks open the popover.
+    position: relative;
+    z-index: 1;
+  }
+
   .score-threshold-field__value {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--pgn-spacing-spacer-1);
     color: var(--pgn-color-info-600);
   }
 

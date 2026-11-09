@@ -3,6 +3,7 @@ import {
   render,
   screen,
   userEvent,
+  waitFor,
   within,
 } from '@src/testUtils';
 import { mockScrollIntoView, MockCompetencyAssociationsProvider, singleGroupResponse } from '../__mocks__';
@@ -12,10 +13,16 @@ import CriteriaGroupBox from './CriteriaGroupBox';
 
 const group = singleGroupResponse.groups.find(({ id }) => id === 10) as BottomTierCompetencyCriteriaGroup;
 
-const renderBox = (contextOverrides: MockCompetencyAssociationsOverrides = {}, canEdit: boolean = true) => (
+const allGroup: BottomTierCompetencyCriteriaGroup = { ...group, logicOperator: 'AND' };
+
+const renderBox = (
+  contextOverrides: MockCompetencyAssociationsOverrides = {},
+  canEdit: boolean = true,
+  boxGroup: BottomTierCompetencyCriteriaGroup = group,
+) => (
   render(
     <MockCompetencyAssociationsProvider value={contextOverrides}>
-      <CriteriaGroupBox group={group} subsectionNamesByUsageKey={{}} canEdit={canEdit} />
+      <CriteriaGroupBox group={boxGroup} subsectionNamesByUsageKey={{}} canEdit={canEdit} />
     </MockCompetencyAssociationsProvider>,
   )
 );
@@ -36,14 +43,167 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     expect(container.querySelector('.dropdown-toggle')).not.toBeInTheDocument();
   });
 
-  it('calls updateGroupOperator with the group id and the selected operator when canEdit is true', async () => {
-    const updateGroupOperator = jest.fn();
+  const getToggle = (name: string) => (
+    screen.getAllByRole('button', { name, hidden: true }).find((el) => el.classList.contains('dropdown-toggle'))!
+  );
+
+  const chooseAll = async () => {
+    await user.click(screen.getByRole('button', { name: 'any' }));
+    await user.click(screen.getByRole('button', { name: 'all' }));
+  };
+
+  it('choosing all on an any group shows the confirmation and saves nothing', async () => {
+    const updateGroupOperator = jest.fn().mockResolvedValue(undefined);
+    renderBox({ updateGroupOperator });
+
+    await chooseAll();
+
+    const dialog = screen.getByRole('dialog', { name: 'Require all content in this group?' });
+    expect(dialog).toHaveTextContent(
+      'Learners will need to meet the score on every content item in this group, not just one.',
+    );
+    expect(dialog).toHaveTextContent(
+      'This only affects future evaluations of Competency. Learners already evaluated keep the status they have.',
+    );
+    expect(within(dialog).getByText('Competency')).toHaveClass('font-weight-bold');
+    expect(getToggle('all')).toBeInTheDocument();
+    expect(updateGroupOperator).not.toHaveBeenCalled();
+  });
+
+  it('confirming saves the change', async () => {
+    const updateGroupOperator = jest.fn().mockResolvedValue(undefined);
+    renderBox({ updateGroupOperator });
+
+    await chooseAll();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+
+    expect(updateGroupOperator).toHaveBeenCalledWith(10, 'AND');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('cancelling switches the dropdown back', async () => {
+    const updateGroupOperator = jest.fn().mockResolvedValue(undefined);
+    renderBox({ updateGroupOperator });
+
+    await chooseAll();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(getToggle('any')).toBeInTheDocument();
+    expect(updateGroupOperator).not.toHaveBeenCalled();
+  });
+
+  it('choosing any on an all group shows the any wording', async () => {
+    renderBox({}, true, allGroup);
+
+    await user.click(screen.getByRole('button', { name: 'all' }));
+    await user.click(screen.getByRole('button', { name: 'any' }));
+
+    expect(screen.getByRole('dialog', { name: 'Require any content in this group?' })).toHaveTextContent(
+      'Learners will need to meet the score on just one content item in this group, not every one.',
+    );
+  });
+
+  it('choosing the current value does nothing', async () => {
+    const updateGroupOperator = jest.fn().mockResolvedValue(undefined);
     renderBox({ updateGroupOperator });
 
     await user.click(screen.getByRole('button', { name: 'any' }));
-    await user.click(screen.getByText('all'));
+    await user.click(screen.getAllByText('any')[1]);
 
-    expect(updateGroupOperator).toHaveBeenCalledWith(10, 'AND');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(updateGroupOperator).not.toHaveBeenCalled();
+  });
+
+  it('closes the confirmation when a refetch shows the pending value', async () => {
+    const { rerender } = renderBox();
+
+    await chooseAll();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    rerender(
+      <MockCompetencyAssociationsProvider>
+        <CriteriaGroupBox group={allGroup} subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
+    );
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('a failed save shows the failure and keeps the pending value', async () => {
+    const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
+    renderBox({ updateGroupOperator });
+
+    await chooseAll();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('Couldn\'t save this change')).toBeInTheDocument();
+    expect(screen.getByText('The group still requires any content. Try again, or cancel to keep it as it is.'))
+      .toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(getToggle('all')).toBeInTheDocument();
+  });
+
+  it('names the current value "all" in the failure text of an all group', async () => {
+    const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
+    renderBox({ updateGroupOperator }, true, allGroup);
+
+    await user.click(screen.getByRole('button', { name: 'all' }));
+    await user.click(screen.getByRole('button', { name: 'any' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('The group still requires all content. Try again, or cancel to keep it as it is.'))
+      .toBeInTheDocument();
+  });
+
+  it('shows no stale error in a reopened confirmation after a refetch closed it', async () => {
+    const updateGroupOperator = jest.fn().mockRejectedValue(new Error('boom'));
+    const { rerender } = renderBox({ updateGroupOperator });
+
+    await chooseAll();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Couldn\'t save this change')).toBeInTheDocument();
+
+    rerender(
+      <MockCompetencyAssociationsProvider value={{ updateGroupOperator }}>
+        <CriteriaGroupBox group={allGroup} subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(getToggle('all'));
+    await user.click(
+      screen.getAllByRole('button', { name: 'any' }).find((el) => !el.classList.contains('dropdown-toggle'))!,
+    );
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByText('Couldn\'t save this change')).not.toBeInTheDocument();
+  });
+
+  it.each(['Cancel', 'Save changes'])('returns focus to the dropdown toggle after %s', async (buttonName) => {
+    const updateGroupOperator = jest.fn().mockResolvedValue(undefined);
+    renderBox({ updateGroupOperator });
+
+    await chooseAll();
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: buttonName }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(getToggle('any')).toHaveFocus());
+  });
+
+  it('changes the placeholder group immediately with no confirmation', async () => {
+    const setPlaceholderLogicOperator = jest.fn();
+    render(
+      <MockCompetencyAssociationsProvider value={{ setPlaceholderLogicOperator }}>
+        <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
+      </MockCompetencyAssociationsProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'any' }));
+    await user.click(screen.getByRole('button', { name: 'all' }));
+
+    expect(setPlaceholderLogicOperator).toHaveBeenCalledWith('AND');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('focuses the group when its select button is clicked', async () => {
