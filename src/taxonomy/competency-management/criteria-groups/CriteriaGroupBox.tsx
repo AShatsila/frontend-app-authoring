@@ -19,6 +19,8 @@ export interface CriteriaGroupBoxProps {
   /** `undefined` for the not-yet-saved placeholder group, which reads its any/all logic from the context. */
   group?: BottomTierCompetencyCriteriaGroup;
   subsectionNamesByUsageKey: Record<string, string>;
+  /** Name of the course these criteria belong to, read aloud for an unavailable chip. */
+  courseName?: string;
   /** Whether the author can edit this group's any/all logic and its rule boxes' scores. */
   canEdit: boolean;
 }
@@ -31,7 +33,7 @@ export interface CriteriaGroupBoxProps {
  * rule box scrolls itself, and the group scrolls only when none of its boxes
  * matches the focused rule key.
  */
-const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: CriteriaGroupBoxProps) => {
+const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, courseName, canEdit }: CriteriaGroupBoxProps) => {
   const intl = useIntl();
   const {
     focus,
@@ -162,6 +164,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
             groupId={groupId}
             boxes={boxes}
             subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+            courseName={courseName}
             canEdit={canEdit}
           />
           {canEdit && groupId !== null && (
