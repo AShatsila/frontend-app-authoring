@@ -19,7 +19,10 @@ export interface ContentTaxonomyTagData {
   canTagObject: boolean;
   tags: Tag[];
   exportId: string;
-  /** `'competency'` for a competency taxonomy; absent on backends that predate #783. */
+  /**
+   * Type of the taxonomy these tags belong to. Absent until the backend returns `taxonomy_type`
+   * on the object tags endpoint (openedx-core#783).
+   */
   taxonomyType?: TaxonomyType;
 }
 

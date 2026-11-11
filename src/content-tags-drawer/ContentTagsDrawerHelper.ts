@@ -58,7 +58,7 @@ export const useCreateContentTagsDrawerContext = (
   const [tagsByTaxonomy, setTagsByTaxonomy] = React.useState<DrawerTaxonomy[]>([]);
   // Other taxonomies that the user doesn't have permissions
   const [otherTaxonomies, setOtherTaxonomies] = React.useState<DrawerTaxonomy[]>([]);
-  // Competency taxonomies, shown read-only in their own section.
+  // Competency taxonomies are read-only here and rendered in their own section.
   const [competencyTaxonomies, setCompetencyTaxonomies] = React.useState<DrawerTaxonomy[]>([]);
   // This stores taxonomy collapsible states (open/close).
   const [collapsibleStates, setColapsibleStates] = React.useState<Record<number, boolean>>({});
@@ -145,7 +145,7 @@ export const useCreateContentTagsDrawerContext = (
         }
       });
 
-      // Delete Language and competency taxonomies if empty
+      // Hide the Language taxonomy and competency taxonomies when the object has no tags from them.
       const hiddenWhenEmpty = (t: (typeof taxonomiesList)[number]) =>
         t.exportId === languageExportId || isCompetencyTaxonomy(t);
       const filteredTaxonomies = taxonomiesList.filter(
