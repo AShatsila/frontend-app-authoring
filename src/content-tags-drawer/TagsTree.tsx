@@ -63,7 +63,11 @@ const TagComponent = ({
 
   return (
     <Stack direction="horizontal">
-      <Icon src={tagIcon} screenReaderText={tagIconScreenReaderText} className="mr-1 pb-1.5 text-info-500" />
+      <Icon
+        src={tagIcon}
+        screenReaderText={explicit ? tagIconScreenReaderText : undefined}
+        className="mr-1 pb-1.5 text-info-500"
+      />
       {value}
       {explicit && canDelete && (
         <IconButton

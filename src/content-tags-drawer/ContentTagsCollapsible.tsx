@@ -29,8 +29,8 @@ import ContentTagsDropDownSelector from './ContentTagsDropDownSelector';
 
 import useContentTagsCollapsibleHelper from './ContentTagsCollapsibleHelper';
 import TagsTree from './TagsTree';
-import CompetencyIcon from '../generic/CompetencyIcon';
-import { isCompetencyTaxonomy } from '../taxonomy/data/utils';
+import CompetencyIcon from '@src/generic/CompetencyIcon';
+import { isCompetencyTaxonomy } from '@src/taxonomy/data/utils';
 import { ContentTagsDrawerContext } from './common/context';
 import type { DrawerTaxonomy, StagedTagData } from './data/types';
 

@@ -3,8 +3,8 @@ import { useIntl } from '@edx/frontend-platform/i18n';
 import { cloneDeep } from 'lodash';
 import { useContentData, useContentTaxonomyTagsData, useContentTaxonomyTagsUpdater } from './data/apiHooks';
 import { useTaxonomyList } from '../taxonomy/data/apiHooks';
-import { TaxonomyType } from '../taxonomy/data/constants';
-import { isCompetencyTaxonomy } from '../taxonomy/data/utils';
+import { TaxonomyType } from '@src/taxonomy/data/constants';
+import { isCompetencyTaxonomy } from '@src/taxonomy/data/utils';
 import { extractOrgFromContentId, languageExportId } from './utils';
 import messages from './messages';
 import { ContentTagsDrawerSheetContext } from './common/context';
@@ -17,7 +17,7 @@ import type {
 } from './data/types';
 
 // Competency associations are managed on the Competency Management page, so the drawer only displays them.
-const lockForDrawer = <T extends DrawerTaxonomy>(taxonomy: T): T => ({
+const withoutTagControls = <T extends DrawerTaxonomy>(taxonomy: T): T => ({
   ...taxonomy,
   taxonomyType: TaxonomyType.Competency,
   canTagObject: false,
@@ -124,7 +124,9 @@ export const useCreateContentTagsDrawerContext = (
         const contentTaxonomy = taxonomiesList.find((taxonomy) => taxonomy.id === contentTaxonomyTags.taxonomyId);
         if (contentTaxonomy) {
           contentTaxonomy.contentTags = contentTaxonomyTags.tags;
-          contentTaxonomy.taxonomyType ??= contentTaxonomyTags.taxonomyType;
+          if (isCompetencyTaxonomy(contentTaxonomy) || isCompetencyTaxonomy(contentTaxonomyTags)) {
+            taxonomiesList[taxonomiesList.indexOf(contentTaxonomy)] = withoutTagControls(contentTaxonomy);
+          }
         } else {
           const otherTaxonomy: DrawerTaxonomy = {
             canTagObject: contentTaxonomyTags.canTagObject,
@@ -134,18 +136,12 @@ export const useCreateContentTagsDrawerContext = (
             taxonomyType: contentTaxonomyTags.taxonomyType,
           };
           otherTaxonomiesList.push(
-            isCompetencyTaxonomy(contentTaxonomyTags) ? lockForDrawer(otherTaxonomy) : otherTaxonomy,
+            isCompetencyTaxonomy(contentTaxonomyTags) ? withoutTagControls(otherTaxonomy) : otherTaxonomy,
           );
         }
       });
 
-      taxonomiesList.forEach((taxonomy, index) => {
-        if (isCompetencyTaxonomy(taxonomy)) {
-          taxonomiesList[index] = lockForDrawer(taxonomy);
-        }
-      });
-
-      // Hide the Language taxonomy and competency taxonomies when the object has no tags from them.
+      // Nothing can be added to these taxonomies from the drawer, so an empty one is only noise.
       const hiddenWhenEmpty = (t: (typeof taxonomiesList)[number]) =>
         t.exportId === languageExportId || isCompetencyTaxonomy(t);
       const filteredTaxonomies = taxonomiesList.filter(
@@ -452,14 +448,8 @@ export const useCreateContentTagsDrawerContext = (
         tags: tags.contentTags.map(t => t.value),
       });
     });
-    competencyTaxonomies.forEach((tags) => {
-      tagsData.push({
-        taxonomy: tags.id,
-        tags: tags.contentTags.map(t => t.value),
-      });
-    });
     updateTags.mutate({ tagsData });
-  }, [tagsByTaxonomy, otherTaxonomies, competencyTaxonomies]);
+  }, [tagsByTaxonomy, otherTaxonomies]);
 
   return {
     stagedContentTags,

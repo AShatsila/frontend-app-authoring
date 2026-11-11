@@ -34,6 +34,12 @@ export async function mockContentTaxonomyTagsData(contentId: string): Promise<an
       return thisMock.twoCompetencyTags;
     case thisMock.untypedCompetencyTagsId:
       return thisMock.untypedCompetencyTags;
+    case thisMock.listUntypedCompetencyTagsId:
+      return thisMock.listUntypedCompetencyTags;
+    case thisMock.conflictingTypeCompetencyTagsId:
+      return thisMock.conflictingTypeCompetencyTags;
+    case thisMock.nestedCompetencyTagsId:
+      return thisMock.nestedCompetencyTags;
     default:
       throw new Error(`No mock has been set up for contentId "${contentId}"`);
   }
@@ -395,6 +401,66 @@ mockContentTaxonomyTagsData.untypedCompetencyTags = {
     },
   ],
 };
+mockContentTaxonomyTagsData.listUntypedCompetencyTagsId =
+  'block-v1:ListUntypedOrg+STC1+2023_1+type@vertical+block@listUntypedCompetencyTagsId';
+// Only this payload says `competency`; the taxonomy list entry for 321 has no `taxonomyType`.
+mockContentTaxonomyTagsData.listUntypedCompetencyTags = {
+  taxonomies: [
+    {
+      name: 'Critical Thinking',
+      taxonomyId: 321,
+      canTagObject: true,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Inference',
+          lineage: ['Inference'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
+mockContentTaxonomyTagsData.conflictingTypeCompetencyTagsId =
+  'block-v1:ConflictingTypeOrg+STC1+2023_1+type@vertical+block@conflictingTypeCompetencyTagsId';
+// The taxonomy list types 321 as `tags`, while this payload says `competency`.
+mockContentTaxonomyTagsData.conflictingTypeCompetencyTags = {
+  taxonomies: [
+    {
+      name: 'Critical Thinking',
+      taxonomyId: 321,
+      canTagObject: true,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Inference',
+          lineage: ['Inference'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
+mockContentTaxonomyTagsData.nestedCompetencyTagsId =
+  'block-v1:CompetencyTagsOrg+STC1+2023_1+type@vertical+block@nestedCompetencyTagsId';
+// One explicit tag with a three-level lineage, so the tree renders three nodes.
+mockContentTaxonomyTagsData.nestedCompetencyTags = {
+  taxonomies: [
+    {
+      name: 'Critical Thinking',
+      taxonomyId: 321,
+      canTagObject: true,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Deduction',
+          lineage: ['Reasoning', 'Logic', 'Deduction'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
 mockContentTaxonomyTagsData.containerTagsId = 'lct:StagedTagsOrg:lib:unit:container_tags';
 mockContentTaxonomyTagsData.applyMock = () =>
   jest.spyOn(api, 'getContentTaxonomyTagsData').mockImplementation(mockContentTaxonomyTagsData);
@@ -417,6 +483,10 @@ export async function mockTaxonomyListData(org: string): Promise<any> {
       return thisMock.competencyTags;
     case thisMock.onlyCompetencyOrg:
       return thisMock.onlyCompetency;
+    case thisMock.listUntypedOrg:
+      return thisMock.listUntyped;
+    case thisMock.conflictingTypeOrg:
+      return thisMock.conflictingType;
     default:
       throw new Error(`No mock has been set up for org "${org}"`);
   }
@@ -531,6 +601,29 @@ mockTaxonomyListData.onlyCompetency = {
       description: 'This is a description',
       canTagObject: true,
       taxonomyType: 'competency',
+    },
+  ],
+};
+mockTaxonomyListData.listUntypedOrg = 'ListUntypedOrg';
+mockTaxonomyListData.listUntyped = {
+  results: [
+    {
+      id: 321,
+      name: 'Critical Thinking',
+      description: 'This is a description',
+      canTagObject: true,
+    },
+  ],
+};
+mockTaxonomyListData.conflictingTypeOrg = 'ConflictingTypeOrg';
+mockTaxonomyListData.conflictingType = {
+  results: [
+    {
+      id: 321,
+      name: 'Critical Thinking',
+      description: 'This is a description',
+      canTagObject: true,
+      taxonomyType: 'tags',
     },
   ],
 };

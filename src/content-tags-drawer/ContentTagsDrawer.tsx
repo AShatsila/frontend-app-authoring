@@ -15,6 +15,32 @@ import Loading from '../generic/Loading';
 import { useCreateContentTagsDrawerContext } from './ContentTagsDrawerHelper';
 import { ContentTagsDrawerContext, ContentTagsDrawerSheetContext } from './common/context';
 import { SidebarActions, useSidebarContext } from '../library-authoring/common/context/SidebarContext';
+import type { DrawerTaxonomy } from './data/types';
+
+interface TaxonomyCollapsiblesProps {
+  contentId: string;
+  taxonomies: DrawerTaxonomy[];
+}
+
+const TaxonomyCollapsibles = ({ contentId, taxonomies }: TaxonomyCollapsiblesProps) => {
+  const { stagedContentTags, collapsibleStates } = React.useContext(ContentTagsDrawerContext);
+
+  return (
+    <>
+      {taxonomies.map((data) => (
+        <div key={data.id}>
+          <ContentTagsCollapsible
+            contentId={contentId}
+            taxonomyAndTagsData={data}
+            stagedContentTags={stagedContentTags[data.id] || []}
+            collapsibleState={collapsibleStates[data.id] || false}
+          />
+          <hr />
+        </div>
+      ))}
+    </>
+  );
+};
 
 interface TaxonomyListProps {
   contentId: string;
@@ -29,29 +55,18 @@ const TaxonomyList = ({ contentId }: TaxonomyListProps) => {
     isContentTaxonomyTagsLoaded,
     tagsByTaxonomy,
     competencyTaxonomies,
-    stagedContentTags,
-    collapsibleStates,
   } = React.useContext(ContentTagsDrawerContext);
 
   if (isTaxonomyListLoaded && isContentTaxonomyTagsLoaded) {
     if (tagsByTaxonomy.length !== 0) {
       return (
         <div>
-          {tagsByTaxonomy.map((data) => (
-            <div key={data.id}>
-              <ContentTagsCollapsible
-                contentId={contentId}
-                taxonomyAndTagsData={data}
-                stagedContentTags={stagedContentTags[data.id] || []}
-                collapsibleState={collapsibleStates[data.id] || false}
-              />
-              <hr />
-            </div>
-          ))}
+          <TaxonomyCollapsibles contentId={contentId} taxonomies={tagsByTaxonomy} />
         </div>
       );
     }
 
+    // The competency section is the drawer content here, so the enable-taxonomies prompt would be wrong.
     if (competencyTaxonomies.length !== 0) {
       return null;
     }
@@ -265,8 +280,6 @@ const ContentTagsDrawer = ({
     commitGlobalStagedTagsStatus,
     isTaxonomyListLoaded,
     isContentTaxonomyTagsLoaded,
-    stagedContentTags,
-    collapsibleStates,
     toastMessage,
     closeToast,
     setCollapsibleToInitalState,
@@ -391,17 +404,7 @@ const ContentTagsDrawer = ({
                 >
                   {intl.formatMessage(messages.competencyTagsLink)}
                 </Button>
-                {competencyTaxonomies.map((data) => (
-                  <div key={data.id}>
-                    <ContentTagsCollapsible
-                      contentId={contentId}
-                      taxonomyAndTagsData={data}
-                      stagedContentTags={stagedContentTags[data.id] || []}
-                      collapsibleState={collapsibleStates[data.id] || false}
-                    />
-                    <hr />
-                  </div>
-                ))}
+                <TaxonomyCollapsibles contentId={contentId} taxonomies={competencyTaxonomies} />
               </div>
             )}
             {otherTaxonomies.length !== 0 && (
@@ -413,17 +416,7 @@ const ContentTagsDrawer = ({
                   {intl.formatMessage(messages.otherTagsDescription)}
                 </p>
                 {isTaxonomyListLoaded && isContentTaxonomyTagsLoaded && (
-                  otherTaxonomies.map((data) => (
-                    <div key={data.id}>
-                      <ContentTagsCollapsible
-                        contentId={contentId}
-                        taxonomyAndTagsData={data}
-                        stagedContentTags={stagedContentTags[data.id] || []}
-                        collapsibleState={collapsibleStates[data.id] || false}
-                      />
-                      <hr />
-                    </div>
-                  ))
+                  <TaxonomyCollapsibles contentId={contentId} taxonomies={otherTaxonomies} />
                 )}
               </div>
             )}

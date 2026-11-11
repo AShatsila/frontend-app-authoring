@@ -19,10 +19,7 @@ export interface ContentTaxonomyTagData {
   canTagObject: boolean;
   tags: Tag[];
   exportId: string;
-  /**
-   * Type of the taxonomy these tags belong to. Absent until the backend returns `taxonomy_type`
-   * on the object tags endpoint (openedx-core#783).
-   */
+  /** Optional: backends without openedx-core#783 omit it, and an absent value means an ordinary taxonomy. */
   taxonomyType?: TaxonomyType;
 }
 
