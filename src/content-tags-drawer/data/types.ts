@@ -1,3 +1,4 @@
+import type { TaxonomyType } from '@src/taxonomy/data/constants';
 import type { TaxonomyData } from '@src/taxonomy/data/types';
 
 /** A tag that has been applied to some content. */
@@ -18,6 +19,8 @@ export interface ContentTaxonomyTagData {
   canTagObject: boolean;
   tags: Tag[];
   exportId: string;
+  /** `'competency'` for a competency taxonomy; absent on backends that predate #783. */
+  taxonomyType?: TaxonomyType;
 }
 
 /** A list of all the tags applied to some content object, grouped by taxonomy. */
@@ -78,6 +81,6 @@ export interface StagedTagData {
 }
 
 /** A taxonomy as shown in the tags drawer, along with the tags applied to the content. */
-export interface DrawerTaxonomy extends Pick<TaxonomyData, 'id' | 'name' | 'canTagObject'> {
+export interface DrawerTaxonomy extends Pick<TaxonomyData, 'id' | 'name' | 'canTagObject' | 'taxonomyType'> {
   contentTags: Tag[];
 }

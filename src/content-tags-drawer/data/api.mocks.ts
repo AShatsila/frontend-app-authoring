@@ -26,6 +26,14 @@ export async function mockContentTaxonomyTagsData(contentId: string): Promise<an
       return thisMock.emptyTags;
     case thisMock.veryLongTagsId:
       return thisMock.veryLongTags;
+    case thisMock.competencyTagsId:
+      return thisMock.competencyTags;
+    case thisMock.competencyOtherTagsId:
+      return thisMock.competencyOtherTags;
+    case thisMock.twoCompetencyTagsId:
+      return thisMock.twoCompetencyTags;
+    case thisMock.untypedCompetencyTagsId:
+      return thisMock.untypedCompetencyTags;
     default:
       throw new Error(`No mock has been set up for contentId "${contentId}"`);
   }
@@ -284,6 +292,109 @@ mockContentTaxonomyTagsData.veryLongTags = {
   ],
 };
 
+mockContentTaxonomyTagsData.competencyTagsId =
+  'block-v1:CompetencyTagsOrg+STC1+2023_1+type@vertical+block@competencyTagsId';
+mockContentTaxonomyTagsData.competencyTags = {
+  taxonomies: [
+    {
+      name: 'Taxonomy 1',
+      taxonomyId: 123,
+      canTagObject: true,
+      taxonomyType: 'tags',
+      tags: [
+        {
+          value: 'Tag 1',
+          lineage: ['Tag 1'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+    {
+      name: 'Critical Thinking',
+      taxonomyId: 321,
+      canTagObject: true,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Inference',
+          lineage: ['Inference'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
+mockContentTaxonomyTagsData.competencyOtherTagsId =
+  'block-v1:CompetencyTagsOrg+STC1+2023_1+type@vertical+block@competencyOtherTagsId';
+// Taxonomy 322 is deliberately absent from `mockTaxonomyListData.competencyTags`.
+mockContentTaxonomyTagsData.competencyOtherTags = {
+  taxonomies: [
+    {
+      name: 'Nursing Competencies',
+      taxonomyId: 322,
+      canTagObject: false,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Triage',
+          lineage: ['Triage'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
+mockContentTaxonomyTagsData.twoCompetencyTagsId =
+  'block-v1:OnlyCompetencyOrg+STC1+2023_1+type@vertical+block@twoCompetencyTagsId';
+mockContentTaxonomyTagsData.twoCompetencyTags = {
+  taxonomies: [
+    {
+      name: 'Critical Thinking',
+      taxonomyId: 321,
+      canTagObject: true,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Inference',
+          lineage: ['Inference'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+    {
+      name: 'Problem Solving',
+      taxonomyId: 324,
+      canTagObject: true,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Decomposition',
+          lineage: ['Decomposition'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
+mockContentTaxonomyTagsData.untypedCompetencyTagsId =
+  'block-v1:CompetencyTagsOrg+STC1+2023_1+type@vertical+block@untypedCompetencyTagsId';
+// No `taxonomyType`, as on backends that predate #783.
+mockContentTaxonomyTagsData.untypedCompetencyTags = {
+  taxonomies: [
+    {
+      name: 'Critical Thinking',
+      taxonomyId: 321,
+      canTagObject: true,
+      tags: [
+        {
+          value: 'Inference',
+          lineage: ['Inference'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
 mockContentTaxonomyTagsData.containerTagsId = 'lct:StagedTagsOrg:lib:unit:container_tags';
 mockContentTaxonomyTagsData.applyMock = () =>
   jest.spyOn(api, 'getContentTaxonomyTagsData').mockImplementation(mockContentTaxonomyTagsData);
@@ -302,6 +413,10 @@ export async function mockTaxonomyListData(org: string): Promise<any> {
       return thisMock.largeTags;
     case thisMock.emptyTagsOrg:
       return thisMock.emptyTags;
+    case thisMock.competencyTagsOrg:
+      return thisMock.competencyTags;
+    case thisMock.onlyCompetencyOrg:
+      return thisMock.onlyCompetency;
     default:
       throw new Error(`No mock has been set up for org "${org}"`);
   }
@@ -373,6 +488,51 @@ mockTaxonomyListData.largeTags = {
 mockTaxonomyListData.emptyTagsOrg = 'EmptyTagsOrg';
 mockTaxonomyListData.emptyTags = {
   results: [],
+};
+mockTaxonomyListData.competencyTagsOrg = 'CompetencyTagsOrg';
+mockTaxonomyListData.competencyTags = {
+  results: [
+    {
+      id: 123,
+      name: 'Taxonomy 1',
+      description: 'This is a description',
+      canTagObject: true,
+      taxonomyType: 'tags',
+    },
+    {
+      id: 321,
+      name: 'Critical Thinking',
+      description: 'This is a description',
+      canTagObject: true,
+      taxonomyType: 'competency',
+    },
+    {
+      id: 323,
+      name: 'Empty Competencies',
+      description: 'This is a description',
+      canTagObject: true,
+      taxonomyType: 'competency',
+    },
+  ],
+};
+mockTaxonomyListData.onlyCompetencyOrg = 'OnlyCompetencyOrg';
+mockTaxonomyListData.onlyCompetency = {
+  results: [
+    {
+      id: 321,
+      name: 'Critical Thinking',
+      description: 'This is a description',
+      canTagObject: true,
+      taxonomyType: 'competency',
+    },
+    {
+      id: 324,
+      name: 'Problem Solving',
+      description: 'This is a description',
+      canTagObject: true,
+      taxonomyType: 'competency',
+    },
+  ],
 };
 mockTaxonomyListData.applyMock = () =>
   jest.spyOn(taxonomyApi, 'getTaxonomyListData').mockImplementation(mockTaxonomyListData);
