@@ -83,4 +83,6 @@ export interface StagedTagData {
 /** A taxonomy as shown in the tags drawer, along with the tags applied to the content. */
 export interface DrawerTaxonomy extends Pick<TaxonomyData, 'id' | 'name' | 'canTagObject' | 'taxonomyType'> {
   contentTags: Tag[];
+  /** True for a competency taxonomy from the taxonomy list that the author can tag with; the drawer deep-links only to such a taxonomy. */
+  canOpenCompetencyManagement?: boolean;
 }

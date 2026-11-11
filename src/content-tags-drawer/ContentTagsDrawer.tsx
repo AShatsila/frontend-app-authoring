@@ -4,10 +4,11 @@ import {
   Spinner,
   Stack,
   Button,
+  Hyperlink,
   Toast,
 } from '@openedx/paragon';
 import { useIntl, FormattedMessage } from '@edx/frontend-platform/i18n';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useHref, useParams, useNavigate } from 'react-router-dom';
 import classNames from 'classnames';
 import messages from './messages';
 import ContentTagsCollapsible from './ContentTagsCollapsible';
@@ -288,9 +289,13 @@ const ContentTagsDrawer = ({
     toEditMode,
   } = context;
 
-  const competencyManagementPath = competencyTaxonomies.length === 1
-    ? `/taxonomy/${competencyTaxonomies[0].id}/competencies`
-    : '/taxonomies';
+  // A taxonomy the author cannot open would redirect or show an error, so only a taxonomy
+  // the author can tag with gets a deep link. The taxonomies list lets the author pick instead.
+  const competencyManagementPath =
+    competencyTaxonomies.length === 1 && competencyTaxonomies[0].canOpenCompetencyManagement
+      ? `/taxonomy/${competencyTaxonomies[0].id}/competencies`
+      : '/taxonomies';
+  const competencyManagementHref = useHref(competencyManagementPath);
 
   let onCloseDrawer: () => void;
   if (variant === 'drawer') {
@@ -395,15 +400,13 @@ const ContentTagsDrawer = ({
                 <p className="other-description text-gray-500">
                   {intl.formatMessage(messages.competencyTagsDescription)}
                 </p>
-                <Button
-                  as={Link}
-                  to={competencyManagementPath}
-                  variant="link"
-                  size="inline"
-                  className="text-info-500 p-0 mb-3"
+                <Hyperlink
+                  destination={competencyManagementHref}
+                  target="_blank"
+                  className="text-info-500 d-inline-block mb-3"
                 >
                   {intl.formatMessage(messages.competencyTagsLink)}
-                </Button>
+                </Hyperlink>
                 <TaxonomyCollapsibles contentId={contentId} taxonomies={competencyTaxonomies} />
               </div>
             )}

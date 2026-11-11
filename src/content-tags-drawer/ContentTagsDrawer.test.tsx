@@ -44,6 +44,7 @@ const {
   listUntypedCompetencyTagsId,
   conflictingTypeCompetencyTagsId,
   nestedCompetencyTagsId,
+  untaggableCompetencyTagsId,
 } = mockContentTaxonomyTagsData;
 
 jest.mock('react-router-dom', () => ({
@@ -902,7 +903,7 @@ describe('<ContentTagsDrawer />', () => {
 
     const sectionHeading = () => screen.getByText(messages.competencyTagsHeader.defaultMessage);
     const sectionOf = () => within(sectionHeading().parentElement as HTMLElement);
-    const linkName = messages.competencyTagsLink.defaultMessage;
+    const linkName = new RegExp(messages.competencyTagsLink.defaultMessage);
 
     const renderInEditMode = async (contentId: string, firstText: string) => {
       const user = userEvent.setup();
@@ -1034,6 +1035,41 @@ describe('<ContentTagsDrawer />', () => {
         expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
         expect(screen.getByRole('link', { name: linkName }).getAttribute('href'))
           .toMatch(/\/taxonomy\/321\/competencies$/);
+      });
+
+      it('should link to the taxonomy list when the competency taxonomy is not in the taxonomy list', async () => {
+        renderDrawer(competencyOtherTagsId);
+        expect(await screen.findByText('Nursing Competencies')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+      });
+
+      it('should link to the taxonomy list when the author cannot tag with the competency taxonomy', async () => {
+        renderDrawer(untaggableCompetencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+      });
+
+      it('should link to the taxonomy list when the drawer is read-only and there is one competency taxonomy', async () => {
+        renderDrawer(competencyTagsId, { readOnly: true });
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+      });
+
+      it('should open the link in a new tab without exposing the opener', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        const link = screen.getByRole('link', { name: linkName });
+        expect(link).toHaveAttribute('target', '_blank');
+        expect(link.getAttribute('rel')).toContain('noopener');
+      });
+
+      it('should show the heading and link in the read-only drawer without edit controls', async () => {
+        renderDrawer(competencyTagsId, { readOnly: true });
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionHeading()).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /edit tags/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /manage tags/i })).not.toBeInTheDocument();
       });
 
       it('should link to the taxonomy list when there are several competency taxonomies', async () => {

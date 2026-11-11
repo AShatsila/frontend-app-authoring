@@ -40,6 +40,8 @@ export async function mockContentTaxonomyTagsData(contentId: string): Promise<an
       return thisMock.conflictingTypeCompetencyTags;
     case thisMock.nestedCompetencyTagsId:
       return thisMock.nestedCompetencyTags;
+    case thisMock.untaggableCompetencyTagsId:
+      return thisMock.untaggableCompetencyTags;
     default:
       throw new Error(`No mock has been set up for contentId "${contentId}"`);
   }
@@ -441,6 +443,26 @@ mockContentTaxonomyTagsData.conflictingTypeCompetencyTags = {
     },
   ],
 };
+mockContentTaxonomyTagsData.untaggableCompetencyTagsId =
+  'block-v1:UntaggableCompetencyOrg+STC1+2023_1+type@vertical+block@untaggableCompetencyTagsId';
+// The taxonomy list entry for 321 has `canTagObject: false`.
+mockContentTaxonomyTagsData.untaggableCompetencyTags = {
+  taxonomies: [
+    {
+      name: 'Critical Thinking',
+      taxonomyId: 321,
+      canTagObject: false,
+      taxonomyType: 'competency',
+      tags: [
+        {
+          value: 'Inference',
+          lineage: ['Inference'],
+          canDeleteObjecttag: true,
+        },
+      ],
+    },
+  ],
+};
 mockContentTaxonomyTagsData.nestedCompetencyTagsId =
   'block-v1:CompetencyTagsOrg+STC1+2023_1+type@vertical+block@nestedCompetencyTagsId';
 // One explicit tag with a three-level lineage, so the tree renders three nodes.
@@ -487,6 +509,8 @@ export async function mockTaxonomyListData(org: string): Promise<any> {
       return thisMock.listUntyped;
     case thisMock.conflictingTypeOrg:
       return thisMock.conflictingType;
+    case thisMock.untaggableCompetencyOrg:
+      return thisMock.untaggableCompetency;
     default:
       throw new Error(`No mock has been set up for org "${org}"`);
   }
@@ -624,6 +648,18 @@ mockTaxonomyListData.conflictingType = {
       description: 'This is a description',
       canTagObject: true,
       taxonomyType: 'tags',
+    },
+  ],
+};
+mockTaxonomyListData.untaggableCompetencyOrg = 'UntaggableCompetencyOrg';
+mockTaxonomyListData.untaggableCompetency = {
+  results: [
+    {
+      id: 321,
+      name: 'Critical Thinking',
+      description: 'This is a description',
+      canTagObject: false,
+      taxonomyType: 'competency',
     },
   ],
 };

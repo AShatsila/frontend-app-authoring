@@ -125,7 +125,10 @@ export const useCreateContentTagsDrawerContext = (
         if (contentTaxonomy) {
           contentTaxonomy.contentTags = contentTaxonomyTags.tags;
           if (isCompetencyTaxonomy(contentTaxonomy) || isCompetencyTaxonomy(contentTaxonomyTags)) {
-            taxonomiesList[taxonomiesList.indexOf(contentTaxonomy)] = withoutTagControls(contentTaxonomy);
+            taxonomiesList[taxonomiesList.indexOf(contentTaxonomy)] = withoutTagControls({
+              ...contentTaxonomy,
+              canOpenCompetencyManagement: contentTaxonomy.canTagObject,
+            });
           }
         } else {
           const otherTaxonomy: DrawerTaxonomy = {
