@@ -127,7 +127,9 @@ export const useCreateContentTagsDrawerContext = (
           if (isCompetencyTaxonomy(contentTaxonomy) || isCompetencyTaxonomy(contentTaxonomyTags)) {
             taxonomiesList[taxonomiesList.indexOf(contentTaxonomy)] = withoutTagControls({
               ...contentTaxonomy,
-              canOpenCompetencyManagement: contentTaxonomy.canTagObject,
+              canOpenCompetencyManagement: taxonomyListData.results.find(
+                (listed) => listed.id === contentTaxonomy.id,
+              )?.canTagObject,
             });
           }
         } else {

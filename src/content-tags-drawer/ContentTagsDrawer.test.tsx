@@ -1049,10 +1049,11 @@ describe('<ContentTagsDrawer />', () => {
         expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
       });
 
-      it('should link to the taxonomy list when the drawer is read-only and there is one competency taxonomy', async () => {
+      it('should link to the competencies of the taxonomy in the read-only drawer', async () => {
         renderDrawer(competencyTagsId, { readOnly: true });
         expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href'))
+          .toMatch(/\/taxonomy\/321\/competencies$/);
       });
 
       it('should open the link in a new tab without exposing the opener', async () => {
