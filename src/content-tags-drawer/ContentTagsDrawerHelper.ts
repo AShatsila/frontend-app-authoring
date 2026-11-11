@@ -3,6 +3,8 @@ import { useIntl } from '@edx/frontend-platform/i18n';
 import { cloneDeep } from 'lodash';
 import { useContentData, useContentTaxonomyTagsData, useContentTaxonomyTagsUpdater } from './data/apiHooks';
 import { useTaxonomyList } from '../taxonomy/data/apiHooks';
+import { TaxonomyType } from '../taxonomy/data/constants';
+import { isCompetencyTaxonomy } from '../taxonomy/data/utils';
 import { extractOrgFromContentId, languageExportId } from './utils';
 import messages from './messages';
 import { ContentTagsDrawerSheetContext } from './common/context';
@@ -13,6 +15,14 @@ import type {
   Tag,
   UpdateTagsData,
 } from './data/types';
+
+// Competency associations are managed on the Competency Management page, so the drawer only displays them.
+const lockForDrawer = <T extends DrawerTaxonomy>(taxonomy: T): T => ({
+  ...taxonomy,
+  taxonomyType: TaxonomyType.Competency,
+  canTagObject: false,
+  contentTags: taxonomy.contentTags.map((tag) => ({ ...tag, canDeleteObjecttag: false })),
+});
 
 /**
  * Helper hook for *creating* a `ContentTagsDrawerContext`.
@@ -112,21 +122,34 @@ export const useCreateContentTagsDrawerContext = (
         const contentTaxonomy = taxonomiesList.find((taxonomy) => taxonomy.id === contentTaxonomyTags.taxonomyId);
         if (contentTaxonomy) {
           contentTaxonomy.contentTags = contentTaxonomyTags.tags;
+          if (isCompetencyTaxonomy(contentTaxonomyTags)) {
+            Object.assign(contentTaxonomy, lockForDrawer(contentTaxonomy));
+          }
         } else {
-          otherTaxonomiesList.push({
+          const otherTaxonomy: DrawerTaxonomy = {
             canTagObject: contentTaxonomyTags.canTagObject,
             contentTags: contentTaxonomyTags.tags,
             id: contentTaxonomyTags.taxonomyId,
             name: contentTaxonomyTags.name,
-          });
+            taxonomyType: contentTaxonomyTags.taxonomyType,
+          };
+          otherTaxonomiesList.push(
+            isCompetencyTaxonomy(contentTaxonomyTags) ? lockForDrawer(otherTaxonomy) : otherTaxonomy,
+          );
         }
       });
 
-      // Delete Language taxonomy if is empty
+      taxonomiesList.forEach((taxonomy, index) => {
+        if (isCompetencyTaxonomy(taxonomy)) {
+          taxonomiesList[index] = lockForDrawer(taxonomy);
+        }
+      });
+
+      // Delete Language and competency taxonomies if empty
+      const hiddenWhenEmpty = (t: (typeof taxonomiesList)[number]) =>
+        t.exportId === languageExportId || isCompetencyTaxonomy(t);
       const filteredTaxonomies = taxonomiesList.filter(
-        (taxonomy) =>
-          taxonomy.exportId !== languageExportId
-          || taxonomy.contentTags.length !== 0,
+        (taxonomy) => !hiddenWhenEmpty(taxonomy) || taxonomy.contentTags.length !== 0,
       );
 
       return {

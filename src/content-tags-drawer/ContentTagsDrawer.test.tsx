@@ -37,6 +37,9 @@ const {
   largeTagsId,
   emptyTagsId,
   containerTagsId,
+  competencyTagsId,
+  competencyOtherTagsId,
+  untypedCompetencyTagsId,
 } = mockContentTaxonomyTagsData;
 
 jest.mock('react-router-dom', () => ({
@@ -877,5 +880,106 @@ describe('<ContentTagsDrawer />', () => {
     });
     await user.click(enableButton);
     expect(mockNavigate).toHaveBeenCalledWith('/taxonomies');
+  });
+
+  describe('competency taxonomies', () => {
+    const addTagPlaceholder = messages.collapsibleAddTagsPlaceholderText.defaultMessage;
+
+    const collapsibleOf = (taxonomyName: string) =>
+      within(screen.getByText(taxonomyName).closest('.taxonomy-tags-collapsible') as HTMLElement);
+
+    const renderInEditMode = async (contentId: string, firstText: string) => {
+      const user = userEvent.setup();
+      renderDrawer(contentId);
+      expect(await screen.findByText(firstText)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /edit tags/i }));
+      return user;
+    };
+
+    it('should list a competency tag without a remove control', async () => {
+      await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      expect(screen.getByText('Inference')).toBeInTheDocument();
+      expect(collapsibleOf('Critical Thinking').queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    });
+
+    it('should keep the remove control on ordinary tags of the same object', async () => {
+      await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      expect(collapsibleOf('Taxonomy 1').getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    });
+
+    it('should not offer an add control on a competency taxonomy', async () => {
+      await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      const competency = collapsibleOf('Critical Thinking');
+      expect(competency.queryByText(addTagPlaceholder)).not.toBeInTheDocument();
+      expect(competency.queryByRole('button', { name: /add tags/i })).not.toBeInTheDocument();
+      expect(collapsibleOf('Taxonomy 1').getByText(addTagPlaceholder)).toBeInTheDocument();
+    });
+
+    it('should hide a competency taxonomy that has no tags on the object', async () => {
+      const user = await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      expect(screen.queryByText('Empty Competencies')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /cancel/i }));
+      expect(screen.queryByText('Empty Competencies')).not.toBeInTheDocument();
+    });
+
+    it('should lock a competency taxonomy that is missing from the taxonomy list', async () => {
+      await renderInEditMode(competencyOtherTagsId, 'Nursing Competencies');
+      expect(screen.getByText('Triage')).toBeInTheDocument();
+      expect(collapsibleOf('Nursing Competencies').queryByRole('button', { name: 'Delete' }))
+        .not.toBeInTheDocument();
+    });
+
+    it('should lock a taxonomy that only the taxonomy list identifies as competency', async () => {
+      await renderInEditMode(untypedCompetencyTagsId, 'Critical Thinking');
+      expect(screen.getByText('Inference')).toBeInTheDocument();
+      expect(collapsibleOf('Critical Thinking').queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    });
+
+    it('should keep remove and add controls when no payload carries a taxonomy type', async () => {
+      await renderInEditMode(stagedTagsId, 'Taxonomy 1');
+      expect(collapsibleOf('Taxonomy 1').getAllByRole('button', { name: 'Delete' }).length).toBeGreaterThan(0);
+      expect(collapsibleOf('Taxonomy 1').getByText(addTagPlaceholder)).toBeInTheDocument();
+    });
+
+    it('should never focus a competency remove control with the keyboard', async () => {
+      const user = await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      // Tabbing walks the tab order from a given taxonomy header; an open select menu can trap focus
+      // in a cycle, so each walk starts at the header of the taxonomy under test.
+      const tabFrom = async (taxonomyName: string) => {
+        (screen.getByText(taxonomyName).closest('.collapsible-trigger') as HTMLElement).focus();
+        const focused: Element[] = [];
+        for (let i = 0; i < 20; i++) {
+          await user.tab();
+          const active = document.activeElement;
+          if (!active || active === document.body) {
+            break;
+          }
+          focused.push(active);
+        }
+        return focused;
+      };
+      const hasDeleteButton = (elements: Element[]) =>
+        elements.some((el) => el.getAttribute('aria-label') === 'Delete');
+
+      // Proves the walk reaches remove controls where they exist.
+      expect(hasDeleteButton(await tabFrom('Taxonomy 1'))).toBe(true);
+      expect(hasDeleteButton(await tabFrom('Critical Thinking'))).toBe(false);
+    });
+
+    it('should keep competency tags in the saved payload', async () => {
+      const { axiosMock } = initializeMocks();
+      const url = getContentTaxonomyTagsApiUrl(competencyTagsId);
+      axiosMock.onPut(url).reply(200);
+      const user = userEvent.setup();
+      renderDrawer(competencyTagsId);
+      expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /edit tags/i }));
+      await user.click(collapsibleOf('Taxonomy 1').getByRole('button', { name: 'Delete' }));
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => expect(axiosMock.history.put).toHaveLength(1));
+      const { tagsData } = JSON.parse(axiosMock.history.put[0].data);
+      expect(tagsData).toContainEqual({ taxonomy: 321, tags: ['Inference'] });
+    });
   });
 });
