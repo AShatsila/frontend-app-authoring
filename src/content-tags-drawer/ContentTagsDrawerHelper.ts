@@ -58,6 +58,8 @@ export const useCreateContentTagsDrawerContext = (
   const [tagsByTaxonomy, setTagsByTaxonomy] = React.useState<DrawerTaxonomy[]>([]);
   // Other taxonomies that the user doesn't have permissions
   const [otherTaxonomies, setOtherTaxonomies] = React.useState<DrawerTaxonomy[]>([]);
+  // Competency taxonomies, shown read-only in their own section.
+  const [competencyTaxonomies, setCompetencyTaxonomies] = React.useState<DrawerTaxonomy[]>([]);
   // This stores taxonomy collapsible states (open/close).
   const [collapsibleStates, setColapsibleStates] = React.useState<Record<number, boolean>>({});
   // Message to show a toast in the content drawer.
@@ -122,9 +124,7 @@ export const useCreateContentTagsDrawerContext = (
         const contentTaxonomy = taxonomiesList.find((taxonomy) => taxonomy.id === contentTaxonomyTags.taxonomyId);
         if (contentTaxonomy) {
           contentTaxonomy.contentTags = contentTaxonomyTags.tags;
-          if (isCompetencyTaxonomy(contentTaxonomyTags)) {
-            Object.assign(contentTaxonomy, lockForDrawer(contentTaxonomy));
-          }
+          contentTaxonomy.taxonomyType ??= contentTaxonomyTags.taxonomyType;
         } else {
           const otherTaxonomy: DrawerTaxonomy = {
             canTagObject: contentTaxonomyTags.canTagObject,
@@ -398,8 +398,14 @@ export const useCreateContentTagsDrawerContext = (
     // of the list `fetchedTaxonomies`
     const mergedTagsArray = fetchedTaxonomies.map(obj => mergedTags[obj.id]);
 
-    setTagsByTaxonomy(mergedTagsArray);
-    setOtherTaxonomies(Object.values(mergedOtherTaxonomies));
+    const mergedOtherArray = Object.values(mergedOtherTaxonomies);
+
+    setCompetencyTaxonomies([
+      ...mergedTagsArray.filter(isCompetencyTaxonomy),
+      ...mergedOtherArray.filter(isCompetencyTaxonomy),
+    ]);
+    setTagsByTaxonomy(mergedTagsArray.filter((t) => !isCompetencyTaxonomy(t)));
+    setOtherTaxonomies(mergedOtherArray.filter((t) => !isCompetencyTaxonomy(t)));
 
     if (setBlockingSheet) {
       const areChangesInTags = () => {
@@ -446,8 +452,14 @@ export const useCreateContentTagsDrawerContext = (
         tags: tags.contentTags.map(t => t.value),
       });
     });
+    competencyTaxonomies.forEach((tags) => {
+      tagsData.push({
+        taxonomy: tags.id,
+        tags: tags.contentTags.map(t => t.value),
+      });
+    });
     updateTags.mutate({ tagsData });
-  }, [tagsByTaxonomy]);
+  }, [tagsByTaxonomy, otherTaxonomies, competencyTaxonomies]);
 
   return {
     stagedContentTags,
@@ -478,5 +490,6 @@ export const useCreateContentTagsDrawerContext = (
     closeToast,
     setCollapsibleToInitalState,
     otherTaxonomies,
+    competencyTaxonomies,
   };
 };

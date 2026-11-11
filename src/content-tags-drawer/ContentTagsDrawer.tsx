@@ -7,7 +7,7 @@ import {
   Toast,
 } from '@openedx/paragon';
 import { useIntl, FormattedMessage } from '@edx/frontend-platform/i18n';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import classNames from 'classnames';
 import messages from './messages';
 import ContentTagsCollapsible from './ContentTagsCollapsible';
@@ -28,6 +28,7 @@ const TaxonomyList = ({ contentId }: TaxonomyListProps) => {
     isTaxonomyListLoaded,
     isContentTaxonomyTagsLoaded,
     tagsByTaxonomy,
+    competencyTaxonomies,
     stagedContentTags,
     collapsibleStates,
   } = React.useContext(ContentTagsDrawerContext);
@@ -49,6 +50,10 @@ const TaxonomyList = ({ contentId }: TaxonomyListProps) => {
           ))}
         </div>
       );
+    }
+
+    if (competencyTaxonomies.length !== 0) {
+      return null;
     }
 
     return (
@@ -266,8 +271,13 @@ const ContentTagsDrawer = ({
     closeToast,
     setCollapsibleToInitalState,
     otherTaxonomies,
+    competencyTaxonomies,
     toEditMode,
   } = context;
+
+  const competencyManagementPath = competencyTaxonomies.length === 1
+    ? `/taxonomy/${competencyTaxonomies[0].id}/competencies`
+    : '/taxonomies';
 
   let onCloseDrawer: () => void;
   if (variant === 'drawer') {
@@ -364,6 +374,36 @@ const ContentTagsDrawer = ({
               </p>
             )}
             <TaxonomyList contentId={contentId} />
+            {competencyTaxonomies.length !== 0 && isTaxonomyListLoaded && isContentTaxonomyTagsLoaded && (
+              <div>
+                <p className="h4 text-gray-500 font-weight-bold">
+                  {intl.formatMessage(messages.competencyTagsHeader)}
+                </p>
+                <p className="other-description text-gray-500">
+                  {intl.formatMessage(messages.competencyTagsDescription)}
+                </p>
+                <Button
+                  as={Link}
+                  to={competencyManagementPath}
+                  variant="link"
+                  size="inline"
+                  className="text-info-500 p-0 mb-3"
+                >
+                  {intl.formatMessage(messages.competencyTagsLink)}
+                </Button>
+                {competencyTaxonomies.map((data) => (
+                  <div key={data.id}>
+                    <ContentTagsCollapsible
+                      contentId={contentId}
+                      taxonomyAndTagsData={data}
+                      stagedContentTags={stagedContentTags[data.id] || []}
+                      collapsibleState={collapsibleStates[data.id] || false}
+                    />
+                    <hr />
+                  </div>
+                ))}
+              </div>
+            )}
             {otherTaxonomies.length !== 0 && (
               <div>
                 <p className="h4 text-gray-500 font-weight-bold">

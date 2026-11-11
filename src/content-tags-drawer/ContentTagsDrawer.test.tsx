@@ -39,6 +39,7 @@ const {
   containerTagsId,
   competencyTagsId,
   competencyOtherTagsId,
+  twoCompetencyTagsId,
   untypedCompetencyTagsId,
 } = mockContentTaxonomyTagsData;
 
@@ -980,6 +981,94 @@ describe('<ContentTagsDrawer />', () => {
       await waitFor(() => expect(axiosMock.history.put).toHaveLength(1));
       const { tagsData } = JSON.parse(axiosMock.history.put[0].data);
       expect(tagsData).toContainEqual({ taxonomy: 321, tags: ['Inference'] });
+    });
+
+    describe('competency tags section', () => {
+      const sectionHeading = () => screen.getByText(messages.competencyTagsHeader.defaultMessage);
+      const sectionOf = () => within(sectionHeading().parentElement as HTMLElement);
+      const linkName = messages.competencyTagsLink.defaultMessage;
+
+      it('should show the heading, sentence, and link only when there are competency tags', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionHeading()).toBeInTheDocument();
+        expect(screen.getByText(messages.competencyTagsDescription.defaultMessage)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName })).toBeInTheDocument();
+      });
+
+      it('should not show the section when there are no competency tags', async () => {
+        renderDrawer(stagedTagsId);
+        expect(await screen.findByText('Taxonomy 1')).toBeInTheDocument();
+        expect(screen.queryByText(messages.competencyTagsHeader.defaultMessage)).not.toBeInTheDocument();
+        expect(screen.queryByText(messages.competencyTagsDescription.defaultMessage)).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: linkName })).not.toBeInTheDocument();
+      });
+
+      it('should render a competency taxonomy in the section and ordinary ones outside it', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionOf().getByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionOf().queryByText('Taxonomy 1')).not.toBeInTheDocument();
+        expect(screen.getByText('Taxonomy 1')).toBeInTheDocument();
+      });
+
+      it('should render a competency taxonomy outside the taxonomy list in the section, not under Other tags', async () => {
+        renderDrawer(competencyOtherTagsId);
+        expect(await screen.findByText('Nursing Competencies')).toBeInTheDocument();
+        expect(sectionOf().getByText('Nursing Competencies')).toBeInTheDocument();
+        expect(screen.queryByText(messages.otherTagsHeader.defaultMessage)).not.toBeInTheDocument();
+      });
+
+      it('should link to the competencies of the taxonomy when there is one competency taxonomy', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href'))
+          .toMatch(/\/taxonomy\/321\/competencies$/);
+      });
+
+      it('should link to the taxonomy list when there are several competency taxonomies', async () => {
+        renderDrawer(twoCompetencyTagsId);
+        expect(await screen.findByText('Problem Solving')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+      });
+
+      it('should not show the empty drawer message when only competency taxonomies exist', async () => {
+        renderDrawer(twoCompetencyTagsId);
+        expect(await screen.findByText('Problem Solving')).toBeInTheDocument();
+        expect(screen.queryByText(/To use tags, please/)).not.toBeInTheDocument();
+        expect(sectionHeading()).toBeInTheDocument();
+      });
+
+      it('should show the target icon on competency tags only', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        const icons = screen.getAllByText(messages.competencyTagIconAltText.defaultMessage);
+        expect(icons).toHaveLength(1);
+        expect(collapsibleOf('Critical Thinking').getByText(messages.competencyTagIconAltText.defaultMessage))
+          .toBe(icons[0]);
+        expect(collapsibleOf('Taxonomy 1').queryByText(messages.competencyTagIconAltText.defaultMessage))
+          .not.toBeInTheDocument();
+      });
+
+      it('should render the section unchanged in edit mode', async () => {
+        await renderInEditMode(competencyTagsId, 'Critical Thinking');
+        expect(sectionHeading()).toBeInTheDocument();
+        expect(screen.getByText(messages.competencyTagsDescription.defaultMessage)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName })).toBeInTheDocument();
+        expect(screen.getByText('Inference')).toBeInTheDocument();
+        const competency = collapsibleOf('Critical Thinking');
+        expect(competency.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+        expect(competency.queryByRole('combobox')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+      });
+
+      it('should not present the section as an error or warning', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionOf().queryByRole('alert')).not.toBeInTheDocument();
+        expect(sectionHeading()).toHaveClass('text-gray-500');
+      });
     });
   });
 });
