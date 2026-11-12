@@ -4,10 +4,11 @@ import {
   Spinner,
   Stack,
   Button,
+  Hyperlink,
   Toast,
 } from '@openedx/paragon';
 import { useIntl, FormattedMessage } from '@edx/frontend-platform/i18n';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useHref, useParams, useNavigate } from 'react-router-dom';
 import classNames from 'classnames';
 import messages from './messages';
 import ContentTagsCollapsible from './ContentTagsCollapsible';
@@ -15,6 +16,32 @@ import Loading from '../generic/Loading';
 import { useCreateContentTagsDrawerContext } from './ContentTagsDrawerHelper';
 import { ContentTagsDrawerContext, ContentTagsDrawerSheetContext } from './common/context';
 import { SidebarActions, useSidebarContext } from '../library-authoring/common/context/SidebarContext';
+import type { DrawerTaxonomy } from './data/types';
+
+interface TaxonomyCollapsiblesProps {
+  contentId: string;
+  taxonomies: DrawerTaxonomy[];
+}
+
+const TaxonomyCollapsibles = ({ contentId, taxonomies }: TaxonomyCollapsiblesProps) => {
+  const { stagedContentTags, collapsibleStates } = React.useContext(ContentTagsDrawerContext);
+
+  return (
+    <>
+      {taxonomies.map((data) => (
+        <div key={data.id}>
+          <ContentTagsCollapsible
+            contentId={contentId}
+            taxonomyAndTagsData={data}
+            stagedContentTags={stagedContentTags[data.id] || []}
+            collapsibleState={collapsibleStates[data.id] || false}
+          />
+          <hr />
+        </div>
+      ))}
+    </>
+  );
+};
 
 interface TaxonomyListProps {
   contentId: string;
@@ -28,27 +55,21 @@ const TaxonomyList = ({ contentId }: TaxonomyListProps) => {
     isTaxonomyListLoaded,
     isContentTaxonomyTagsLoaded,
     tagsByTaxonomy,
-    stagedContentTags,
-    collapsibleStates,
+    competencyTaxonomies,
   } = React.useContext(ContentTagsDrawerContext);
 
   if (isTaxonomyListLoaded && isContentTaxonomyTagsLoaded) {
     if (tagsByTaxonomy.length !== 0) {
       return (
         <div>
-          {tagsByTaxonomy.map((data) => (
-            <div key={data.id}>
-              <ContentTagsCollapsible
-                contentId={contentId}
-                taxonomyAndTagsData={data}
-                stagedContentTags={stagedContentTags[data.id] || []}
-                collapsibleState={collapsibleStates[data.id] || false}
-              />
-              <hr />
-            </div>
-          ))}
+          <TaxonomyCollapsibles contentId={contentId} taxonomies={tagsByTaxonomy} />
         </div>
       );
+    }
+
+    // The competency section is the drawer content here, so the enable-taxonomies prompt would be wrong.
+    if (competencyTaxonomies.length !== 0) {
+      return null;
     }
 
     return (
@@ -260,14 +281,21 @@ const ContentTagsDrawer = ({
     commitGlobalStagedTagsStatus,
     isTaxonomyListLoaded,
     isContentTaxonomyTagsLoaded,
-    stagedContentTags,
-    collapsibleStates,
     toastMessage,
     closeToast,
     setCollapsibleToInitalState,
     otherTaxonomies,
+    competencyTaxonomies,
     toEditMode,
   } = context;
+
+  // A taxonomy the author cannot open would redirect or show an error, so only a taxonomy
+  // the author can tag with gets a deep link. The taxonomies list lets the author pick instead.
+  const competencyManagementPath =
+    competencyTaxonomies.length === 1 && competencyTaxonomies[0].canOpenCompetencyManagement
+      ? `/taxonomy/${competencyTaxonomies[0].id}/competencies`
+      : '/taxonomies';
+  const competencyManagementHref = useHref(competencyManagementPath);
 
   let onCloseDrawer: () => void;
   if (variant === 'drawer') {
@@ -364,6 +392,24 @@ const ContentTagsDrawer = ({
               </p>
             )}
             <TaxonomyList contentId={contentId} />
+            {competencyTaxonomies.length !== 0 && isTaxonomyListLoaded && isContentTaxonomyTagsLoaded && (
+              <div>
+                <p className="h4 text-gray-500 font-weight-bold">
+                  {intl.formatMessage(messages.competencyTagsHeader)}
+                </p>
+                <p className="other-description text-gray-500">
+                  {intl.formatMessage(messages.competencyTagsDescription)}
+                </p>
+                <Hyperlink
+                  destination={competencyManagementHref}
+                  target="_blank"
+                  className="text-info-500 d-inline-block mb-3"
+                >
+                  {intl.formatMessage(messages.competencyTagsLink)}
+                </Hyperlink>
+                <TaxonomyCollapsibles contentId={contentId} taxonomies={competencyTaxonomies} />
+              </div>
+            )}
             {otherTaxonomies.length !== 0 && (
               <div>
                 <p className="h4 text-gray-500 font-weight-bold">
@@ -373,17 +419,7 @@ const ContentTagsDrawer = ({
                   {intl.formatMessage(messages.otherTagsDescription)}
                 </p>
                 {isTaxonomyListLoaded && isContentTaxonomyTagsLoaded && (
-                  otherTaxonomies.map((data) => (
-                    <div key={data.id}>
-                      <ContentTagsCollapsible
-                        contentId={contentId}
-                        taxonomyAndTagsData={data}
-                        stagedContentTags={stagedContentTags[data.id] || []}
-                        collapsibleState={collapsibleStates[data.id] || false}
-                      />
-                      <hr />
-                    </div>
-                  ))
+                  <TaxonomyCollapsibles contentId={contentId} taxonomies={otherTaxonomies} />
                 )}
               </div>
             )}

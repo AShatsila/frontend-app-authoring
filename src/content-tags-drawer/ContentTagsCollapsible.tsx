@@ -29,6 +29,8 @@ import ContentTagsDropDownSelector from './ContentTagsDropDownSelector';
 
 import useContentTagsCollapsibleHelper from './ContentTagsCollapsibleHelper';
 import TagsTree from './TagsTree';
+import CompetencyIcon from '@src/generic/CompetencyIcon';
+import { isCompetencyTaxonomy } from '@src/taxonomy/data/utils';
 import { ContentTagsDrawerContext } from './common/context';
 import type { DrawerTaxonomy, StagedTagData } from './data/types';
 
@@ -278,6 +280,7 @@ const ContentTagsCollapsible = ({
 }: ContentTagsCollapsibleProps) => {
   const intl = useIntl();
   const { id: taxonomyId, name, canTagObject } = taxonomyAndTagsData;
+  const isCompetency = isCompetencyTaxonomy(taxonomyAndTagsData);
   const selectCancelRef = React.useRef<HTMLButtonElement>(null);
   const selectAddRef = React.useRef<HTMLButtonElement>(null);
   const selectInlineAddRef = React.useRef<HTMLButtonElement>(null);
@@ -456,6 +459,10 @@ const ContentTagsCollapsible = ({
                   tags={appliedContentTagsTree}
                   parentKey={taxonomyId.toString()}
                   removeTagHandler={removeAppliedTagHandler}
+                  tagIcon={isCompetency ? CompetencyIcon : Tag}
+                  tagIconScreenReaderText={isCompetency
+                    ? intl.formatMessage(messages.competencyTagIconAltText)
+                    : undefined}
                 />
               </div>
             )}
@@ -513,7 +520,7 @@ const ContentTagsCollapsible = ({
       <div className="d-flex align-items-start pt-2.5 taxonomy-tags-count-chip">
         <Chip
           className="border-0"
-          iconBefore={Tag}
+          iconBefore={isCompetency ? CompetencyIcon : Tag}
           iconBeforeAlt="icon-before"
           disabled={contentTagsCount === 0}
         >

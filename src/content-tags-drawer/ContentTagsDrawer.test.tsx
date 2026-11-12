@@ -37,12 +37,28 @@ const {
   largeTagsId,
   emptyTagsId,
   containerTagsId,
+  competencyTagsId,
+  competencyOtherTagsId,
+  twoCompetencyTagsId,
+  untypedCompetencyTagsId,
+  listUntypedCompetencyTagsId,
+  conflictingTypeCompetencyTagsId,
+  nestedCompetencyTagsId,
+  untaggableCompetencyTagsId,
 } = mockContentTaxonomyTagsData;
 
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
   useNavigate: () => mockNavigate,
 }));
+
+jest.mock('@src/generic/CompetencyIcon', () => {
+  const actual = jest.requireActual('@src/generic/CompetencyIcon');
+  return {
+    __esModule: true,
+    default: (props: object) => actual.default({ ...props, 'data-icon': 'competency' }),
+  };
+});
 
 jest.mock('../library-authoring/common/context/SidebarContext', () => ({
   ...jest.requireActual('../library-authoring/common/context/SidebarContext'),
@@ -877,5 +893,237 @@ describe('<ContentTagsDrawer />', () => {
     });
     await user.click(enableButton);
     expect(mockNavigate).toHaveBeenCalledWith('/taxonomies');
+  });
+
+  describe('competency taxonomies', () => {
+    const addTagPlaceholder = messages.collapsibleAddTagsPlaceholderText.defaultMessage;
+
+    const collapsibleOf = (taxonomyName: string) =>
+      within(screen.getByText(taxonomyName).closest('.taxonomy-tags-collapsible') as HTMLElement);
+
+    const sectionHeading = () => screen.getByText(messages.competencyTagsHeader.defaultMessage);
+    const sectionOf = () => within(sectionHeading().parentElement as HTMLElement);
+    const linkName = new RegExp(messages.competencyTagsLink.defaultMessage);
+
+    const renderInEditMode = async (contentId: string, firstText: string) => {
+      const user = userEvent.setup();
+      renderDrawer(contentId);
+      expect(await screen.findByText(firstText)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /edit tags/i }));
+      return user;
+    };
+
+    it.each([
+      [competencyTagsId, 'Critical Thinking', 'Inference'],
+      [competencyOtherTagsId, 'Nursing Competencies', 'Triage'],
+      [untypedCompetencyTagsId, 'Critical Thinking', 'Inference'],
+      [listUntypedCompetencyTagsId, 'Critical Thinking', 'Inference'],
+      [conflictingTypeCompetencyTagsId, 'Critical Thinking', 'Inference'],
+    ])('should list a competency tag in the section without a remove control (case %#)', async (
+      contentId,
+      taxonomyName,
+      tagName,
+    ) => {
+      await renderInEditMode(contentId, taxonomyName);
+      expect(sectionOf().getByText(taxonomyName)).toBeInTheDocument();
+      expect(sectionOf().getByText(tagName)).toBeInTheDocument();
+      expect(collapsibleOf(taxonomyName).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    });
+
+    it('should keep the remove control on ordinary tags of the same object', async () => {
+      await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      expect(collapsibleOf('Taxonomy 1').getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    });
+
+    it('should not offer an add control on a competency taxonomy', async () => {
+      const user = await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      expect(collapsibleOf('Critical Thinking').queryByText(addTagPlaceholder)).not.toBeInTheDocument();
+      await user.click(collapsibleOf('Taxonomy 1').getByText(addTagPlaceholder));
+      expect(collapsibleOf('Taxonomy 1').getByRole('button', { name: /add tags/i })).toBeInTheDocument();
+      expect(collapsibleOf('Critical Thinking').queryByRole('button', { name: /add tags/i })).not.toBeInTheDocument();
+    });
+
+    it('should hide a competency taxonomy that has no tags on the object', async () => {
+      const user = await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      expect(screen.queryByText('Empty Competencies')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /cancel/i }));
+      expect(screen.queryByText('Empty Competencies')).not.toBeInTheDocument();
+    });
+
+    it('should keep remove and add controls when no payload carries a taxonomy type', async () => {
+      await renderInEditMode(stagedTagsId, 'Taxonomy 1');
+      expect(collapsibleOf('Taxonomy 1').getAllByRole('button', { name: 'Delete' }).length).toBeGreaterThan(0);
+      expect(collapsibleOf('Taxonomy 1').getByText(addTagPlaceholder)).toBeInTheDocument();
+    });
+
+    it('should never focus a competency remove control with the keyboard', async () => {
+      const user = await renderInEditMode(competencyTagsId, 'Critical Thinking');
+      // Tabbing walks the tab order from a given taxonomy header; an open select menu can trap focus
+      // in a cycle, so each walk starts at the header of the taxonomy under test.
+      const tabFrom = async (taxonomyName: string) => {
+        (screen.getByText(taxonomyName).closest('.collapsible-trigger') as HTMLElement).focus();
+        const focused: Element[] = [];
+        for (let i = 0; i < 20; i++) {
+          await user.tab();
+          const active = document.activeElement;
+          if (!active || active === document.body) {
+            break;
+          }
+          focused.push(active);
+        }
+        return focused;
+      };
+      const hasDeleteButton = (elements: Element[]) =>
+        elements.some((el) => el.getAttribute('aria-label') === 'Delete');
+
+      // Proves the walk reaches remove controls where they exist.
+      expect(hasDeleteButton(await tabFrom('Taxonomy 1'))).toBe(true);
+      expect(hasDeleteButton(await tabFrom('Critical Thinking'))).toBe(false);
+    });
+
+    it('should not send competency taxonomies in the saved payload', async () => {
+      const { axiosMock } = initializeMocks();
+      const url = getContentTaxonomyTagsApiUrl(competencyTagsId);
+      axiosMock.onPut(url).reply(200);
+      const user = userEvent.setup();
+      renderDrawer(competencyTagsId);
+      expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /edit tags/i }));
+      await user.click(collapsibleOf('Taxonomy 1').getByRole('button', { name: 'Delete' }));
+      await user.click(screen.getByRole('button', { name: /save/i }));
+
+      await waitFor(() => expect(axiosMock.history.put).toHaveLength(1));
+      const { tagsData } = JSON.parse(axiosMock.history.put[0].data);
+      expect(tagsData).toEqual([{ taxonomy: 123, tags: [] }]);
+      expect(tagsData.map((entry: { taxonomy: number; }) => entry.taxonomy)).not.toContain(321);
+    });
+
+    describe('competency tags section', () => {
+      it('should show the heading, sentence, and link when there are competency tags', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionHeading()).toBeInTheDocument();
+        expect(screen.getByText(messages.competencyTagsDescription.defaultMessage)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName })).toBeInTheDocument();
+      });
+
+      it('should not show the section when there are no competency tags', async () => {
+        renderDrawer(stagedTagsId);
+        expect(await screen.findByText('Taxonomy 1')).toBeInTheDocument();
+        expect(screen.queryByText(messages.competencyTagsHeader.defaultMessage)).not.toBeInTheDocument();
+        expect(screen.queryByText(messages.competencyTagsDescription.defaultMessage)).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: linkName })).not.toBeInTheDocument();
+      });
+
+      it('should render a competency taxonomy in the section and ordinary ones outside it', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionOf().getByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionOf().queryByText('Taxonomy 1')).not.toBeInTheDocument();
+        expect(screen.getByText('Taxonomy 1')).toBeInTheDocument();
+      });
+
+      it('should render a competency taxonomy outside the taxonomy list in the section, not under Other tags', async () => {
+        renderDrawer(competencyOtherTagsId);
+        expect(await screen.findByText('Nursing Competencies')).toBeInTheDocument();
+        expect(sectionOf().getByText('Nursing Competencies')).toBeInTheDocument();
+        expect(screen.queryByText(messages.otherTagsHeader.defaultMessage)).not.toBeInTheDocument();
+      });
+
+      it('should link to the competencies of the taxonomy when there is one competency taxonomy', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href'))
+          .toMatch(/\/taxonomy\/321\/competencies$/);
+      });
+
+      it('should link to the taxonomy list when the competency taxonomy is not in the taxonomy list', async () => {
+        renderDrawer(competencyOtherTagsId);
+        expect(await screen.findByText('Nursing Competencies')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+      });
+
+      it('should link to the taxonomy list when the author cannot tag with the competency taxonomy', async () => {
+        renderDrawer(untaggableCompetencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+      });
+
+      it('should link to the competencies of the taxonomy in the read-only drawer', async () => {
+        renderDrawer(competencyTagsId, { readOnly: true });
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href'))
+          .toMatch(/\/taxonomy\/321\/competencies$/);
+      });
+
+      it('should open the link in a new tab without exposing the opener', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        const link = screen.getByRole('link', { name: linkName });
+        expect(link).toHaveAttribute('target', '_blank');
+        expect(link.getAttribute('rel')).toContain('noopener');
+      });
+
+      it('should show the heading and link in the read-only drawer without edit controls', async () => {
+        renderDrawer(competencyTagsId, { readOnly: true });
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionHeading()).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /edit tags/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /manage tags/i })).not.toBeInTheDocument();
+      });
+
+      it('should link to the taxonomy list when there are several competency taxonomies', async () => {
+        renderDrawer(twoCompetencyTagsId);
+        expect(await screen.findByText('Problem Solving')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName }).getAttribute('href')).toMatch(/\/taxonomies$/);
+      });
+
+      it('should not show the empty drawer message when only competency taxonomies exist', async () => {
+        renderDrawer(twoCompetencyTagsId);
+        expect(await screen.findByText('Problem Solving')).toBeInTheDocument();
+        const [emptyDrawerText] = messages.emptyDrawerContent.defaultMessage.split('{link}');
+        expect(screen.queryByText(emptyDrawerText, { exact: false })).not.toBeInTheDocument();
+      });
+
+      it('should show the target icon on competency tags only', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        const icons = screen.getAllByText(messages.competencyTagIconAltText.defaultMessage);
+        expect(icons).toHaveLength(1);
+        expect(collapsibleOf('Critical Thinking').getByText(messages.competencyTagIconAltText.defaultMessage))
+          .toBe(icons[0]);
+        expect(collapsibleOf('Taxonomy 1').queryByText(messages.competencyTagIconAltText.defaultMessage))
+          .not.toBeInTheDocument();
+        const iconsIn = (taxonomyName: string) =>
+          screen.getByText(taxonomyName).closest('.taxonomy-tags-collapsible')!.querySelectorAll(
+            '[data-icon="competency"]',
+          );
+        expect(iconsIn('Critical Thinking').length).toBeGreaterThan(0);
+        expect(iconsIn('Taxonomy 1')).toHaveLength(0);
+      });
+
+      it('should announce the competency icon once per explicit tag, not once per tree node', async () => {
+        renderDrawer(nestedCompetencyTagsId);
+        expect(await screen.findByText('Deduction')).toBeInTheDocument();
+        expect(screen.getByText('Reasoning')).toBeInTheDocument();
+        expect(screen.getByText('Logic')).toBeInTheDocument();
+        expect(screen.getAllByText(messages.competencyTagIconAltText.defaultMessage)).toHaveLength(1);
+      });
+
+      it('should show the heading, sentence, and link in edit mode', async () => {
+        await renderInEditMode(competencyTagsId, 'Critical Thinking');
+        expect(sectionHeading()).toBeInTheDocument();
+        expect(screen.getByText(messages.competencyTagsDescription.defaultMessage)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: linkName })).toBeInTheDocument();
+      });
+
+      it('should not present the section as an error or warning', async () => {
+        renderDrawer(competencyTagsId);
+        expect(await screen.findByText('Critical Thinking')).toBeInTheDocument();
+        expect(sectionOf().queryByRole('alert')).not.toBeInTheDocument();
+        expect(sectionOf().getByText('Critical Thinking')).toBeVisible();
+      });
+    });
   });
 });

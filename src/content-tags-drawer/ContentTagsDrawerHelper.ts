@@ -3,6 +3,8 @@ import { useIntl } from '@edx/frontend-platform/i18n';
 import { cloneDeep } from 'lodash';
 import { useContentData, useContentTaxonomyTagsData, useContentTaxonomyTagsUpdater } from './data/apiHooks';
 import { useTaxonomyList } from '../taxonomy/data/apiHooks';
+import { TaxonomyType } from '@src/taxonomy/data/constants';
+import { isCompetencyTaxonomy } from '@src/taxonomy/data/utils';
 import { extractOrgFromContentId, languageExportId } from './utils';
 import messages from './messages';
 import { ContentTagsDrawerSheetContext } from './common/context';
@@ -13,6 +15,14 @@ import type {
   Tag,
   UpdateTagsData,
 } from './data/types';
+
+// Competency associations are managed on the Competency Management page, so the drawer only displays them.
+const withoutTagControls = <T extends DrawerTaxonomy>(taxonomy: T): T => ({
+  ...taxonomy,
+  taxonomyType: TaxonomyType.Competency,
+  canTagObject: false,
+  contentTags: taxonomy.contentTags.map((tag) => ({ ...tag, canDeleteObjecttag: false })),
+});
 
 /**
  * Helper hook for *creating* a `ContentTagsDrawerContext`.
@@ -48,6 +58,8 @@ export const useCreateContentTagsDrawerContext = (
   const [tagsByTaxonomy, setTagsByTaxonomy] = React.useState<DrawerTaxonomy[]>([]);
   // Other taxonomies that the user doesn't have permissions
   const [otherTaxonomies, setOtherTaxonomies] = React.useState<DrawerTaxonomy[]>([]);
+  // Competency taxonomies are read-only here and rendered in their own section.
+  const [competencyTaxonomies, setCompetencyTaxonomies] = React.useState<DrawerTaxonomy[]>([]);
   // This stores taxonomy collapsible states (open/close).
   const [collapsibleStates, setColapsibleStates] = React.useState<Record<number, boolean>>({});
   // Message to show a toast in the content drawer.
@@ -112,21 +124,33 @@ export const useCreateContentTagsDrawerContext = (
         const contentTaxonomy = taxonomiesList.find((taxonomy) => taxonomy.id === contentTaxonomyTags.taxonomyId);
         if (contentTaxonomy) {
           contentTaxonomy.contentTags = contentTaxonomyTags.tags;
+          if (isCompetencyTaxonomy(contentTaxonomy) || isCompetencyTaxonomy(contentTaxonomyTags)) {
+            taxonomiesList[taxonomiesList.indexOf(contentTaxonomy)] = withoutTagControls({
+              ...contentTaxonomy,
+              canOpenCompetencyManagement: taxonomyListData.results.find(
+                (listed) => listed.id === contentTaxonomy.id,
+              )?.canTagObject,
+            });
+          }
         } else {
-          otherTaxonomiesList.push({
+          const otherTaxonomy: DrawerTaxonomy = {
             canTagObject: contentTaxonomyTags.canTagObject,
             contentTags: contentTaxonomyTags.tags,
             id: contentTaxonomyTags.taxonomyId,
             name: contentTaxonomyTags.name,
-          });
+            taxonomyType: contentTaxonomyTags.taxonomyType,
+          };
+          otherTaxonomiesList.push(
+            isCompetencyTaxonomy(contentTaxonomyTags) ? withoutTagControls(otherTaxonomy) : otherTaxonomy,
+          );
         }
       });
 
-      // Delete Language taxonomy if is empty
+      // Nothing can be added to these taxonomies from the drawer, so an empty one is only noise.
+      const hiddenWhenEmpty = (t: (typeof taxonomiesList)[number]) =>
+        t.exportId === languageExportId || isCompetencyTaxonomy(t);
       const filteredTaxonomies = taxonomiesList.filter(
-        (taxonomy) =>
-          taxonomy.exportId !== languageExportId
-          || taxonomy.contentTags.length !== 0,
+        (taxonomy) => !hiddenWhenEmpty(taxonomy) || taxonomy.contentTags.length !== 0,
       );
 
       return {
@@ -375,8 +399,14 @@ export const useCreateContentTagsDrawerContext = (
     // of the list `fetchedTaxonomies`
     const mergedTagsArray = fetchedTaxonomies.map(obj => mergedTags[obj.id]);
 
-    setTagsByTaxonomy(mergedTagsArray);
-    setOtherTaxonomies(Object.values(mergedOtherTaxonomies));
+    const mergedOtherArray = Object.values(mergedOtherTaxonomies);
+
+    setCompetencyTaxonomies([
+      ...mergedTagsArray.filter(isCompetencyTaxonomy),
+      ...mergedOtherArray.filter(isCompetencyTaxonomy),
+    ]);
+    setTagsByTaxonomy(mergedTagsArray.filter((t) => !isCompetencyTaxonomy(t)));
+    setOtherTaxonomies(mergedOtherArray.filter((t) => !isCompetencyTaxonomy(t)));
 
     if (setBlockingSheet) {
       const areChangesInTags = () => {
@@ -424,7 +454,7 @@ export const useCreateContentTagsDrawerContext = (
       });
     });
     updateTags.mutate({ tagsData });
-  }, [tagsByTaxonomy]);
+  }, [tagsByTaxonomy, otherTaxonomies]);
 
   return {
     stagedContentTags,
@@ -455,5 +485,6 @@ export const useCreateContentTagsDrawerContext = (
     closeToast,
     setCollapsibleToInitalState,
     otherTaxonomies,
+    competencyTaxonomies,
   };
 };

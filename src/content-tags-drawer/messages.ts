@@ -129,6 +129,26 @@ const messages = defineMessages({
     defaultMessage: 'These tags are already applied, but you can\'t add new ones as you don\'t have access to their taxonomies.',
     description: 'Description of "Other tags" subsection in tags drawer',
   },
+  competencyTagsHeader: {
+    id: 'course-authoring.content-tags-drawer.competency-tags.header',
+    defaultMessage: 'Competency tags',
+    description: 'Header of the "Competency tags" subsection in tags drawer',
+  },
+  competencyTagsDescription: {
+    id: 'course-authoring.content-tags-drawer.competency-tags.description',
+    defaultMessage: 'Competency tags are managed on the Competency Management page.',
+    description: 'Description of the "Competency tags" subsection in tags drawer',
+  },
+  competencyTagsLink: {
+    id: 'course-authoring.content-tags-drawer.competency-tags.link',
+    defaultMessage: 'Go to Competency Management',
+    description: 'Text of the link from the "Competency tags" subsection to the Competency Management page',
+  },
+  competencyTagIconAltText: {
+    id: 'course-authoring.content-tags-drawer.competency-tags.icon.alt',
+    defaultMessage: 'Competency',
+    description: 'Screen reader text for the target icon shown in front of each competency tag',
+  },
   emptyDrawerContent: {
     id: 'course-authoring.content-tags-drawer.empty',
     defaultMessage: 'To use tags, please {link} or contact your administrator.',

@@ -39,6 +39,8 @@ interface TagComponentProps {
   explicit: boolean;
   removeTagHandler?: (value: string) => void;
   afterComponent?: React.ReactNode;
+  tagIcon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  tagIconScreenReaderText?: string;
 }
 
 const TagComponent = ({
@@ -48,6 +50,8 @@ const TagComponent = ({
   canDelete = false,
   explicit,
   afterComponent,
+  tagIcon,
+  tagIconScreenReaderText,
 }: TagComponentProps) => {
   const intl = useIntl();
 
@@ -59,7 +63,11 @@ const TagComponent = ({
 
   return (
     <Stack direction="horizontal">
-      <Icon src={Tag} className="mr-1 pb-1.5 text-info-500" />
+      <Icon
+        src={tagIcon}
+        screenReaderText={explicit ? tagIconScreenReaderText : undefined}
+        className="mr-1 pb-1.5 text-info-500"
+      />
       {value}
       {explicit && canDelete && (
         <IconButton
@@ -91,6 +99,10 @@ interface TagsTreeProps {
   removeTagHandler?: (value: string) => void;
   /** Optional component to render after the tags components. */
   afterTagsComponent?: React.ReactNode;
+  /** Icon rendered in front of each tag. */
+  tagIcon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  /** Screen reader text for the tag icon. The icon is decorative when omitted. */
+  tagIconScreenReaderText?: string;
 }
 
 /**
@@ -137,6 +149,8 @@ const TagsTree = ({
   removeTagHandler,
   // oxlint-disable-next-line oxc/only-used-in-recursion
   afterTagsComponent,
+  tagIcon = Tag,
+  tagIconScreenReaderText,
 }: TagsTreeProps) => {
   const { isEditMode } = useContext(ContentTagsDrawerContext);
 
@@ -159,6 +173,8 @@ const TagsTree = ({
               explicit={tags[key].explicit}
               lineage={[...lineage, encodeURIComponent(key)]}
               removeTagHandler={removeTagHandler}
+              tagIcon={tagIcon}
+              tagIconScreenReaderText={tagIconScreenReaderText}
               afterComponent={isEditMode && tags[key].explicit && tags[key].isCopied && (
                 // So far, `isCopied` is only used to check if the tag has been imported from a library.
                 // If another function is added to `isCopied`, this may change.
@@ -175,6 +191,8 @@ const TagsTree = ({
                 lineage={[...lineage, encodeURIComponent(key)]}
                 removeTagHandler={removeTagHandler}
                 afterTagsComponent={afterTagsComponent}
+                tagIcon={tagIcon}
+                tagIconScreenReaderText={tagIconScreenReaderText}
               />
             )}
         </div>

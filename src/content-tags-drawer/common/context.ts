@@ -35,6 +35,7 @@ export interface ContentTagsDrawerContextData {
   closeToast: () => void;
   setCollapsibleToInitalState: () => void;
   otherTaxonomies: DrawerTaxonomy[];
+  competencyTaxonomies: DrawerTaxonomy[];
 }
 
 /* istanbul ignore next */
@@ -67,6 +68,7 @@ export const ContentTagsDrawerContext = React.createContext<ContentTagsDrawerCon
   closeToast: () => {},
   setCollapsibleToInitalState: () => {},
   otherTaxonomies: [],
+  competencyTaxonomies: [],
 });
 
 // This context has not been added to ContentTagsDrawerContext because it has been
