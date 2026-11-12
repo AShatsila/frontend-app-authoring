@@ -5,7 +5,9 @@ import {
   userEvent,
   waitFor,
 } from '@src/testUtils';
-import ScoreThresholdField from './ScoreThresholdField';
+import { createIntl } from 'react-intl';
+import ScoreThresholdField, { formatScoreSummary } from './ScoreThresholdField';
+import messages from './messages';
 
 describe('<ScoreThresholdField />', () => {
   beforeEach(() => {
@@ -238,6 +240,83 @@ describe('<ScoreThresholdField />', () => {
 
       expect(onChange).not.toHaveBeenCalled();
       expect(screen.getByText('Enter a whole number from 0 to 100.')).toBeInTheDocument();
+    });
+
+    it('focuses and selects the input on mount when autoFocusSelect is set', () => {
+      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} autoFocusSelect />);
+
+      const input = screen.getByRole('textbox') as HTMLInputElement;
+      expect(input).toHaveFocus();
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe(input.value.length);
+    });
+
+    it('does not take focus on mount by default', () => {
+      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} />);
+      expect(screen.getByRole('textbox')).not.toHaveFocus();
+    });
+
+    it('describes the input by the hint', () => {
+      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} hint="Pick another." />);
+
+      expect(screen.getByRole('textbox')).toHaveAccessibleDescription('Pick another.');
+      expect(screen.getByRole('textbox')).not.toBeInvalid();
+    });
+
+    it('marks the input invalid when the hint is an error', () => {
+      render(
+        <ScoreThresholdField
+          rulePayload={rulePayload70Percent}
+          onChange={jest.fn()}
+          hint="Pick another."
+          hintIsError
+        />,
+      );
+
+      expect(screen.getByRole('textbox')).toBeInvalid();
+      expect(screen.getByRole('textbox')).toHaveAccessibleDescription('Pick another.');
+    });
+
+    it('shows only the commit-time validation message when both it and a hint apply', async () => {
+      const user = userEvent.setup();
+      render(
+        <ScoreThresholdField
+          rulePayload={rulePayload70Percent}
+          onChange={jest.fn()}
+          getInlineValidationMessage={() => 'Taken.'}
+          hint="Pick another."
+        />,
+      );
+
+      const input = screen.getByRole('textbox');
+      await user.clear(input);
+      await user.type(input, '85');
+      await user.keyboard('{Enter}');
+
+      expect(screen.getByText('Taken.')).toBeInTheDocument();
+      expect(screen.queryByText('Pick another.')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('formatScoreSummary', () => {
+    it.each(
+      [
+        ['gte', 0.75, '75% or higher'],
+        ['lte', 0.4, '40% or lower'],
+        ['eq', 0.5, '50%'],
+      ] as const,
+    )('formats %s %s as "%s"', (op, value, expected) => {
+      const intl = createIntl({ locale: 'en' });
+      expect(formatScoreSummary(intl, { op, value, scale: 'percent' })).toBe(expected);
+    });
+
+    it('does not depend on the label message having a <threshold> tag', () => {
+      const intl = createIntl({
+        locale: 'en-GB',
+        defaultLocale: 'en',
+        messages: { [messages.scoreThresholdLabel.id]: 'A translation with no placeholders' },
+      });
+      expect(formatScoreSummary(intl, { op: 'gte', value: 0.75, scale: 'percent' })).toBe('75% or higher');
     });
   });
 });

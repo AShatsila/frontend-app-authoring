@@ -145,6 +145,10 @@
 
     &__rules {
       margin-top: var(--pgn-spacing-spacer-2);
+
+      .add-control {
+        margin-top: var(--pgn-spacing-spacer-2);
+      }
     }
   }
 
@@ -197,16 +201,32 @@
       background-color: var(--pgn-color-info-100);
       box-shadow: var(--pgn-elevation-box-shadow-centered-2);
     }
+
+    // Stands in for the chips on the not-yet-saved placeholder box.
+    &__placeholder-hint {
+      padding: var(--pgn-spacing-spacer-2);
+      border: 1px dashed var(--pgn-color-gray-300);
+      border-radius: var(--pgn-size-border-radius-base);
+      font-size: var(--pgn-typography-font-size-sm);
+    }
   }
 
+  // A `Form.Group`: drop Paragon's form-group bottom margin, and hug the text instead of stretching when
+  // the editable variant places it directly in the rule box's column. The score sentence is the bordered
+  // pill and any hint stacks below it.
   .score-threshold-field {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--pgn-spacing-spacer-1);
-    // A `Form.Group`: drop Paragon's form-group bottom margin, and hug the text instead of stretching when
-    // the editable variant places it directly in the rule box's column.
+    display: flex;
+    flex-direction: column;
     align-self: flex-start;
     margin-bottom: 0;
+  }
+
+  .score-threshold-field__sentence {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--pgn-spacing-spacer-1);
+    white-space: nowrap;
     height: 1.9375rem;
     padding: 3px 5px;
     border: 1px solid var(--pgn-color-gray-200);
@@ -250,17 +270,33 @@
     z-index: 2;
   }
 
-  .group-connector {
-    &__line {
-      flex: 1;
-      height: 1px;
-      background-color: var(--pgn-color-gray-200);
-    }
+  .connector-line {
+    flex: 1;
+    height: 1px;
+    background-color: var(--pgn-color-gray-200);
+  }
 
+  .group-connector {
     &__label {
       font-size: var(--pgn-typography-font-size-sm);
       font-weight: 700;
       white-space: nowrap;
     }
+  }
+
+  // `aria-disabled` alone gets no disabled look from Paragon, and `.disabled` would drop the focus ring.
+  .add-control .btn[aria-disabled='true'] {
+    --pgn-btn-color: var(--pgn-btn-disabled-color);
+    --pgn-btn-bg: var(--pgn-btn-disabled-bg);
+    --pgn-btn-border-color: var(--pgn-btn-disabled-border-color);
+    --pgn-btn-hover-color: var(--pgn-btn-disabled-color);
+    --pgn-btn-hover-bg: var(--pgn-btn-disabled-bg);
+    --pgn-btn-hover-border-color: var(--pgn-btn-disabled-border-color);
+    --pgn-btn-active-color: var(--pgn-btn-disabled-color);
+    --pgn-btn-active-bg: var(--pgn-btn-disabled-bg);
+    --pgn-btn-active-border-color: var(--pgn-btn-disabled-border-color);
+
+    opacity: var(--pgn-other-btn-disabled-opacity);
+    cursor: default;
   }
 }
