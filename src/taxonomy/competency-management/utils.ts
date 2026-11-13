@@ -291,10 +291,9 @@ function firstGroupOfNewCourse(snapshot: PageOrderSnapshot, freshIndex: Competen
  *    new course's outline may still be loading.
  * 5. Otherwise `null`.
  *
- * Rules 2 and 3 apply only when the selected group is in `snapshot.entries`. A
- * surviving course-level group is one with a surviving rule group. A placeholder
- * rule box (`ruleKey === null` with a real `groupId`) is treated as a selection of
- * that group.
+ * Rules 2 and 3 apply only when the selected group is in `snapshot.entries`, and a surviving course-level group is
+ * one with a surviving rule group. A placeholder rule box (`ruleKey === null` with a real `groupId`) counts as a
+ * selection of its group.
  */
 export function selectionTargetAfterRemoval(
   snapshot: PageOrderSnapshot,
