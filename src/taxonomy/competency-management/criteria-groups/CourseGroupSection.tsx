@@ -105,13 +105,13 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const bottomTierGroups = status === 'success' ? bottomTierGroupsForCourse(groupsIndex, courseGroup.courseKey) : [];
 
   // A collapsed section has not mounted its cards. A request that moves selection into it is opened by the selection
-  // effect below. One that keeps the author's collapse lands on the section's expand toggle instead.
-  const request = keyboardFocusRequest?.kind === 'group'
+  // effect below. One that keeps the author's collapse, or a menu request, lands on the section's expand toggle instead.
+  const request = (keyboardFocusRequest?.kind === 'group' || keyboardFocusRequest?.kind === 'menu')
       && bottomTierGroups.some((group) => group.id === keyboardFocusRequest.groupId)
     ? keyboardFocusRequest
     : null;
   const holdsFocusRequestTarget = request !== null;
-  const requestExpandsSection = request?.expand === true;
+  const requestExpandsSection = request?.kind === 'group' && request.expand;
   useEffect(() => {
     if (holdsFocusRequestTarget && isCollapsed && !requestExpandsSection) {
       sectionToggleRef.current?.focus();
