@@ -90,11 +90,12 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   }, [takesKeyboardFocus, selectionMoved, consumeKeyboardFocusRequest]);
 
   const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const isMenuDisabled = isDeletingGroup || isAssociating;
   // Waits for the toggle to be enabled again, since a disabled button cannot take focus.
   const takesMenuFocus = group !== undefined
     && keyboardFocusRequest?.kind === 'menu'
     && keyboardFocusRequest.groupId === group.id
-    && !isDeletingGroup;
+    && !isMenuDisabled;
 
   useEffect(() => {
     if (takesMenuFocus && menuToggleRef.current) {
@@ -169,7 +170,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
                 variant="primary"
                 aria-label={intl.formatMessage(messages.ruleGroupMoreActionsLabel)}
                 size="inline"
-                disabled={isDeletingGroup}
+                disabled={isMenuDisabled}
               />
               <Dropdown.Menu>
                 <Dropdown.Item onClick={() => (group ? deleteGroup(group.id) : removePlaceholderGroup())}>

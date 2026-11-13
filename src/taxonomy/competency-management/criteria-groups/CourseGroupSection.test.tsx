@@ -420,9 +420,12 @@ describe('<CourseGroupSection />', () => {
       expect(screen.queryByRole('button', { name: /More actions for/ })).not.toBeInTheDocument();
     });
 
-    it('disables the menu button while a delete is in flight', async () => {
+    it.each([
+      ['a delete', { isDeletingGroup: true }],
+      ['a create', { isAssociating: true }],
+    ])('disables the menu button while %s is in flight', async (_name, overrides) => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-      renderSection({ isDeletingGroup: true, canEditCourse: () => true });
+      renderSection({ ...overrides, canEditCourse: () => true });
 
       expect(await screen.findByRole('button', { name: 'More actions for Demo Course' })).toBeDisabled();
     });
