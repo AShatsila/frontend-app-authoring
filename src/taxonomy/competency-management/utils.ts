@@ -236,6 +236,61 @@ export function hasVisibleOrNewCourseGroup(
   return freshIndex.courseGroups.some((courseGroup) => isRenderedOrNew(snapshot, courseGroup.id));
 }
 
+type Survives = (id: number) => boolean;
+type SelectionRef = { groupId: number | null; ruleKey: string | null; };
+
+const survivingRuleGroups = (entry: PageOrderEntry, survives: Survives) => (
+  survives(entry.courseGroupId) ? entry.ruleGroupIds.filter(survives) : []
+);
+
+function selectionSurvives(selection: SelectionRef, placeholderParentId: number | null, survives: Survives): boolean {
+  if (selection.groupId === null) {
+    return placeholderParentId === null || survives(placeholderParentId);
+  }
+  return survives(selection.groupId);
+}
+
+function courseEntryPositionOf(
+  snapshot: PageOrderSnapshot,
+  selection: SelectionRef,
+  placeholderParentId: number | null,
+): number {
+  const { groupId } = selection;
+  return groupId === null
+    ? snapshot.entries.findIndex((entry) => entry.courseGroupId === placeholderParentId)
+    : snapshot.entries.findIndex((entry) => entry.ruleGroupIds.includes(groupId));
+}
+
+function nearestSiblingGroup(entry: PageOrderEntry, selectedGroupId: number | null, survives: Survives) {
+  if (selectedGroupId === null || !survives(entry.courseGroupId)) {
+    return undefined;
+  }
+  const position = entry.ruleGroupIds.indexOf(selectedGroupId);
+  const above = entry.ruleGroupIds.slice(0, position).filter(survives).pop();
+  return above ?? entry.ruleGroupIds.slice(position + 1).find(survives);
+}
+
+function lastGroupOfCourseAbove(snapshot: PageOrderSnapshot, position: number, survives: Survives) {
+  return snapshot.entries.slice(0, position).reverse()
+    .map((entry) => survivingRuleGroups(entry, survives).pop())
+    .find((id) => id !== undefined);
+}
+
+function firstGroupOfCourseBelow(snapshot: PageOrderSnapshot, position: number, survives: Survives) {
+  return snapshot.entries.slice(position + 1)
+    .map((entry) => survivingRuleGroups(entry, survives)[0])
+    .find((id) => id !== undefined);
+}
+
+// A course-level group that existed at the snapshot is either covered by the rules above or inaccessible to the
+// author, so only a new one can hold a visible target.
+function firstGroupOfNewCourse(snapshot: PageOrderSnapshot, freshIndex: CompetencyCriteriaGroupsIndex) {
+  return freshIndex.courseGroups
+    .filter((courseGroup) => !snapshot.knownCourseGroupIds.includes(courseGroup.id))
+    .map((courseGroup) => bottomTierGroupsForCourse(freshIndex, courseGroup.courseKey)[0]?.id)
+    .find((id) => id !== undefined);
+}
+
 /** Where selection goes after a delete, given the page order from before it and
  * the refetched data. Returns the id of the bottom-tier group to select,
  * `'keep-current'` when selection needs no move, or `null` when nothing is left to
@@ -260,67 +315,18 @@ export function hasVisibleOrNewCourseGroup(
 export function selectionTargetAfterRemoval(
   snapshot: PageOrderSnapshot,
   freshIndex: CompetencyCriteriaGroupsIndex,
-  selection: { groupId: number | null; ruleKey: string | null; } | null,
+  selection: SelectionRef | null,
   placeholderParentId: number | null,
 ): number | 'keep-current' | null {
-  if (selection === null) {
+  const survives: Survives = (id) => freshIndex.groupsById.has(id);
+  if (selection === null || selectionSurvives(selection, placeholderParentId, survives)) {
     return 'keep-current';
   }
-  const survives = (id: number) => freshIndex.groupsById.has(id);
-  const selectedGroupId = selection.groupId;
-
-  let courseEntryPosition: number;
-  if (selectedGroupId === null) {
-    if (placeholderParentId === null || survives(placeholderParentId)) {
-      return 'keep-current';
-    }
-    courseEntryPosition = snapshot.entries.findIndex((entry) => entry.courseGroupId === placeholderParentId);
-  } else {
-    if (survives(selectedGroupId)) {
-      return 'keep-current';
-    }
-    courseEntryPosition = snapshot.entries.findIndex((entry) => entry.ruleGroupIds.includes(selectedGroupId));
-  }
-
-  if (courseEntryPosition !== -1) {
-    const entry = snapshot.entries[courseEntryPosition];
-    if (selectedGroupId !== null && survives(entry.courseGroupId)) {
-      const position = entry.ruleGroupIds.indexOf(selectedGroupId);
-      const above = entry.ruleGroupIds.slice(0, position).filter(survives).pop();
-      const below = entry.ruleGroupIds.slice(position + 1).find(survives);
-      const sibling = above ?? below;
-      if (sibling !== undefined) {
-        return sibling;
-      }
-    }
-
-    const survivingRuleGroups = (candidate: PageOrderEntry) => (
-      survives(candidate.courseGroupId) ? candidate.ruleGroupIds.filter(survives) : []
-    );
-    for (let i = courseEntryPosition - 1; i >= 0; i -= 1) {
-      const last = survivingRuleGroups(snapshot.entries[i]).pop();
-      if (last !== undefined) {
-        return last;
-      }
-    }
-    for (let i = courseEntryPosition + 1; i < snapshot.entries.length; i += 1) {
-      const [first] = survivingRuleGroups(snapshot.entries[i]);
-      if (first !== undefined) {
-        return first;
-      }
-    }
-  }
-
-  for (const courseGroup of freshIndex.courseGroups) {
-    // One that existed before was either handled by rules 2 and 3 or is
-    // inaccessible to the author, so selecting it would target nothing visible.
-    if (snapshot.knownCourseGroupIds.includes(courseGroup.id)) {
-      continue;
-    }
-    const [first] = bottomTierGroupsForCourse(freshIndex, courseGroup.courseKey);
-    if (first) {
-      return first.id;
-    }
-  }
-  return null;
+  const position = courseEntryPositionOf(snapshot, selection, placeholderParentId);
+  const inKnownCourse = position === -1
+    ? undefined
+    : nearestSiblingGroup(snapshot.entries[position], selection.groupId, survives)
+      ?? lastGroupOfCourseAbove(snapshot, position, survives)
+      ?? firstGroupOfCourseBelow(snapshot, position, survives);
+  return inKnownCourse ?? firstGroupOfNewCourse(snapshot, freshIndex) ?? null;
 }
