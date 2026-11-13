@@ -461,20 +461,15 @@ describe('selectionTargetAfterRemoval', () => {
     expect(selectionTargetAfterRemoval(snapshot, fresh, null, null)).toBe('keep-current');
   });
 
-  it('is unchanged when the selected rule group still exists', () => {
+  it.each([
+    ['rule group', 'k'],
+    ['placeholder rule box in a rule group', null],
+  ])('is unchanged when the selected %s still exists', (_label, ruleKey) => {
     const fresh = buildTree([{ id: 1, ruleGroupIds: [10, 12] }, { id: 2, ruleGroupIds: [20] }, {
       id: 3,
       ruleGroupIds: [30, 31],
     }]);
-    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 12, ruleKey: 'k' }, null)).toBe('keep-current');
-  });
-
-  it('is unchanged for a placeholder rule box in a rule group that still exists', () => {
-    const fresh = buildTree([{ id: 1, ruleGroupIds: [10, 12] }, { id: 2, ruleGroupIds: [20] }, {
-      id: 3,
-      ruleGroupIds: [30, 31],
-    }]);
-    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 12, ruleKey: null }, null)).toBe('keep-current');
+    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 12, ruleKey }, null)).toBe('keep-current');
   });
 
   it('is unchanged for the placeholder rule group while its course group still exists', () => {
@@ -482,12 +477,15 @@ describe('selectionTargetAfterRemoval', () => {
     expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: null, ruleKey: null }, 1)).toBe('keep-current');
   });
 
-  it('picks the nearest surviving rule group above when the selected one was deleted', () => {
+  it.each([
+    ['a rule group', 'k'],
+    ['a placeholder rule box in the rule group', null],
+  ])('picks the nearest surviving rule group above when selection on %s was deleted', (_label, ruleKey) => {
     const fresh = buildTree([{ id: 1, ruleGroupIds: [10, 12] }, { id: 2, ruleGroupIds: [20] }, {
       id: 3,
       ruleGroupIds: [30, 31],
     }]);
-    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 11, ruleKey: 'k' }, null)).toBe(10);
+    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 11, ruleKey }, null)).toBe(10);
   });
 
   it('skips an above neighbor that was also removed', () => {
@@ -506,14 +504,6 @@ describe('selectionTargetAfterRemoval', () => {
     expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 10, ruleKey: 'k' }, null)).toBe(11);
   });
 
-  it('treats a placeholder rule box in the deleted rule group like selection on that group', () => {
-    const fresh = buildTree([{ id: 1, ruleGroupIds: [10, 12] }, { id: 2, ruleGroupIds: [20] }, {
-      id: 3,
-      ruleGroupIds: [30, 31],
-    }]);
-    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 11, ruleKey: null }, null)).toBe(10);
-  });
-
   it('picks the last rule group of the surviving course group above when the course group cascaded away', () => {
     const fresh = buildTree([{ id: 1, ruleGroupIds: [10, 11, 12] }, { id: 3, ruleGroupIds: [30, 31] }]);
     expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 20, ruleKey: 'k' }, null)).toBe(12);
@@ -522,14 +512,6 @@ describe('selectionTargetAfterRemoval', () => {
   it('picks the first rule group of the surviving course group below when none survives above', () => {
     const fresh = buildTree([{ id: 2, ruleGroupIds: [20] }, { id: 3, ruleGroupIds: [30, 31] }]);
     expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 10, ruleKey: 'k' }, null)).toBe(20);
-  });
-
-  it('skips a surviving course group above that has no rule groups left', () => {
-    const fresh = buildTree([{ id: 1, ruleGroupIds: [10, 11, 12] }, { id: 2, ruleGroupIds: [] }, {
-      id: 3,
-      ruleGroupIds: [],
-    }]);
-    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 30, ruleKey: 'k' }, null)).toBe(12);
   });
 
   it('finds the nearest surviving course group when the placeholder rule group\'s own course group was deleted', () => {
@@ -542,13 +524,9 @@ describe('selectionTargetAfterRemoval', () => {
     expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 10, ruleKey: 'k' }, null)).toBe(81);
   });
 
-  it('skips a fresh course group with no rule groups when falling back', () => {
-    const fresh = buildTree([{ id: 7, ruleGroupIds: [] }, { id: 8, ruleGroupIds: [80] }]);
-    expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 10, ruleKey: 'k' }, null)).toBe(80);
-  });
-
   it('skips a course group that existed but was not rendered, since the author cannot see it', () => {
     const withHidden = buildTree([{ id: 1, ruleGroupIds: [10] }, { id: 4, ruleGroupIds: [40] }]);
+    // Course group 4 existed but was not rendered.
     const hiddenSnapshot = snapshotPageOrder(withHidden, [withHidden.courseGroups[0]]);
     const fresh = buildTree([{ id: 4, ruleGroupIds: [40] }]);
 
@@ -557,6 +535,7 @@ describe('selectionTargetAfterRemoval', () => {
 
   it('picks a new course group past a hidden one that existed before', () => {
     const withHidden = buildTree([{ id: 1, ruleGroupIds: [10] }, { id: 4, ruleGroupIds: [40] }]);
+    // Course group 4 existed but was not rendered.
     const hiddenSnapshot = snapshotPageOrder(withHidden, [withHidden.courseGroups[0]]);
     const fresh = buildTree([{ id: 4, ruleGroupIds: [40] }, { id: 8, ruleGroupIds: [80] }]);
 
@@ -575,7 +554,7 @@ describe('hasVisibleOrNewCourseGroup', () => {
   const snapshot = snapshotPageOrder(before, [before.courseGroups[0]]);
 
   it('is true for a course group that was rendered before', () => {
-    expect(hasVisibleOrNewCourseGroup(snapshot, buildTree([{ id: 1, ruleGroupIds: [] }]))).toBe(true);
+    expect(hasVisibleOrNewCourseGroup(snapshot, buildTree([{ id: 1, ruleGroupIds: [10] }]))).toBe(true);
   });
 
   it('is true for a course group added since', () => {

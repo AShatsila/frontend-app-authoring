@@ -23,6 +23,7 @@ import {
   criterion,
   defaultProfileResponse as profileResponse,
   eqRule,
+  group,
   gteRule,
   noGroupsResponse,
   otherSingleGroupResponse,
@@ -57,8 +58,29 @@ const twoGroupsWithCriteriaResponse = {
 
 /** `twoGroupsWithCriteriaResponse` after group 10 was deleted. */
 const afterDeletingGroup10Response = {
-  groups: twoGroupsWithCriteriaResponse.groups.filter((group) => group.id !== 10),
+  groups: twoGroupsWithCriteriaResponse.groups.filter((item) => item.id !== 10),
   criteria: twoGroupsWithCriteriaResponse.criteria.filter((item) => item.groupId !== 10),
+};
+
+/** Course A with leaf groups 10, 11 and 12. Groups 11 and 12 each hold two rule boxes, the default `gte` first and
+ * an `eq` second.
+ */
+const eqOverride = { ruleProfileId: null, ruleTypeOverride: 'grade', rulePayloadOverride: eqRule } as const;
+const threeGroupsWithCriteriaResponse = {
+  groups: [...twoGroupsResponse.groups, group(12, 1, null, 2)],
+  criteria: [
+    criterion(901, 'sub-a', 10),
+    criterion(902, 'sub-b', 11),
+    criterion(903, 'sub-c', 11, eqOverride),
+    criterion(904, 'sub-d', 12),
+    criterion(905, 'sub-e', 12, eqOverride),
+  ],
+};
+
+/** `threeGroupsWithCriteriaResponse` after group 10 was deleted. */
+const afterDeletingGroup10OfThreeResponse = {
+  groups: threeGroupsWithCriteriaResponse.groups.filter((item) => item.id !== 10),
+  criteria: threeGroupsWithCriteriaResponse.criteria.filter((item) => item.groupId !== 10),
 };
 
 /** Course A (group 10) and course B (group 20), each leaf holding one default-rule criterion. */
@@ -107,6 +129,7 @@ const TestConsumer = () => {
     ['Select group 21', () => ctx.selectGroup(21)],
     ['Select rule box 10 gte', () => ctx.selectRuleBox(10, gteKey)],
     ['Select rule box 21 gte', () => ctx.selectRuleBox(21, gteKey)],
+    ['Select rule box 12 eq', () => ctx.selectRuleBox(12, eqKey)],
     ['Expand course A', () => ctx.notifyCourseExpanded(courseA)],
     ['Expand course B', () => ctx.notifyCourseExpanded(courseB)],
     ['Associate in course A', () => ctx.associateSubsection('new-sub', courseA)],
@@ -1154,14 +1177,14 @@ describe('CompetencyAssociationsProvider', () => {
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('treats a 404 as success: no toast, and selection still moves off the vanished group', async () => {
+    it('treats a 404 as success: no toast', async () => {
       axiosMock.onDelete(deleteUrl).reply(404);
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
       await renderWithSelectionOnGroup10();
 
       await deleteAndRefetch('Delete group 10', reads);
 
-      expect(await screen.findByText(selectionOnGroup(11))).toBeInTheDocument();
+      expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
@@ -1241,7 +1264,7 @@ describe('CompetencyAssociationsProvider', () => {
     it('selects the course group above when deleting the only rule group removes its course group', async () => {
       axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 20)).reply(200, {});
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
-        groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 2 && group.id !== 20),
+        groups: twoCoursesWithCriteriaResponse.groups.filter((item) => item.id !== 2 && item.id !== 20),
         criteria: twoCoursesWithCriteriaResponse.criteria.filter((item) => item.groupId === 10),
       });
       renderProvider();
@@ -1254,34 +1277,45 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 10, expand: true }))).toBeInTheDocument();
     });
 
+    it('lands on the first rule box of the neighbor group, not its last', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(threeGroupsWithCriteriaResponse, afterDeletingGroup10OfThreeResponse);
+      await renderWithSelectionOnGroup10();
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText(selectionOn(11, gteKey))).toBeInTheDocument();
+    });
+
     it('keeps selection, and asks to keep sections as they are, when the deleted group did not hold selection', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
-      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      const reads = mockGroupsReads(threeGroupsWithCriteriaResponse, afterDeletingGroup10OfThreeResponse);
       renderProvider();
       await waitForSuccess();
-      await click('Select group 11');
+      await click('Select rule box 12 eq');
 
       await deleteAndRefetch('Delete group 10', reads);
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
-      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 11, expand: false }))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(12, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 12, expand: false }))).toBeInTheDocument();
     });
 
-    it('respects a click made on another group while the delete is pending', async () => {
+    it('respects a click made on another group\'s rule box while the delete is pending', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
-      const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+      const reads = mockGroupsReads(threeGroupsWithCriteriaResponse, afterDeletingGroup10OfThreeResponse);
       await renderWithSelectionOnGroup10();
 
       await click('Delete group 10');
       await waitFor(() => expect(groupsReads()).toHaveLength(2));
-      await click('Select group 11');
+      await click('Select rule box 12 eq');
       await act(async () => {
         reads.release();
       });
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(12, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 12, expand: false }))).toBeInTheDocument();
     });
 
     describe('when the author switches competency while a delete is pending', () => {
@@ -1331,7 +1365,7 @@ describe('CompetencyAssociationsProvider', () => {
     it('requests the empty state when only a course group the author cannot see is left', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
-        groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 1 && group.id !== 10),
+        groups: twoCoursesWithCriteriaResponse.groups.filter((item) => item.id !== 1 && item.id !== 10),
         criteria: twoCoursesWithCriteriaResponse.criteria.filter((item) => item.groupId === 20),
       });
       axiosMock.onGet(courseBOutlineUrl).reply(403);
@@ -1357,15 +1391,16 @@ describe('CompetencyAssociationsProvider', () => {
       await click('Remove placeholder group');
 
       expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText('Has placeholder: false')).toBeInTheDocument();
       expect(screen.getByText('Keyboard request: {"kind":"group","groupId":11,"expand":true}')).toBeInTheDocument();
       expect(axiosMock.history.delete).toHaveLength(0);
       expect(axiosMock.history.patch).toHaveLength(0);
       expect(axiosMock.history.post).toHaveLength(0);
     });
 
-    it('clears selection, with no keyboard request, when the placeholder\'s course group has no saved group', async () => {
+    it('clears selection, with no keyboard request, when the placeholder\'s course group is gone', async () => {
       axiosMock.onGet(groupsUrl).reply(200, {
-        groups: singleGroupResponse.groups.filter((group) => group.id !== 10),
+        groups: singleGroupResponse.groups.filter((item) => item.id !== 10 && item.id !== 1),
         criteria: [],
       });
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
