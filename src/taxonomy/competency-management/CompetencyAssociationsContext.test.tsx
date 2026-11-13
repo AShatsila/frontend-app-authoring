@@ -91,7 +91,7 @@ const twoCoursesWithCriteriaResponse = {
 
 const courseAOutlineUrl = getCourseOutlineIndexApiUrl(courseA);
 const courseBOutlineUrl = getCourseOutlineIndexApiUrl(courseB);
-const updateGroupOperatorUrl = apiUrls.updateCompetencyCriteriaGroup(tagId, 10);
+const updateGroupOperatorUrl = apiUrls.competencyCriteriaGroup(tagId, 10);
 const updateRuleScoreUrl = apiUrls.updateCompetencyCriteriaRule(10);
 
 const outlineFixture = buildOutlineIndex();
@@ -1121,7 +1121,7 @@ describe('CompetencyAssociationsProvider', () => {
   });
 
   describe('deleteGroup', () => {
-    const deleteUrl = apiUrls.updateCompetencyCriteriaGroup(tagId, 10);
+    const deleteUrl = apiUrls.competencyCriteriaGroup(tagId, 10);
     const groupsReads = () => axiosMock.history.get.filter((request) => request.url === groupsUrl);
     const keyboardRequest = (request: object | null) => `Keyboard request: ${JSON.stringify(request)}`;
 
@@ -1196,7 +1196,7 @@ describe('CompetencyAssociationsProvider', () => {
       await deleteAndRefetch('Delete group 10', reads);
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expectToast('Couldn\'t remove the group. The panel was refreshed.', ErrorIcon);
+      expectToast('There was a problem removing this group. Please try again.', ErrorIcon);
       expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
       expect(screen.getByText(keyboardRequest({ kind: 'menu', groupId: 10 }))).toBeInTheDocument();
     });
@@ -1262,7 +1262,7 @@ describe('CompetencyAssociationsProvider', () => {
     });
 
     it('selects the course group above when deleting the only rule group removes its course group', async () => {
-      axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 20)).reply(200, {});
+      axiosMock.onDelete(apiUrls.competencyCriteriaGroup(tagId, 20)).reply(200, {});
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
         groups: twoCoursesWithCriteriaResponse.groups.filter((item) => item.id !== 2 && item.id !== 20),
         criteria: twoCoursesWithCriteriaResponse.criteria.filter((item) => item.groupId === 10),
@@ -1353,7 +1353,7 @@ describe('CompetencyAssociationsProvider', () => {
       });
 
       it('sends a delete started in the new competency', async () => {
-        axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(otherTagId, 30)).reply(200, {});
+        axiosMock.onDelete(apiUrls.competencyCriteriaGroup(otherTagId, 30)).reply(200, {});
         await renderSwitchedWhileDeleting();
 
         await click('Delete group 30');
