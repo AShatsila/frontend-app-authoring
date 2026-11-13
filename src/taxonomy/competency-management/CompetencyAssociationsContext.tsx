@@ -297,6 +297,7 @@ export type ProviderAction =
     deletedGroupId: number;
     systemDefaultProfile: CompetencyRuleProfile | undefined;
   }
+  | { type: 'deleteRefetchFailed'; generation: number; }
   | {
     type: 'placeholderGroupRemoved';
     selection: CriteriaSelection | null;
@@ -389,6 +390,9 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
       return { ...state, selection: action.selection };
     case 'groupDeleted':
       return action.generation === state.generation ? reduceGroupDeleted(state, action) : state;
+    case 'deleteRefetchFailed':
+      // The tree is not rendered while it is in error, so no card shows the selection.
+      return action.generation === state.generation ? moveSelection(state, null, null) : state;
     case 'placeholderGroupRemoved':
       return moveSelection(state, action.selection, action.keyboardFocusRequest);
     case 'keyboardFocusRequestConsumed':
@@ -774,9 +778,12 @@ export const CompetencyAssociationsProvider = ({
   }, []);
 
   const resolveSelectionAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
-    const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
-      competencyQueryKeys.competencyCriteriaGroups(tagId),
-    );
+    const queryKey = competencyQueryKeys.competencyCriteriaGroups(tagId);
+    const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(queryKey);
+    if (queryClient.getQueryState(queryKey)?.status === 'error') {
+      dispatch({ type: 'deleteRefetchFailed', generation });
+      return;
+    }
     if (!freshData) {
       return;
     }

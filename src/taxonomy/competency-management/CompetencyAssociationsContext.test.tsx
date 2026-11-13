@@ -1178,6 +1178,20 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });
 
+    it('clears selection when the refetch after a successful delete fails', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      axiosMock.onGet(groupsUrl).replyOnce(200, twoGroupsWithCriteriaResponse).onGet(groupsUrl).reply(500);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+      await renderWithSelectionOnGroup10();
+
+      await click('Delete group 10');
+
+      expect(await screen.findByText('Status: error')).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText('Deleting: false')).toBeInTheDocument());
+      expect(noSelection()).toBeInTheDocument();
+    });
+
     it('drops a second call made while the first delete is pending, so one request is sent', async () => {
       const deleteGate = deferred();
       axiosMock.onDelete(deleteUrl).reply(() => deleteGate.released.then(() => [200, {}]));
