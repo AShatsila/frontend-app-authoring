@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import type { Ref } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import {
   Card,
@@ -24,6 +25,36 @@ import messages from './messages';
 export interface CourseGroupSectionProps {
   courseGroup: CourseCompetencyCriteriaGroup;
 }
+
+interface CourseGroupMenuProps {
+  toggleRef: Ref<HTMLButtonElement>;
+  id: string;
+  toggleLabel: string;
+  removeLabel: string;
+  disabled: boolean;
+  onRemove: () => void;
+}
+
+// `Card.Header` clones every action, and the elements inside it, with its own `size`, which would turn the toggle's
+// inline size into the header's. Taking explicit props instead of children keeps the injected `size` off the toggle.
+const CourseGroupMenu = ({ toggleRef, id, toggleLabel, removeLabel, disabled, onRemove }: CourseGroupMenuProps) => (
+  <Dropdown>
+    <Dropdown.Toggle
+      ref={toggleRef}
+      id={id}
+      as={IconButton}
+      src={MoreVert}
+      iconAs={Icon}
+      variant="primary"
+      aria-label={toggleLabel}
+      size="inline"
+      disabled={disabled}
+    />
+    <Dropdown.Menu>
+      <Dropdown.Item onClick={onRemove}>{removeLabel}</Dropdown.Item>
+    </Dropdown.Menu>
+  </Dropdown>
+);
 
 /** One accessible course-level group: its own header ("From within
  * **{course name}** ...") and its bottom-tier group cards, with an Or/And connector
@@ -163,24 +194,14 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
           </Stack>
         }
         actions={canEdit && (
-          <Dropdown>
-            <Dropdown.Toggle
-              ref={menuToggleRef}
-              id={`course-group-menu-toggle-${courseGroup.id}`}
-              as={IconButton}
-              src={MoreVert}
-              iconAs={Icon}
-              variant="primary"
-              aria-label={intl.formatMessage(messages.courseGroupMoreActionsLabel, { courseName })}
-              size="inline"
-              disabled={isMenuDisabled}
-            />
-            <Dropdown.Menu>
-              <Dropdown.Item onClick={() => deleteGroup(courseGroup.id)}>
-                {intl.formatMessage(messages.removeFromCompetencyMenuItem, { competencyName })}
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown>
+          <CourseGroupMenu
+            toggleRef={menuToggleRef}
+            id={`course-group-menu-toggle-${courseGroup.id}`}
+            toggleLabel={intl.formatMessage(messages.courseGroupMoreActionsLabel, { courseName })}
+            removeLabel={intl.formatMessage(messages.removeFromCompetencyMenuItem, { competencyName })}
+            disabled={isMenuDisabled}
+            onRemove={() => deleteGroup(courseGroup.id)}
+          />
         )}
       />
       {!isCollapsed && (

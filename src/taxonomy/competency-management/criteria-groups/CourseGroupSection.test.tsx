@@ -412,6 +412,17 @@ describe('<CourseGroupSection />', () => {
       expect(deleteGroup).toHaveBeenCalledWith(courseGroup.id);
     });
 
+    it('renders the menu button at the inline size, whatever size the card header injects', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      renderSection({ canEditCourse: () => true });
+
+      const toggle = await screen.findByRole('button', { name: 'More actions for Demo Course' });
+
+      expect(toggle).toHaveClass('btn-icon-inline');
+      expect(toggle).not.toHaveClass('btn-icon-sm');
+      expect(toggle.parentElement).not.toHaveAttribute('size');
+    });
+
     it('renders no menu when the author cannot edit this course', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       renderSection();
