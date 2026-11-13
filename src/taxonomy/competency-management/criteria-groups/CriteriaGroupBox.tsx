@@ -130,6 +130,8 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   let disabledReason: AddControlProps['disabledReason'] = null;
   if (isAssociating) {
     disabledReason = 'saving';
+  } else if (isDeletingGroup) {
+    disabledReason = 'deleting';
   } else if (hasPlaceholder) {
     disabledReason = 'placeholder';
   }

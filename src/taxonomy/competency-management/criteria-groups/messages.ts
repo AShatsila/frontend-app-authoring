@@ -179,6 +179,12 @@ const messages = defineMessages({
     description: 'Tooltip on a disabled "+ Rule"/"+ Rule Group" button, shown while a create request is '
       + 'still in flight.',
   },
+  addControlDeletingTooltip: {
+    id: 'course-authoring.competency-management.criteria-groups.add-control-deleting-tooltip',
+    defaultMessage: 'Wait for the removal to finish before adding another.',
+    description: 'Tooltip on a disabled "+ Rule"/"+ Rule Group" button, shown while a request to remove a group is '
+      + 'still in flight.',
+  },
   placeholderRuleBoxHint: {
     id: 'course-authoring.competency-management.criteria-groups.placeholder-rule-box-hint',
     defaultMessage: 'Select content below to add it here.',
