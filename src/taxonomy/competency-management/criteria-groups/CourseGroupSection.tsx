@@ -88,6 +88,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     }
   }, [holdsFocusRequestTarget, requestExpandsSection, isCollapsed, consumeKeyboardFocusRequest]);
 
+  const isMenuDisabled = isDeletingGroup || isAssociating;
   const canEdit = canEditCourse(courseGroup.courseKey);
   const isRendered = status === 'success' && Boolean(data);
   // Waits for the toggle to render and be enabled again, since a disabled button cannot take focus.
@@ -95,7 +96,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     && canEdit
     && keyboardFocusRequest?.kind === 'menu'
     && keyboardFocusRequest.groupId === courseGroup.id
-    && !isDeletingGroup;
+    && !isMenuDisabled;
   useEffect(() => {
     if (takesMenuFocus && menuToggleRef.current) {
       menuToggleRef.current.focus();
@@ -172,7 +173,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
               variant="primary"
               aria-label={intl.formatMessage(messages.courseGroupMoreActionsLabel, { courseName })}
               size="inline"
-              disabled={isDeletingGroup}
+              disabled={isMenuDisabled}
             />
             <Dropdown.Menu>
               <Dropdown.Item onClick={() => deleteGroup(courseGroup.id)}>

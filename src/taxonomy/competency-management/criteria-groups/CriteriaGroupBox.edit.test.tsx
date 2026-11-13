@@ -193,8 +193,11 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       expect(screen.queryByRole('button', { name: 'More actions for this group' })).not.toBeInTheDocument();
     });
 
-    it('disables the menu button while a delete is in flight', () => {
-      renderBox({ isDeletingGroup: true });
+    it.each([
+      ['a delete', { isDeletingGroup: true }],
+      ['a create', { isAssociating: true }],
+    ])('disables the menu button while %s is in flight', (_name, overrides) => {
+      renderBox(overrides);
 
       expect(screen.getByRole('button', { name: 'More actions for this group' })).toBeDisabled();
     });
