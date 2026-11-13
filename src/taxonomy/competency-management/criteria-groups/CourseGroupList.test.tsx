@@ -74,4 +74,22 @@ describe('<CourseGroupList />', () => {
     expect(screen.queryByRole('heading', { name: /From within Course A/ })).not.toBeInTheDocument();
     expect(screen.queryByText('No content associated.')).not.toBeInTheDocument();
   });
+
+  it('takes keyboard focus on the empty state when a request asks for it, then consumes the request', () => {
+    const consumeKeyboardFocusRequest = jest.fn();
+    renderList({
+      accessibleCourseGroups: [],
+      keyboardFocusRequest: { kind: 'empty' },
+      consumeKeyboardFocusRequest,
+    });
+
+    expect(screen.getByText('No content associated.').parentElement).toHaveFocus();
+    expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the empty state unfocused without a request', () => {
+    renderList({ accessibleCourseGroups: [] });
+
+    expect(screen.getByText('No content associated.').parentElement).not.toHaveFocus();
+  });
 });

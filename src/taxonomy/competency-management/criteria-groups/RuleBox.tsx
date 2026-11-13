@@ -51,22 +51,22 @@ const RuleBox = ({
 }: RuleBoxProps) => {
   const intl = useIntl();
   const {
-    focus,
-    focusRuleBox,
+    selection,
+    selectRuleBox,
     updateRuleScore,
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
     placeholderDuplicateRejectionCount,
   } = useCompetencyAssociations();
-  const isFocused = focus?.groupId === groupId && focus?.ruleKey === ruleKey;
+  const isSelected = selection?.groupId === groupId && selection?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isFocused) {
+    if (isSelected) {
       ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }, [isFocused]);
+  }, [isSelected]);
 
   const isDuplicateRejected = isPlaceholder && !!hint && placeholderDuplicateRejected;
 
@@ -83,9 +83,9 @@ const RuleBox = ({
     return save;
   };
 
-  const selectRuleBox = () => {
+  const handleSelectClick = () => {
     if (groupId !== null && ruleKey !== null) {
-      focusRuleBox(groupId, ruleKey);
+      selectRuleBox(groupId, ruleKey);
     }
   };
 
@@ -93,7 +93,7 @@ const RuleBox = ({
     <Stack
       ref={ref}
       gap={1.5}
-      className={classNames('rule-box position-relative', { 'rule-box--focused': isFocused })}
+      className={classNames('rule-box position-relative', { 'rule-box--selected': isSelected })}
     >
       {canEdit
         ? (
@@ -103,8 +103,8 @@ const RuleBox = ({
               <button
                 type="button"
                 className="rule-box__select-button"
-                aria-current={isFocused}
-                onClick={selectRuleBox}
+                aria-current={isSelected}
+                onClick={handleSelectClick}
               >
                 <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
               </button>
@@ -126,8 +126,8 @@ const RuleBox = ({
           <button
             type="button"
             className="rule-box__control stretched-link"
-            aria-current={isFocused}
-            onClick={selectRuleBox}
+            aria-current={isSelected}
+            onClick={handleSelectClick}
           >
             <ScoreThresholdField rulePayload={rule.rulePayload} />
           </button>

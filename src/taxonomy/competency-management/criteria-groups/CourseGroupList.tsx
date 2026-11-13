@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Stack } from '@openedx/paragon';
 
@@ -17,7 +18,20 @@ const CourseGroupList = () => {
   const {
     status,
     accessibleCourseGroups,
+    keyboardFocusRequest,
+    consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
+  const emptyStateRef = useRef<HTMLDivElement>(null);
+  const takesKeyboardFocus = keyboardFocusRequest?.kind === 'empty';
+
+  // Reruns when the list length changes, so it takes the request whichever lands first: the request or the empty
+  // state it names.
+  useEffect(() => {
+    if (takesKeyboardFocus && emptyStateRef.current) {
+      emptyStateRef.current.focus({ preventScroll: true });
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesKeyboardFocus, accessibleCourseGroups.length, consumeKeyboardFocusRequest]);
 
   if (status === 'pending') {
     return (
@@ -38,7 +52,7 @@ const CourseGroupList = () => {
 
   if (accessibleCourseGroups.length === 0) {
     return (
-      <div className="course-group-list__empty-state">
+      <div ref={emptyStateRef} tabIndex={-1} className="course-group-list__empty-state">
         <p>{intl.formatMessage(messages.noAssociationsMessage)}</p>
         <p>{intl.formatMessage(messages.noAssociationsPromptMessage)}</p>
       </div>

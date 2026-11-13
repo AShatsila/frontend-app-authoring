@@ -34,7 +34,7 @@ const RuleBoxList = ({
 }: RuleBoxListProps) => {
   const intl = useIntl();
   const {
-    focus,
+    selection,
     placeholder,
     systemDefaultProfile,
     setPlaceholderRulePayload,
@@ -50,13 +50,13 @@ const RuleBoxList = ({
       : '';
   };
 
-  // The placeholder box shows last in the focused group when its focus has no rule key. In the placeholder group
-  // (`groupId === null`) it always shows, since that card renders only while the focus is on it.
+  // The placeholder box shows last in the selected group when its selection has no rule key. In the placeholder group
+  // (`groupId === null`) it always shows, since that card renders only while the selection is on it.
   const placeholderRule: EffectiveRule | undefined = systemDefaultProfile && {
     ruleType: systemDefaultProfile.ruleType,
     rulePayload: placeholder.rulePayload ?? systemDefaultProfile.rulePayload,
   };
-  const showPlaceholder = !!placeholderRule && focus?.groupId === groupId && focus.ruleKey === null;
+  const showPlaceholder = !!placeholderRule && selection?.groupId === groupId && selection.ruleKey === null;
 
   const placeholderKey = placeholderRule && placeholderKeyOf(placeholderRule.rulePayload);
   const renderedKeys = [...boxes.map((box) => box.key), ...(showPlaceholder && placeholderKey ? [placeholderKey] : [])];
