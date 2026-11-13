@@ -117,6 +117,7 @@ const TestConsumer = () => {
     ['Select group 11', () => ctx.selectGroup(11)],
     ['Delete group 10', () => ctx.deleteGroup(10)],
     ['Delete group 20', () => ctx.deleteGroup(20)],
+    ['Delete group 30', () => ctx.deleteGroup(30)],
     [
       'Delete group 10 twice',
       () => {
@@ -1267,6 +1268,50 @@ describe('CompetencyAssociationsProvider', () => {
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
+    });
+
+    describe('when the author switches competency while a delete is pending', () => {
+      const renderSwitchedWhileDeleting = async () => {
+        const deleteGate = deferred();
+        axiosMock.onDelete(deleteUrl).reply(() => deleteGate.released.then(() => [200, {}]));
+        mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+        axiosMock.onGet(otherGroupsUrl).reply(200, otherSingleGroupResponse);
+        const { rerender } = renderProvider();
+        await waitForSuccess();
+        await click('Select group 10');
+        await click('Delete group 10');
+        await waitFor(() => expect(axiosMock.history.delete).toHaveLength(1));
+        rerender(providerFor(otherTagId));
+        await screen.findByText(selectionOnGroup(30));
+        return deleteGate;
+      };
+
+      it('leaves the new competency\'s selection alone when the delete settles', async () => {
+        const deleteGate = await renderSwitchedWhileDeleting();
+
+        await act(async () => {
+          deleteGate.release();
+        });
+        await flushEffects();
+
+        expect(screen.getByText(selectionOnGroup(30))).toBeInTheDocument();
+        expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
+      });
+
+      it('does not report the other competency\'s delete as in flight', async () => {
+        await renderSwitchedWhileDeleting();
+
+        expect(screen.getByText('Deleting: false')).toBeInTheDocument();
+      });
+
+      it('sends a delete started in the new competency', async () => {
+        axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(otherTagId, 30)).reply(200, {});
+        await renderSwitchedWhileDeleting();
+
+        await click('Delete group 30');
+
+        await waitFor(() => expect(axiosMock.history.delete).toHaveLength(2));
+      });
     });
 
     it('requests the empty state when only a course group the author cannot see is left', async () => {
