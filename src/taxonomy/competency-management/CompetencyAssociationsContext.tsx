@@ -66,7 +66,8 @@ import {
 
 export type { CriteriaPlaceholder };
 
-/** The rule box or group the author is working in; `ruleKey` is a rule box's key within its group.
+/** The rule box or group the author is working in, which the ticket calls "in focus"; `ruleKey` is a rule box's key
+ * within its group.
  * `ruleKey === null` is an unsaved placeholder rule box in the group, and `groupId === null` is an unsaved
  * placeholder group under `placeholder.parentRuleGroupId`. A non-null `ruleKey` that matches no box re-resolves
  * to the group's last box, or to `null` for a saved group with no criteria, which then renders its placeholder
@@ -78,8 +79,11 @@ export interface CriteriaSelection {
 }
 
 /** A one-shot request for the browser's keyboard focus, left by a delete whose menu toggle is gone or disabled. `group`
- * names the bottom-tier card that takes it (`expand`: whether a collapsed section holding it opens), `menu` the group
- * whose menu toggle takes it after a failed delete, and `empty` the "no associations" message.
+ * names the bottom-tier card that takes it, `menu` the group whose menu toggle takes it after a failed delete, and
+ * `empty` the "no associations" message.
+ *
+ * `expand` on a `group` request has two meanings: whether a collapsed section holding the card opens, and whether
+ * selection moved to the card, in which case the card does not scroll to itself because its rule box does.
  */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
@@ -117,12 +121,12 @@ export interface CompetencyAssociationsContextBase {
    * lands. Dropped while another delete is in flight. A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
-  /** True while a delete request or its refetch is in flight, which disables every delete control and the content
-   * panel's subsection pills.
+  /** True while a delete request or its refetch is in flight, which disables every delete control, the "+ Rule" and
+   * "+ Rule Group" controls, and the content panel's subsection pills.
    */
   isDeletingGroup: boolean;
   /** Discards the placeholder group without a request and selects the last saved group in its course group. */
-  removePlaceholderGroup: () => void;
+  discardPlaceholderGroup: () => void;
   keyboardFocusRequest: KeyboardFocusRequest | null;
   /** Clears `keyboardFocusRequest` once the component it names has taken it. */
   consumeKeyboardFocusRequest: () => void;
@@ -303,7 +307,7 @@ export type ProviderAction =
   }
   | { type: 'deleteRefetchFailed'; generation: number; }
   | {
-    type: 'placeholderGroupRemoved';
+    type: 'placeholderGroupDiscarded';
     selection: CriteriaSelection | null;
     keyboardFocusRequest: KeyboardFocusRequest | null;
   }
@@ -373,8 +377,8 @@ function reduceGroupDeleted(
     accessibleCourseKeys,
   );
   const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
-  // A vanished group strands the browser's focus. A failed delete keeps its menu toggle, but browsers differ on
-  // whether a toggle disabled during the request keeps focus.
+  // A vanished group strands the browser's focus. A failed delete keeps its menu toggle, which was disabled during the
+  // request and may have lost focus.
   const menuRequest: KeyboardFocusRequest | null = deleteFailed && !isDeletedGroupGone
     ? { kind: 'menu', groupId: deletedGroupId }
     : null;
@@ -433,7 +437,7 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
     case 'deleteRefetchFailed':
       // The tree is not rendered while it is in error, so no card shows the selection.
       return action.generation === state.generation ? moveSelection(state, null, null) : state;
-    case 'placeholderGroupRemoved':
+    case 'placeholderGroupDiscarded':
       return moveSelection(state, action.selection, action.keyboardFocusRequest);
     case 'keyboardFocusRequestConsumed':
       return { ...state, keyboardFocusRequest: null };
@@ -883,7 +887,7 @@ export const CompetencyAssociationsProvider = ({
     intl,
   ]);
 
-  const removePlaceholderGroup = useCallback(() => {
+  const discardPlaceholderGroup = useCallback(() => {
     const { parentRuleGroupId } = placeholder;
     const parentGroup = parentRuleGroupId !== null ? groupsIndex?.groupsById.get(parentRuleGroupId) : undefined;
     const lastGroup = groupsIndex && parentGroup?.courseKey != null
@@ -891,12 +895,12 @@ export const CompetencyAssociationsProvider = ({
       : null;
     if (groupsIndex && lastGroup) {
       dispatch({
-        type: 'placeholderGroupRemoved',
+        type: 'placeholderGroupDiscarded',
         selection: selectionOnFirstRuleBox(lastGroup.id, groupsIndex, systemDefaultProfile),
         keyboardFocusRequest: { kind: 'group', groupId: lastGroup.id, expand: true },
       });
     } else {
-      dispatch({ type: 'placeholderGroupRemoved', selection: null, keyboardFocusRequest: null });
+      dispatch({ type: 'placeholderGroupDiscarded', selection: null, keyboardFocusRequest: null });
     }
   }, [placeholder, groupsIndex, systemDefaultProfile]);
 
@@ -921,7 +925,7 @@ export const CompetencyAssociationsProvider = ({
       updateRuleScore,
       deleteGroup,
       isDeletingGroup,
-      removePlaceholderGroup,
+      discardPlaceholderGroup,
       keyboardFocusRequest,
       consumeKeyboardFocusRequest,
       isAssociating,
@@ -958,7 +962,7 @@ export const CompetencyAssociationsProvider = ({
     updateRuleScore,
     deleteGroup,
     isDeletingGroup,
-    removePlaceholderGroup,
+    discardPlaceholderGroup,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
     isAssociating,

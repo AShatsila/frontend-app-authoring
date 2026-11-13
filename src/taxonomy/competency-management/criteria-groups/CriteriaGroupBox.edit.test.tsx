@@ -67,7 +67,7 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     expect(selectGroup).toHaveBeenCalledWith(10);
   });
 
-  it('does not selection the group when the operator dropdown is used', async () => {
+  it('does not select the group when the operator dropdown is used', async () => {
     const selectGroup = jest.fn();
     renderBox({ selectGroup });
 
@@ -213,10 +213,10 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
 
     it('lets the placeholder group\'s menu discard it without calling deleteGroup', async () => {
       const deleteGroup = jest.fn();
-      const removePlaceholderGroup = jest.fn();
+      const discardPlaceholderGroup = jest.fn();
       render(
         <MockCompetencyAssociationsProvider
-          value={{ selection: { groupId: null, ruleKey: null }, deleteGroup, removePlaceholderGroup }}
+          value={{ selection: { groupId: null, ruleKey: null }, deleteGroup, discardPlaceholderGroup }}
         >
           <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit position={3} courseName="Demo Course" />
         </MockCompetencyAssociationsProvider>,
@@ -225,7 +225,7 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       await openMenu('More actions for the new rule group in Demo Course');
       await user.click(screen.getByRole('button', { name: 'Remove group' }));
 
-      expect(removePlaceholderGroup).toHaveBeenCalledTimes(1);
+      expect(discardPlaceholderGroup).toHaveBeenCalledTimes(1);
       expect(deleteGroup).not.toHaveBeenCalled();
     });
 

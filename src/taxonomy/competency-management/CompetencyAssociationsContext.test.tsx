@@ -148,7 +148,7 @@ const TestConsumer = () => {
         ctx.deleteGroup(10);
       },
     ],
-    ['Remove placeholder group', () => ctx.removePlaceholderGroup()],
+    ['Discard placeholder group', () => ctx.discardPlaceholderGroup()],
     ['Add placeholder rule box in group 10', () => ctx.addPlaceholderRuleBox(10)],
     ['Add placeholder group under course A', () => ctx.addPlaceholderGroup(1)],
     ['Set placeholder logic operator to AND', () => ctx.setPlaceholderLogicOperator('AND')],
@@ -1435,7 +1435,7 @@ describe('CompetencyAssociationsProvider', () => {
     });
   });
 
-  describe('removePlaceholderGroup', () => {
+  describe('discardPlaceholderGroup', () => {
     it('sends no request, and selects the last saved group of the placeholder\'s course with a keyboard request', async () => {
       axiosMock.onGet(groupsUrl).reply(200, twoGroupsWithCriteriaResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -1445,7 +1445,7 @@ describe('CompetencyAssociationsProvider', () => {
       await click('Add placeholder group under course A');
       expect(screen.getByText('Selection: group null, rule none')).toBeInTheDocument();
 
-      await click('Remove placeholder group');
+      await click('Discard placeholder group');
 
       expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
       expect(screen.getByText('Has placeholder: false')).toBeInTheDocument();
@@ -1466,7 +1466,7 @@ describe('CompetencyAssociationsProvider', () => {
       await waitForSuccess();
       await click('Add placeholder group under course A');
 
-      await click('Remove placeholder group');
+      await click('Discard placeholder group');
 
       expect(noSelection()).toBeInTheDocument();
       expect(screen.getByText('Keyboard request: null')).toBeInTheDocument();
