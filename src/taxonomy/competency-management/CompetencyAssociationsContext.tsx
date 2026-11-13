@@ -78,12 +78,16 @@ export interface CriteriaSelection {
   ruleKey: string | null;
 }
 
-/** A one-shot request for the browser's keyboard focus, left by a delete because the trash button that had it is
- * gone. Kept here because the cards can unmount (or be collapsed) before the new target renders. `group` names the
- * bottom-tier group card that takes it, and `expand` whether a collapsed course-level group holding that card opens
- * for it. `empty` is the "no associations" message.
+/** A one-shot request for the browser's keyboard focus, left by a delete because the menu toggle that had it is
+ * gone or was disabled. Kept here because the cards can unmount (or be collapsed) before the new target renders.
+ * `group` names the bottom-tier group card that takes it, and `expand` whether a collapsed course-level group holding
+ * that card opens for it (false when selection did not move). `menu` names the group, bottom-tier or course-level,
+ * whose menu toggle takes it after a failed delete. `empty` is the "no associations" message.
  */
-export type KeyboardFocusRequest = { kind: 'group'; groupId: number; expand: boolean; } | { kind: 'empty'; };
+export type KeyboardFocusRequest =
+  | { kind: 'group'; groupId: number; expand: boolean; }
+  | { kind: 'menu'; groupId: number; }
+  | { kind: 'empty'; };
 
 export interface CompetencyAssociationsContextBase {
   /** The groups or profile failure, or the first course-outline failure other
@@ -295,6 +299,7 @@ export type ProviderAction =
     snapshot: PageOrderSnapshot;
     freshIndex: CompetencyCriteriaGroupsIndex;
     deletedGroupId: number;
+    deleteFailed: boolean;
     systemDefaultProfile: CompetencyRuleProfile | undefined;
   }
   | { type: 'deleteRefetchFailed'; generation: number; }
@@ -336,31 +341,35 @@ function reduceGroupDeleted(
   state: ProviderState,
   action: Extract<ProviderAction, { type: 'groupDeleted'; }>,
 ): ProviderState {
-  const { snapshot, freshIndex, deletedGroupId, systemDefaultProfile } = action;
+  const { snapshot, freshIndex, deletedGroupId, deleteFailed, systemDefaultProfile } = action;
   const target = selectionTargetAfterRemoval(
     snapshot,
     freshIndex,
     state.selection,
     state.placeholder.parentRuleGroupId,
   );
-  // A failed or no-op delete leaves the menu toggle in the DOM, which keeps the browser's focus. Only a vanished
-  // group strands it.
   const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
+  // A vanished group strands the browser's focus. A failed delete keeps its menu toggle, but browsers differ on
+  // whether a toggle disabled during the request keeps focus.
+  const menuRequest: KeyboardFocusRequest | null = deleteFailed && !isDeletedGroupGone
+    ? { kind: 'menu', groupId: deletedGroupId }
+    : null;
 
   if (target === 'keep-current') {
     const selectedGroupId = state.selection?.groupId ?? null;
-    return isDeletedGroupGone && selectedGroupId !== null
-      ? { ...state, keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, expand: false } }
-      : state;
+    if (isDeletedGroupGone && selectedGroupId !== null) {
+      return { ...state, keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, expand: false } };
+    }
+    return menuRequest ? { ...state, keyboardFocusRequest: menuRequest } : state;
   }
   if (target === null) {
     const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex);
-    return moveSelection(state, null, isPanelEmpty ? { kind: 'empty' } : null);
+    return moveSelection(state, null, isPanelEmpty ? { kind: 'empty' } : menuRequest);
   }
   return moveSelection(
     state,
     selectionOnFirstRuleBox(target, freshIndex, systemDefaultProfile),
-    isDeletedGroupGone ? { kind: 'group', groupId: target, expand: true } : null,
+    isDeletedGroupGone ? { kind: 'group', groupId: target, expand: true } : menuRequest,
   );
 }
 
@@ -777,7 +786,11 @@ export const CompetencyAssociationsProvider = ({
     dispatch({ type: 'keyboardFocusRequestConsumed' });
   }, []);
 
-  const resolveSelectionAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
+  const resolveSelectionAfterDelete = useCallback((
+    deletedGroupId: number,
+    snapshot: PageOrderSnapshot,
+    deleteFailed: boolean,
+  ) => {
     const queryKey = competencyQueryKeys.competencyCriteriaGroups(tagId);
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(queryKey);
     if (queryClient.getQueryState(queryKey)?.status === 'error') {
@@ -793,6 +806,7 @@ export const CompetencyAssociationsProvider = ({
       snapshot,
       freshIndex: buildCompetencyCriteriaGroupsIndex(freshData),
       deletedGroupId,
+      deleteFailed,
       systemDefaultProfile,
     });
   }, [queryClient, tagId, generation, systemDefaultProfile]);
@@ -804,17 +818,17 @@ export const CompetencyAssociationsProvider = ({
     deleteInFlightGenerationRef.current = generation;
     const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
+      // 404: the group is already gone, which is what the author asked for.
       onError: (deleteError) => {
-        // 404: the group is already gone, which is what the author asked for.
         if (deleteError.response?.status !== 404) {
           showToast(intl.formatMessage(messages.deleteGroupFailedToastMessage), undefined, undefined, ErrorIcon);
         }
       },
-      onSettled: () => {
+      onSettled: (_data, deleteError) => {
         if (deleteInFlightGenerationRef.current === generation) {
           deleteInFlightGenerationRef.current = null;
         }
-        resolveSelectionAfterDelete(groupId, snapshot);
+        resolveSelectionAfterDelete(groupId, snapshot, deleteError !== null && deleteError.response?.status !== 404);
       },
     });
   }, [
