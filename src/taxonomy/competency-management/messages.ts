@@ -57,7 +57,7 @@ const messages = defineMessages({
   },
   deleteGroupFailedToastMessage: {
     id: 'course-authoring.competency-management.delete-group-failed-toast-message',
-    defaultMessage: 'Couldn\'t remove the group. The panel was refreshed.',
+    defaultMessage: 'There was a problem removing this group. Please try again.',
     description: 'Toast shown when removing a course group or rule group fails.',
   },
   updateGroupOperatorFailedToastMessage: {
