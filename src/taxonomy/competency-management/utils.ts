@@ -184,7 +184,7 @@ export function lastBottomTierGroupForCourse(
  */
 export function visibleCourseGroups(
   index: CompetencyCriteriaGroupsIndex,
-  accessibleCourseIds: Set<string>,
+  accessibleCourseIds: ReadonlySet<string>,
 ): CourseCompetencyCriteriaGroup[] {
   return index.courseGroups.filter((courseGroup) => accessibleCourseIds.has(courseGroup.courseKey));
 }
@@ -266,9 +266,13 @@ function firstGroupOfCourseBelow(snapshot: PageOrderSnapshot, position: number, 
 }
 
 // A course-level group that existed at the snapshot is either covered by the rules above or inaccessible to the
-// author, so only a new one can hold a visible target.
-function firstGroupOfNewCourse(snapshot: PageOrderSnapshot, freshIndex: CompetencyCriteriaGroupsIndex) {
-  return freshIndex.courseGroups
+// author, so only a new, accessible one can hold a visible target.
+function firstGroupOfNewCourse(
+  snapshot: PageOrderSnapshot,
+  freshIndex: CompetencyCriteriaGroupsIndex,
+  accessibleCourseKeys: ReadonlySet<string>,
+) {
+  return visibleCourseGroups(freshIndex, accessibleCourseKeys)
     .filter((courseGroup) => !snapshot.knownCourseGroupIds.includes(courseGroup.id))
     .map((courseGroup) => bottomTierGroupsForCourse(freshIndex, courseGroup.courseKey)[0]?.id)
     .find((id) => id !== undefined);
@@ -286,9 +290,8 @@ function firstGroupOfNewCourse(snapshot: PageOrderSnapshot, freshIndex: Competen
  * 3. Otherwise the last group of the nearest surviving course-level group
  *    above, else the first group of the nearest one below.
  * 4. Otherwise the first group of the first course-level group in
- *    `freshIndex` that has one and did not exist at the snapshot (another
- *    author may have added it). This reads `freshIndex` unfiltered, since a
- *    new course's outline may still be loading.
+ *    `freshIndex` that has one, did not exist at the snapshot (another
+ *    author may have added it), and whose course is in `accessibleCourseKeys`.
  * 5. Otherwise `null`.
  *
  * Rules 2 and 3 apply only when the selected group is in `snapshot.entries`, and a surviving course-level group is
@@ -300,6 +303,7 @@ export function selectionTargetAfterRemoval(
   freshIndex: CompetencyCriteriaGroupsIndex,
   selection: SelectionRef | null,
   placeholderParentId: number | null,
+  accessibleCourseKeys: ReadonlySet<string>,
 ): number | 'keep-current' | null {
   const survives: Survives = (id) => freshIndex.groupsById.has(id);
   if (selection === null || selectionSurvives(selection, placeholderParentId, survives)) {
@@ -311,5 +315,5 @@ export function selectionTargetAfterRemoval(
     : nearestInCourseGroup(snapshot.entries[position], selection.groupId, survives)
       ?? lastGroupOfCourseAbove(snapshot, position, survives)
       ?? firstGroupOfCourseBelow(snapshot, position, survives);
-  return inKnownCourse ?? firstGroupOfNewCourse(snapshot, freshIndex) ?? null;
+  return inKnownCourse ?? firstGroupOfNewCourse(snapshot, freshIndex, accessibleCourseKeys) ?? null;
 }

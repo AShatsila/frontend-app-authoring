@@ -1376,6 +1376,63 @@ describe('CompetencyAssociationsProvider', () => {
       expect(await screen.findByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
       expect(noSelection()).toBeInTheDocument();
     });
+
+    describe('when the deleted group held no selection', () => {
+      it('requests keyboard focus on its nearest surviving neighbor and leaves selection unset', async () => {
+        axiosMock.onDelete(deleteUrl).reply(200, {});
+        const reads = mockGroupsReads(threeGroupsWithCriteriaResponse, afterDeletingGroup10OfThreeResponse);
+        renderProvider();
+        await waitForSuccess();
+
+        await deleteAndRefetch('Delete group 10', reads);
+
+        expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, expand: false })))
+          .toBeInTheDocument();
+        expect(noSelection()).toBeInTheDocument();
+      });
+
+      it('requests keyboard focus on the neighbor and keeps the placeholder group selected', async () => {
+        axiosMock.onDelete(deleteUrl).reply(200, {});
+        const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
+        renderProvider();
+        await waitForSuccess();
+        await click('Add placeholder group under course A');
+
+        await deleteAndRefetch('Delete group 10', reads);
+
+        expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, expand: false })))
+          .toBeInTheDocument();
+        expect(screen.getByText('Selection: group null, rule none')).toBeInTheDocument();
+      });
+
+      it('requests the empty state when the delete leaves no group', async () => {
+        axiosMock.onDelete(deleteUrl).reply(200, {});
+        const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, noGroupsResponse);
+        renderProvider();
+        await waitForSuccess();
+
+        await deleteAndRefetch('Delete group 10', reads);
+
+        expect(await screen.findByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
+        expect(noSelection()).toBeInTheDocument();
+      });
+    });
+
+    it('clears selection and requests the empty state when only a new course the author cannot access remains', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(singleGroupResponse, {
+        groups: twoCoursesResponse.groups.filter((item) => item.id !== 1 && item.id !== 10),
+        criteria: [],
+      });
+      axiosMock.onGet(courseBOutlineUrl).reply(403);
+      renderProvider();
+      expect(await screen.findByText(selectionOnGroup(10))).toBeInTheDocument();
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
+    });
   });
 
   describe('removePlaceholderGroup', () => {

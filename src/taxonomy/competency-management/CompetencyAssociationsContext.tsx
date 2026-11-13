@@ -295,6 +295,8 @@ export type ProviderAction =
     generation: number;
     snapshot: PageOrderSnapshot;
     freshIndex: CompetencyCriteriaGroupsIndex;
+    /** The course keys, among those in `freshIndex`, whose course outline has loaded. */
+    accessibleCourseKeys: ReadonlySet<string>;
     deletedGroupId: number;
     deleteFailed: boolean;
     systemDefaultProfile: CompetencyRuleProfile | undefined;
@@ -333,17 +335,42 @@ function moveSelection(
   return { ...state, selection, placeholderDuplicateRejected: false, keyboardFocusRequest };
 }
 
+/** The request for the keyboard focus a vanished ⋮ toggle leaves behind when selection does not move: the empty state if
+ * no accessible group remains, else the nearest surviving neighbor of the deleted group.
+ */
+function keyboardRequestWithoutSelectionMove(
+  snapshot: PageOrderSnapshot,
+  freshIndex: CompetencyCriteriaGroupsIndex,
+  accessibleCourseKeys: ReadonlySet<string>,
+  deletedGroupId: number,
+): KeyboardFocusRequest | null {
+  const hasAccessibleGroup = visibleCourseGroups(freshIndex, accessibleCourseKeys)
+    .some((courseGroup) => bottomTierGroupsForCourse(freshIndex, courseGroup.courseKey).length > 0);
+  if (!hasAccessibleGroup) {
+    return { kind: 'empty' };
+  }
+  const neighbor = selectionTargetAfterRemoval(
+    snapshot,
+    freshIndex,
+    { groupId: deletedGroupId, ruleKey: null },
+    null,
+    accessibleCourseKeys,
+  );
+  return typeof neighbor === 'number' ? { kind: 'group', groupId: neighbor, expand: false } : null;
+}
+
 /** Resolves selection against the state at settle time, so a click made while the request was in flight is respected. */
 function reduceGroupDeleted(
   state: ProviderState,
   action: Extract<ProviderAction, { type: 'groupDeleted'; }>,
 ): ProviderState {
-  const { snapshot, freshIndex, deletedGroupId, deleteFailed, systemDefaultProfile } = action;
+  const { snapshot, freshIndex, accessibleCourseKeys, deletedGroupId, deleteFailed, systemDefaultProfile } = action;
   const target = selectionTargetAfterRemoval(
     snapshot,
     freshIndex,
     state.selection,
     state.placeholder.parentRuleGroupId,
+    accessibleCourseKeys,
   );
   const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
   // A vanished group strands the browser's focus. A failed delete keeps its menu toggle, but browsers differ on
@@ -351,17 +378,24 @@ function reduceGroupDeleted(
   const menuRequest: KeyboardFocusRequest | null = deleteFailed && !isDeletedGroupGone
     ? { kind: 'menu', groupId: deletedGroupId }
     : null;
+  const requestWithoutSelectionMove = () => (
+    isDeletedGroupGone
+      ? keyboardRequestWithoutSelectionMove(snapshot, freshIndex, accessibleCourseKeys, deletedGroupId)
+      : menuRequest
+  );
 
   if (target === 'keep-current') {
     const selectedGroupId = state.selection?.groupId ?? null;
     if (isDeletedGroupGone && selectedGroupId !== null) {
       return { ...state, keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, expand: false } };
     }
-    return menuRequest ? { ...state, keyboardFocusRequest: menuRequest } : state;
+    const keyboardFocusRequest = requestWithoutSelectionMove();
+    return keyboardFocusRequest ? { ...state, keyboardFocusRequest } : state;
   }
   if (target === null) {
-    // Nothing is left to select, and a course-level group always holds a rule group, so the panel is empty.
-    return moveSelection(state, null, isDeletedGroupGone ? { kind: 'empty' } : menuRequest);
+    // The panel is empty only if the fresh data has no accessible group: the selected group can also be missing from
+    // the snapshot.
+    return moveSelection(state, null, requestWithoutSelectionMove());
   }
   return moveSelection(
     state,
@@ -797,11 +831,21 @@ export const CompetencyAssociationsProvider = ({
     if (!freshData) {
       return;
     }
+    const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
+    // A course added since the snapshot has no loaded outline yet, so it counts as not accessible.
+    const accessibleCourseKeys = new Set(
+      freshIndex.courseGroups
+        .map((courseGroup) => courseGroup.courseKey)
+        .filter((courseKey) =>
+          queryClient.getQueryState(courseOutlineQueryKeys.index(courseKey))?.status === 'success'
+        ),
+    );
     dispatch({
       type: 'groupDeleted',
       generation,
       snapshot,
-      freshIndex: buildCompetencyCriteriaGroupsIndex(freshData),
+      freshIndex,
+      accessibleCourseKeys,
       deletedGroupId,
       deleteFailed,
       systemDefaultProfile,
