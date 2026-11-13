@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { buildOutlineIndex } from '@src/course-outline/__mocks__';
 import { getCourseOutlineIndexApiUrl } from '@src/course-outline/data';
 import type { Course } from '@src/studio-home/data/api';
@@ -10,6 +11,7 @@ import {
   within,
 } from '@src/testUtils';
 import {
+  byTextContent,
   courseA,
   courseB,
   courseBGroupsResponse,
@@ -21,7 +23,7 @@ import {
   twoCoursesResponse,
   twoGroupsResponse,
 } from './__mocks__';
-import { CompetencyAssociationsProvider } from './CompetencyAssociationsContext';
+import { CompetencyAssociationsProvider, useCompetencyAssociations } from './CompetencyAssociationsContext';
 import CourseRow from './course-search/CourseRow';
 import { CourseGroupList } from './criteria-groups';
 import { apiUrls } from './data/api';
@@ -61,10 +63,18 @@ const outlineOf = (courseName: string, subsections: Record<string, string>) =>
     overrides: { courseStructure: { displayName: courseName } },
   });
 
+/** Stands in for `CourseSearchBrowse`, which reports its listed courses' keys once its page loads. */
+const ReportCourseKeys = ({ rows }: { rows: Course[]; }) => {
+  const { notifyCoursesDisplayed } = useCompetencyAssociations();
+  useEffect(() => notifyCoursesDisplayed(rows.map((row) => row.courseKey)), [notifyCoursesDisplayed, rows]);
+  return null;
+};
+
 const renderPanel = (rows: Course[] = [courseBRow]) =>
   render(
     <CompetencyAssociationsProvider tagId={tagId} competencyExternalId="CCRS-1.3">
-      <CourseGroupList />
+      <ReportCourseKeys rows={rows} />
+      <CourseGroupList competencyName="Test Competency" />
       {rows.map((row) => <CourseRow key={row.courseKey} course={row} />)}
     </CompetencyAssociationsProvider>,
   );
@@ -401,7 +411,14 @@ describe('competency associations over the real provider', () => {
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(403);
     renderPanel();
 
-    expect(await screen.findByText('No content associated.')).toBeInTheDocument();
+    // Course B's criteria exist, but no listed course the author can see holds them.
+    expect(
+      await screen.findByText(byTextContent(
+        'No content associated with Test Competency in the courses listed here. '
+          + '0 associations are in courses that are not listed.',
+      )),
+    )
+      .toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /^From within Course/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/^By completing/)).not.toBeInTheDocument();
   });

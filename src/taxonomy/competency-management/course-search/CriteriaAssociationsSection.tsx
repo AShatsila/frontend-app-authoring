@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Badge } from '@openedx/paragon';
 
+import CenteredSpinner from '@src/taxonomy/competency-management/CenteredSpinner';
 import type { CompetencyTreeNode } from '../CompetencyTree';
 import { CompetencyTooltip, useCompetencyTooltip } from '../competency-tooltip';
 import { CourseGroupList } from '../criteria-groups';
@@ -11,9 +12,18 @@ import messages from './messages';
 
 export interface CriteriaAssociationsSectionProps {
   competency: CompetencyTreeNode;
+  /** The status of the course list below this section, as the groups see it:
+   * they are scoped to the listed courses, so `CourseGroupList` is hidden until
+   * that list has loaded and the context's scope matches it. The parent passes
+   * `'pending'` for the commit in between (see `CourseSearchBrowse`). The list
+   * stays mounted while hidden, so its local state, such as collapsed cards,
+   * survives a reload that lists the same courses; a real change of the listed
+   * courses still shows the provider's own pending state.
+   */
+  courseListStatus: 'pending' | 'error' | 'success';
 }
 
-const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSectionProps) => {
+const CriteriaAssociationsSection = ({ competency, courseListStatus }: CriteriaAssociationsSectionProps) => {
   const intl = useIntl();
 
   const headingRef = useRef<HTMLDivElement>(null);
@@ -81,7 +91,12 @@ const CriteriaAssociationsSection = ({ competency }: CriteriaAssociationsSection
           {...tooltip.tooltipProps}
         />
       </div>
-      <CourseGroupList />
+      {courseListStatus === 'pending' && <CenteredSpinner />}
+      {courseListStatus !== 'error' && (
+        <div hidden={courseListStatus === 'pending'}>
+          <CourseGroupList competencyName={competency.value} />
+        </div>
+      )}
     </div>
   );
 };
