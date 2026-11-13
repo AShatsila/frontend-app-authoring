@@ -15,7 +15,10 @@ import {
   courseBGroupsResponse,
   criterion,
   defaultProfileResponse,
+  eqRule,
+  gteRule,
   mockScrollIntoView,
+  noGroupsResponse,
   singleGroupResponse,
   tagId,
   twoCoursesResponse,
@@ -25,6 +28,7 @@ import { CompetencyAssociationsProvider } from './CompetencyAssociationsContext'
 import CourseRow from './course-search/CourseRow';
 import { CourseGroupList } from './criteria-groups';
 import { apiUrls } from './data/api';
+import type { CompetencyCriteriaGroupsResponse } from './data/types';
 
 let axiosMock: ReturnType<typeof initializeMocks>['axiosMock'];
 
@@ -431,5 +435,159 @@ describe('competency associations over the real provider', () => {
     // The outline row is the only place the new subsection's name appears, so no chip was added for it.
     expect(screen.getAllByText('Homework 3')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Associate CCRS-1.3 with Homework 3' })).toBeEnabled();
+  });
+
+  describe('removing a group through the ⋮ menu', () => {
+    const courseAOutline = outlineOf('Course A', { 'a-sub-1': 'Homework 1', 'a-sub-2': 'Homework 2' });
+    // Group 10 holds two rule boxes, the default 70% first and a 100% override last. Group 11 holds Homework 1.
+    const withTwoGroups: CompetencyCriteriaGroupsResponse = {
+      groups: [...twoGroupsResponse.groups],
+      criteria: [
+        criterion(900, 'x-1', 10),
+        criterion(901, 'x-2', 10, { ruleProfileId: null, ruleTypeOverride: 'grade', rulePayloadOverride: eqRule }),
+        criterion(902, 'a-sub-1', 11),
+      ],
+    };
+    const withoutGroup11: CompetencyCriteriaGroupsResponse = {
+      groups: twoGroupsResponse.groups.filter((item) => item.id !== 11),
+      criteria: withTwoGroups.criteria.filter((item) => item.groupId !== 11),
+    };
+    const removeUrl = apiUrls.competencyCriteriaGroup(tagId, 11);
+    const createdBody = (groupId: number) => ({
+      id: 950,
+      group_id: groupId,
+      rule_profile_id: 1,
+      rule_type_override: null,
+      rule_payload_override: null,
+      object_tag_id: tagId,
+    });
+
+    const mockDeleteThenRefetch = (
+      before: CompetencyCriteriaGroupsResponse,
+      after: CompetencyCriteriaGroupsResponse,
+    ) => {
+      let reply = before;
+      axiosMock.onGet(groupsUrl).reply(() => [200, reply]);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, courseAOutline);
+      axiosMock.onDelete(removeUrl).reply(() => {
+        reply = after;
+        return [200];
+      });
+    };
+
+    const openRuleGroupMenu = async (position: number) => {
+      await user.click(screen.getByRole('button', { name: `More actions for rule group ${position} in Course A` }));
+    };
+
+    const expandCourseA = async () => {
+      await user.click(await screen.findByRole('button', { name: 'Expand' }));
+      await user.click(await screen.findByRole('button', { name: 'Expand' }));
+      await screen.findByText('Homework 2');
+    };
+
+    it('unmarks the removed group\'s subsections as associated in the content panel', async () => {
+      mockDeleteThenRefetch(withTwoGroups, withoutGroup11);
+      renderPanel([courseARow]);
+      await expandCourseA();
+      expect(screen.queryByRole('button', { name: 'Associate CCRS-1.3 with Homework 1' })).not.toBeInTheDocument();
+
+      await openRuleGroupMenu(2);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
+
+      expect(await screen.findByRole('button', { name: 'Associate CCRS-1.3 with Homework 1' })).toBeInTheDocument();
+      expect(axiosMock.history.delete).toHaveLength(1);
+      expect(groupHeaders()).toHaveLength(1);
+    });
+
+    it('selects the first rule box of the group above, which then receives the next associated subsection', async () => {
+      mockDeleteThenRefetch(withTwoGroups, withoutGroup11);
+      axiosMock.onPost(createUrl).reply(201, createdBody(10));
+      renderPanel([courseARow]);
+      await expandCourseA();
+      await user.click(groupHeaders()[1]);
+      expect(currentStates(groupHeaders())).toEqual(['false', 'true']);
+
+      await openRuleGroupMenu(2);
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
+
+      await waitFor(() => expect(groupHeaders()).toHaveLength(1));
+      expect(currentStates(groupHeaders())).toEqual(['true']);
+      expect(currentStates(ruleBoxControls())).toEqual(['true', 'false']);
+      await user.click(await screen.findByRole('button', { name: 'Associate CCRS-1.3 with Homework 2' }));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({
+        object_id: 'a-sub-2',
+        group_id: 10,
+        rule_type_override: 'grade',
+        rule_payload_override: gteRule,
+      });
+    });
+
+    it('leaves the focused empty state after the last group is removed and creates a new course group on the next association', async () => {
+      const onlyGroup: CompetencyCriteriaGroupsResponse = {
+        groups: singleGroupResponse.groups,
+        criteria: [criterion(902, 'a-sub-1', 10)],
+      };
+      let reply = onlyGroup;
+      axiosMock.onGet(groupsUrl).reply(() => [200, reply]);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, courseAOutline);
+      axiosMock.onDelete(apiUrls.competencyCriteriaGroup(tagId, 10)).reply(() => {
+        reply = noGroupsResponse;
+        return [200];
+      });
+      axiosMock.onPost(createUrl).reply(201, createdBody(12));
+      renderPanel([courseARow]);
+      await expandCourseA();
+      await user.click(screen.getByRole('button', { name: 'More actions for rule group 1 in Course A' }));
+      await user.click(screen.getByRole('button', { name: 'Remove group' }));
+
+      const emptyMessage = await screen.findByText('No content associated.');
+      await waitFor(() => expect(emptyMessage.parentElement).toHaveFocus());
+      expect(groupHeaders()).toHaveLength(0);
+      await user.click(await screen.findByRole('button', { name: 'Associate CCRS-1.3 with Homework 2' }));
+
+      await waitFor(() => expect(axiosMock.history.post).toHaveLength(1));
+      expect(JSON.parse(axiosMock.history.post[0].data)).toEqual({ object_id: 'a-sub-2' });
+    });
+
+    it('moves keyboard focus to the new selected group\'s select button after a keyboard removal', async () => {
+      mockDeleteThenRefetch(withTwoGroups, withoutGroup11);
+      renderPanel([courseARow]);
+      await expandCourseA();
+      await user.click(groupHeaders()[1]);
+      screen.getByRole('button', { name: 'More actions for rule group 2 in Course A' }).focus();
+
+      await user.keyboard('{Enter}{ArrowDown}');
+      const item = await screen.findByRole('button', { name: 'Remove group' });
+      await waitFor(() => expect(item).toHaveFocus());
+      await user.keyboard('{Enter}');
+
+      await waitFor(() => expect(groupHeaders()).toHaveLength(1));
+      await waitFor(() => expect(groupHeaders()[0]).toHaveFocus());
+    });
+
+    it('expands a collapsed course group holding the new target and focuses inside it', async () => {
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, courseAOutline);
+      axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(200, outlineOf('Course B', {}));
+      let reply = courseBGroupsResponse;
+      axiosMock.onGet(groupsUrl).reply(() => [200, reply]);
+      axiosMock.onDelete(apiUrls.competencyCriteriaGroup(tagId, 2)).reply(() => {
+        reply = singleGroupResponse;
+        return [200];
+      });
+      renderPanel([courseARow]);
+      await screen.findAllByRole('heading', { name: /^From within Course/ });
+      await user.click(screen.getByRole('button', { name: 'Collapse Course A' }));
+      expect(screen.getByRole('button', { name: 'Expand Course A' })).toBeInTheDocument();
+      await user.click(groupHeaders()[1]);
+
+      await user.click(screen.getByRole('button', { name: 'More actions for Course B' }));
+      await user.click(screen.getByRole('button', { name: 'Remove from Competency' }));
+
+      await waitFor(() => expect(groupHeaders()).toHaveLength(1));
+      await waitFor(() => expect(groupHeaders()[0]).toHaveFocus());
+      expect(screen.getByRole('button', { name: 'Collapse Course A' })).toBeInTheDocument();
+    });
   });
 });
