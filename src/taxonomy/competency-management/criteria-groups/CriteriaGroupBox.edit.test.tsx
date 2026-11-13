@@ -95,6 +95,11 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       'Wait for the save to finish before adding another.',
     ],
     [
+      'a group is being removed',
+      { isDeletingGroup: true },
+      'Wait for the removal to finish before adding another.',
+    ],
+    [
       'a rule is being saved and a placeholder exists',
       { isAssociating: true, hasPlaceholder: true },
       'Wait for the save to finish before adding another.',
