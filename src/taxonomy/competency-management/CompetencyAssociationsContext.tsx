@@ -869,7 +869,7 @@ export const CompetencyAssociationsProvider = ({
         if (deleteInFlightGenerationRef.current === generation) {
           deleteInFlightGenerationRef.current = null;
         }
-        resolveSelectionAfterDelete(groupId, snapshot, deleteError !== null && deleteError.response?.status !== 404);
+        resolveSelectionAfterDelete(groupId, snapshot, deleteError !== null);
       },
     });
   }, [

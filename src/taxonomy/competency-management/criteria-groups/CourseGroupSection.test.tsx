@@ -429,7 +429,8 @@ describe('<CourseGroupSection />', () => {
 
     it('expands itself when selection moves to a rule group a keyboard focus request names while collapsed', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-      const { rerender } = renderSection();
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { rerender } = renderSection({ consumeKeyboardFocusRequest });
       await user.click(await screen.findByRole('button', { name: 'Collapse Demo Course' }));
       expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
 
@@ -438,6 +439,7 @@ describe('<CourseGroupSection />', () => {
           value={{
             groupsIndex: index,
             canEditCourse: () => false,
+            consumeKeyboardFocusRequest,
             selection: { groupId: 11, ruleKey: ruleKeyOfDefault },
             keyboardFocusRequest: { kind: 'group', groupId: 11, expand: true },
           }}
@@ -448,6 +450,9 @@ describe('<CourseGroupSection />', () => {
 
       expect(await screen.findByText('Subsection 1A')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Collapse Demo Course' })).toBeInTheDocument();
+      // Only the group's card consumes the request, so the section did not take it for its own toggle.
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: 'By completing any of the following', current: true })).toHaveFocus();
     });
 
     it('stays collapsed and focuses its expand button for a request that does not ask to expand it', async () => {
