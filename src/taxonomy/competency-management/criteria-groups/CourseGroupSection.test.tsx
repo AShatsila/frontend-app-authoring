@@ -521,6 +521,31 @@ describe('<CourseGroupSection />', () => {
       expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
     });
 
+    it('stays collapsed and focuses its expand button for a menu request naming one of its rule groups', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const consumeKeyboardFocusRequest = jest.fn();
+      const { rerender } = renderSection({ consumeKeyboardFocusRequest });
+      await user.click(await screen.findByRole('button', { name: 'Collapse Demo Course' }));
+      screen.getByRole('button', { name: 'Expand Demo Course' }).blur();
+
+      rerender(
+        <MockCompetencyAssociationsProvider
+          value={{
+            groupsIndex: index,
+            canEditCourse: () => true,
+            consumeKeyboardFocusRequest,
+            keyboardFocusRequest: { kind: 'menu', groupId: 11 },
+          }}
+        >
+          <CourseGroupSection courseGroup={courseGroup} />
+        </MockCompetencyAssociationsProvider>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Expand Demo Course' })).toHaveFocus();
+      expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
     it('takes keyboard focus on its menu button when a menu request names it, then consumes the request', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       const consumeKeyboardFocusRequest = jest.fn();
