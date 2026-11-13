@@ -98,7 +98,8 @@ describe('<CriteriaAssociationsSection />', () => {
     });
     expect(await screen.findByText('profile loaded')).toBeInTheDocument();
     expect(screen.getByRole('status')).toBeInTheDocument();
-    expect(screen.queryByText(byTextContent('No content associated with Data Literacy yet.'))).not.toBeInTheDocument();
+    // The list stays mounted, hidden, so its local state survives a reload that lists the same courses.
+    expect(screen.getByText(byTextContent('No content associated with Data Literacy yet.'))).not.toBeVisible();
   });
 
   it('shows only the header lines once the course list has failed', async () => {

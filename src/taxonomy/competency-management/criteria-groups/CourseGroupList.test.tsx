@@ -19,7 +19,7 @@ import CourseGroupList from './CourseGroupList';
 
 const noAssociationsMessage = 'No content associated with Test Competency yet.';
 const noAssociationsPromptMessage = 'Make content selections to create competency criteria associations.';
-const outOfViewMessage = 'No content associated with Test Competency in the courses listed here.';
+const outOfViewFirstSentence = 'No content associated with Test Competency in the courses listed here.';
 
 const renderList = (contextOverrides: Parameters<typeof buildMockCompetencyAssociationsContextValue>[0] = {}) => (
   render(
@@ -94,16 +94,28 @@ describe('<CourseGroupList />', () => {
 
     it.each([
       // Some of the competency's criteria are in courses not listed.
-      { criteriaCount: 0, totalCriteriaCount: 1 },
-      { criteriaCount: 1, totalCriteriaCount: 3 },
+      {
+        criteriaCount: 0,
+        totalCriteriaCount: 1,
+        message: `${outOfViewFirstSentence} 1 association is in courses that are not listed.`,
+      },
+      {
+        criteriaCount: 1,
+        totalCriteriaCount: 3,
+        message: `${outOfViewFirstSentence} 2 associations are in courses that are not listed.`,
+      },
       // The listed courses hold every criterion, but none of those courses is accessible.
-      { criteriaCount: 2, totalCriteriaCount: 2 },
+      {
+        criteriaCount: 2,
+        totalCriteriaCount: 2,
+        message: `${outOfViewFirstSentence} 0 associations are in courses that are not listed.`,
+      },
     ])(
-      'says none are in the listed courses, never "no content associated", when $criteriaCount of '
-        + '$totalCriteriaCount associations are in them',
-      ({ criteriaCount, totalCriteriaCount }) => {
+      'says none are in the listed courses and how many are in other courses, never "no content associated", '
+        + 'when $criteriaCount of $totalCriteriaCount associations are in them',
+      ({ criteriaCount, totalCriteriaCount, message }) => {
         renderList({ accessibleCourseGroups: [], criteriaCounts: { criteriaCount, totalCriteriaCount } });
-        const firstLine = screen.getByText(byTextContent(outOfViewMessage));
+        const firstLine = screen.getByText(byTextContent(message));
         expect(within(firstLine).getByText('Test Competency', { selector: 'strong' })).toBeInTheDocument();
         expect(screen.getByText(noAssociationsPromptMessage)).toBeInTheDocument();
         expect(screen.queryByText(byTextContent(noAssociationsMessage))).not.toBeInTheDocument();
@@ -115,7 +127,11 @@ describe('<CourseGroupList />', () => {
       { status: 'error' as const },
     ])('shows no empty state while the status is $status', ({ status }) => {
       renderList({ status, accessibleCourseGroups: [], criteriaCounts: { criteriaCount: 1, totalCriteriaCount: 3 } });
-      expect(screen.queryByText(byTextContent(outOfViewMessage))).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          byTextContent(`${outOfViewFirstSentence} 2 associations are in courses that are not listed.`),
+        ),
+      ).not.toBeInTheDocument();
       expect(screen.queryByText(noAssociationsPromptMessage)).not.toBeInTheDocument();
     });
 

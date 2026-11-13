@@ -84,11 +84,12 @@ const messages = defineMessages({
   },
   noAssociationsInListedCoursesMessage: {
     id: 'course-authoring.competency-management.criteria-groups.no-associations-in-listed-courses-message',
-    defaultMessage: 'No content associated with {competencyName} in the courses listed here.',
+    defaultMessage: 'No content associated with {competencyName} in the courses listed here. '
+      + '{count, plural, one {# association is} other {# associations are}} in courses that are not listed.',
     description: 'First line of the empty state shown in the associations block when the selected competency has '
       + 'criteria associations, but none in the courses currently listed in the course list below that the user '
-      + 'can view. {competencyName} is the selected competency\'s name, shown in bold. The summary line above the '
-      + 'course list gives the counts.',
+      + 'can view. {competencyName} is the selected competency\'s name, shown in bold. {count} is the number of '
+      + 'the competency\'s criteria associations in courses that are not currently listed.',
   },
   noAssociationsPromptMessage: {
     id: 'course-authoring.competency-management.criteria-groups.no-associations-prompt-message',

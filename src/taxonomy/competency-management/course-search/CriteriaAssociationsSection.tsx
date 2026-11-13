@@ -13,9 +13,12 @@ import messages from './messages';
 export interface CriteriaAssociationsSectionProps {
   competency: CompetencyTreeNode;
   /** The status of the course list below this section, as the groups see it:
-   * they are scoped to the listed courses, so `CourseGroupList` only renders
-   * once that list has loaded and the context's scope matches it. The parent
-   * passes `'pending'` for the commit in between (see `CourseSearchBrowse`).
+   * they are scoped to the listed courses, so `CourseGroupList` is hidden until
+   * that list has loaded and the context's scope matches it. The parent passes
+   * `'pending'` for the commit in between (see `CourseSearchBrowse`). The list
+   * stays mounted while hidden, so its local state, such as collapsed cards,
+   * survives a reload that lists the same courses; a real change of the listed
+   * courses still shows the provider's own pending state.
    */
   courseListStatus: 'pending' | 'error' | 'success';
 }
@@ -89,7 +92,11 @@ const CriteriaAssociationsSection = ({ competency, courseListStatus }: CriteriaA
         />
       </div>
       {courseListStatus === 'pending' && <CenteredSpinner />}
-      {courseListStatus === 'success' && <CourseGroupList competencyName={competency.value} />}
+      {courseListStatus !== 'error' && (
+        <div hidden={courseListStatus === 'pending'}>
+          <CourseGroupList competencyName={competency.value} />
+        </div>
+      )}
     </div>
   );
 };

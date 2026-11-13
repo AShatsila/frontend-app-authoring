@@ -936,8 +936,9 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
     const courseC = buildCourse({ courseKey: 'course-v1:OrgX+CSC+2024', displayName: 'Course C' });
     const emptyMessage = 'No content associated with Test Competency yet.';
     /** The other empty-state message, for a competency whose associations are all out of view. */
-    const outOfViewMessage = (competencyName = 'Test Competency') => (
-      `No content associated with ${competencyName} in the courses listed here.`
+    const outOfViewMessage = (unlistedAssociations: string, competencyName = 'Test Competency') => (
+      `No content associated with ${competencyName} in the courses listed here. `
+      + `${unlistedAssociations} in courses that are not listed.`
     );
 
     const groupsRequests = () => axiosMock.history.get.filter((req) => req.url === groupsUrl);
@@ -1036,6 +1037,22 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       };
     };
 
+    /** Records whether `text` is ever shown from inside the hidden groups wrapper: it is not hidden when the watch
+     * starts, or the wrapper is shown again while it still holds `text`. React shows the wrapper by calling
+     * `removeAttribute('hidden')`, and a MutationObserver would run only after a following commit had removed `text`.
+     */
+    const watchForShownText = (text: string) => {
+      let seen = screen.queryAllByText(text).some((element) => element.closest('[hidden]') === null);
+      const removeAttribute = Element.prototype.removeAttribute;
+      const spy = jest.spyOn(Element.prototype, 'removeAttribute').mockImplementation(
+        function recordShownText(this: Element, name: string) {
+          seen = seen || (name === 'hidden' && !!this.textContent?.includes(text));
+          removeAttribute.call(this, name);
+        },
+      );
+      return { wasSeen: () => seen, stop: () => spy.mockRestore() };
+    };
+
     const originalScrollIntoView = Element.prototype.scrollIntoView;
     beforeEach(() => {
       // jsdom has no layout; a sole group gets auto-focused, and its rule box scrolls itself into view.
@@ -1091,7 +1108,8 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
 
       expect(await screen.findByText('You do not have access to any courses.')).toBeInTheDocument();
       const section = associationsSection();
-      expect(await within(section).findByText(byTextContent(outOfViewMessage()))).toBeInTheDocument();
+      expect(await within(section).findByText(byTextContent(outOfViewMessage('2 associations are'))))
+        .toBeInTheDocument();
       expect(within(section).queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
       await waitFor(() => {
         expect(screen.getByText(/^Showing/)).toHaveTextContent(/, and 0 of 2 Competency Criteria Associations$/);
@@ -1164,6 +1182,64 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       expect(screen.queryByText(outlineNameOf(courseB))).not.toBeInTheDocument();
     });
 
+    describe('when a refined search lists the same courses', () => {
+      const setUpSameCoursesForEverySearch = () => {
+        axiosMock.onGet(coursesApiUrl).reply(200, buildResponse([courseA]));
+        axiosMock.onGet(groupsUrl).reply(200, buildGroupsResponse(courseA, 1));
+        axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA.courseKey)).reply(200, buildOutline(courseA));
+      };
+
+      /** Types `term` into the search field, lets the debounce elapse, and waits for the refined list to settle. */
+      const refineSearchTo = async (user: ReturnType<typeof userEvent.setup>, term: string) => {
+        await user.type(screen.getByRole('searchbox'), term);
+        act(() => {
+          jest.advanceTimersByTime(400);
+        });
+        await waitFor(() => {
+          expect(axiosMock.history.get.some((req) => isCourseListRequest(req) && req.params.search === term))
+            .toBe(true);
+        });
+        await waitFor(() => {
+          expect(within(associationsSection()).queryByRole('status')).not.toBeInTheDocument();
+        });
+      };
+
+      it('keeps a collapsed course group collapsed when a refined search lists the same courses', async () => {
+        const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+        setUpSameCoursesForEverySearch();
+        renderCourseSearchBrowse();
+        expect(await screen.findByText(outlineNameOf(courseA))).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: `Collapse ${outlineNameOf(courseA)}` }));
+        expect(screen.getByRole('button', { name: `Expand ${outlineNameOf(courseA)}` })).toBeInTheDocument();
+
+        await refineSearchTo(user, 'Course');
+
+        expect(groupsRequests()).toHaveLength(1);
+        expect(screen.getByRole('button', { name: `Expand ${outlineNameOf(courseA)}` })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: `Collapse ${outlineNameOf(courseA)}` })).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+
+      it('does not reopen a closed score popover or take focus from the search field when a refined search lists the same courses', async () => {
+        const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+        setUpSameCoursesForEverySearch();
+        renderCourseSearchBrowse();
+        expect(await screen.findByText(outlineNameOf(courseA))).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Add Rule' }));
+        expect(await screen.findByRole('dialog')).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+        const searchField = screen.getByRole('searchbox');
+        await user.click(searchField);
+        await refineSearchTo(user, 'Course');
+
+        expect(groupsRequests()).toHaveLength(1);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(document.activeElement).toBe(screen.getByRole('searchbox'));
+      });
+    });
+
     it('re-scopes the groups request to the narrowed list once a start date is picked', async () => {
       axiosMock.onGet(coursesApiUrl).reply((config) => [
         200,
@@ -1210,7 +1286,9 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       rerender(courseSearchBrowseTree(otherCompetency));
 
       const section = associationsSection();
-      const firstLine = await within(section).findByText(byTextContent(outOfViewMessage('Other Competency')));
+      const firstLine = await within(section).findByText(
+        byTextContent(outOfViewMessage('3 associations are', 'Other Competency')),
+      );
       expect(firstLine).toBeInTheDocument();
       expect(within(section).queryByText(byTextContent(emptyMessage))).not.toBeInTheDocument();
       await waitFor(() =>
@@ -1416,10 +1494,12 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
       // Page 2 lists one course. In the commit where the list has it but the
       // context is still scoped to page 1, page 1's groups and counts would
       // render against page 2's course count.
-      const staleGroupWatch = watchForText(outlineNameOf(courseA));
+      // Page 1's group is mounted and visible until the click hides it, so its watch starts after the click.
+      let staleGroupWatch: ReturnType<typeof watchForShownText> | undefined;
       const staleSummaryWatch = watchForText('Showing 1 of 208 Courses, and 3 of 4');
       try {
         fireEvent.click(screen.getByRole('button', { name: 'Page 2' }));
+        staleGroupWatch = watchForShownText(outlineNameOf(courseA));
 
         expect(await screen.findByText(outlineNameOf(courseB))).toBeInTheDocument();
         await waitFor(() => {
@@ -1430,7 +1510,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         expect(staleGroupWatch.wasSeen()).toBe(false);
         expect(staleSummaryWatch.wasSeen()).toBe(false);
       } finally {
-        staleGroupWatch.stop();
+        staleGroupWatch?.stop();
         staleSummaryWatch.stop();
       }
     });
@@ -1451,7 +1531,7 @@ describe('<CourseSearchBrowse /> and <CourseRow />', () => {
         expect(axiosMock.history.get.some((req) => req.url === coursesApiUrl && req.params.page === 2)).toBe(true);
       });
       expect(within(associationsSection()).getByRole('status')).toBeInTheDocument();
-      expect(screen.queryByText(outlineNameOf(courseA))).not.toBeInTheDocument();
+      expect(screen.getByText(outlineNameOf(courseA))).not.toBeVisible();
     });
 
     it('offers no subsection selection until the listed courses\' groups load, then creates, shows the new Course Group and counts it', async () => {

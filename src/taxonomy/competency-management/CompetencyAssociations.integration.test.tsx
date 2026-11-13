@@ -413,7 +413,10 @@ describe('competency associations over the real provider', () => {
 
     // Course B's criteria exist, but no listed course the author can see holds them.
     expect(
-      await screen.findByText(byTextContent('No content associated with Test Competency in the courses listed here.')),
+      await screen.findByText(byTextContent(
+        'No content associated with Test Competency in the courses listed here. '
+          + '0 associations are in courses that are not listed.',
+      )),
     )
       .toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /^From within Course/ })).not.toBeInTheDocument();

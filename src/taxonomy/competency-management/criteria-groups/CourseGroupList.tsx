@@ -50,7 +50,10 @@ const CourseGroupList = ({ competencyName }: CourseGroupListProps) => {
         <p className="mb-0">
           {criteriaCounts.totalCriteriaCount === 0
             ? intl.formatMessage(messages.noAssociationsMessage, { competencyName: name })
-            : intl.formatMessage(messages.noAssociationsInListedCoursesMessage, { competencyName: name })}
+            : intl.formatMessage(messages.noAssociationsInListedCoursesMessage, {
+              competencyName: name,
+              count: criteriaCounts.totalCriteriaCount - criteriaCounts.criteriaCount,
+            })}
         </p>
         <p className="mb-0">{intl.formatMessage(messages.noAssociationsPromptMessage)}</p>
       </div>

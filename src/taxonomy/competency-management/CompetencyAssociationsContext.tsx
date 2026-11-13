@@ -167,11 +167,11 @@ export interface CompetencyAssociationsContextBase {
  * always defined when `status` is `'success'`, and may be missing otherwise.
  *
  * `'pending'` until the groups, the default rule profile and every course
- * outline have settled, then `'success'` for the rest of that competency, even
- * when a later groups refetch adds a course whose outline has not loaded yet.
- * `'error'` if the groups, the profile or any course outline failed, including
- * a failure after `'success'`. An outline that fails with a 403 or 404 only
- * hides its course and does not affect `status`.
+ * outline have settled, then `'success'` until the competency or the set of
+ * listed courses changes, even when a later groups refetch adds a course whose
+ * outline has not loaded yet. `'error'` if the groups, the profile or any
+ * course outline failed, including a failure after `'success'`. An outline that
+ * fails with a 403 or 404 only hides its course and does not affect `status`.
  */
 export type CompetencyAssociationsContextValue =
   & CompetencyAssociationsContextBase
@@ -311,9 +311,9 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
       if (state.displayedCourseKeys === undefined) {
         return next;
       }
-      // A new scope is a fresh load: `status` waits for its groups and every
-      // listed course's outline again, so an empty list never shows while the
-      // outlines that decide access are still loading.
+      // A new scope is a fresh load: `status` waits for its groups and for the
+      // outline of every listed course that has a group, so an empty list never
+      // shows while the outlines that decide access are still loading.
       next.settled = false;
       // Drops an unsaved placeholder even when its course stays listed (#683
       // leaves that open). Its course is only known through the previous
