@@ -12,7 +12,7 @@ import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
-import { courseKeyOfSelection } from '../criterionTarget';
+import { courseKeyOfSelection } from '@src/taxonomy/competency-management/criterionTarget';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
 import { bottomTierGroupsForCourse } from '../utils';
 import AddControl from './AddControl';
