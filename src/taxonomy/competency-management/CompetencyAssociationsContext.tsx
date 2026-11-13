@@ -290,17 +290,78 @@ export type ProviderAction =
   | PlaceholderAction
   | { type: 'placeholderDuplicateRejected'; }
   | {
-    type: 'deleteResolved';
-    selection: CriteriaSelection | null | 'keep-current';
+    type: 'groupDeleted';
+    generation: number;
+    snapshot: PageOrderSnapshot;
+    freshIndex: CompetencyCriteriaGroupsIndex;
+    deletedGroupId: number;
+    systemDefaultProfile: CompetencyRuleProfile | undefined;
+  }
+  | {
+    type: 'placeholderGroupRemoved';
+    selection: CriteriaSelection | null;
     keyboardFocusRequest: KeyboardFocusRequest | null;
   }
-  | { type: 'keyboardFocusRequested'; keyboardFocusRequest: KeyboardFocusRequest | null; }
+  | { type: 'keyboardFocusRequestConsumed'; }
   | { type: 'ruleKeyResolved'; groupId: number; staleRuleKey: string | null; resolvedRuleKey: string | null; }
   | { type: 'createSucceeded'; generation: number; selection: CriteriaSelection; }
   | { type: 'courseExpandedBeforeLoad'; courseId: string; }
   | { type: 'pendingCourseResolved'; selection: CriteriaSelection | null; }
   | { type: 'initialSelectionRan'; selection: CriteriaSelection | null; }
   | { type: 'settled'; };
+
+/** Selects the group's FIRST rule box, unlike `selectGroup`, which selects the last. */
+function selectionOnFirstRuleBox(
+  groupId: number,
+  index: CompetencyCriteriaGroupsIndex,
+  systemDefaultProfile: CompetencyRuleProfile | undefined,
+): CriteriaSelection {
+  const ruleKey = systemDefaultProfile
+    ? (ruleBoxesForGroup(groupId, index, systemDefaultProfile)[0]?.key ?? null)
+    : null;
+  return { groupId, ruleKey };
+}
+
+function moveSelection(
+  state: ProviderState,
+  selection: CriteriaSelection | null,
+  keyboardFocusRequest: KeyboardFocusRequest | null,
+): ProviderState {
+  return { ...state, selection, placeholderDuplicateRejected: false, keyboardFocusRequest };
+}
+
+/** Resolves selection against the state at settle time, so a click made while the request was in flight is respected. */
+function reduceGroupDeleted(
+  state: ProviderState,
+  action: Extract<ProviderAction, { type: 'groupDeleted'; }>,
+): ProviderState {
+  const { snapshot, freshIndex, deletedGroupId, systemDefaultProfile } = action;
+  const target = selectionTargetAfterRemoval(
+    snapshot,
+    freshIndex,
+    state.selection,
+    state.placeholder.parentRuleGroupId,
+  );
+  // A failed or no-op delete leaves the menu toggle in the DOM, which keeps the browser's focus. Only a vanished
+  // group strands it.
+  const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
+
+  if (target === 'keep-current') {
+    const selectedGroupId = state.selection?.groupId ?? null;
+    return isDeletedGroupGone && selectedGroupId !== null
+      ? { ...state, keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, expand: false } }
+      : state;
+  }
+  if (target === null) {
+    const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex);
+    return moveSelection(state, null, isPanelEmpty ? { kind: 'empty' } : null);
+  }
+  return moveSelection(
+    state,
+    selectionOnFirstRuleBox(target, freshIndex, systemDefaultProfile),
+    isDeletedGroupGone ? { kind: 'group', groupId: target, expand: true } : null,
+  );
+}
 
 function reduceProviderState(state: ProviderState, action: ProviderAction): ProviderState {
   switch (action.type) {
@@ -326,15 +387,12 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
       return { ...state, selection: { groupId: action.groupId, ruleKey: action.ruleKey }, pendingCourseId: null };
     case 'setSelection':
       return { ...state, selection: action.selection };
-    case 'deleteResolved':
-      return {
-        ...state,
-        selection: action.selection === 'keep-current' ? state.selection : action.selection,
-        placeholderDuplicateRejected: action.selection === 'keep-current' ? state.placeholderDuplicateRejected : false,
-        keyboardFocusRequest: action.keyboardFocusRequest,
-      };
-    case 'keyboardFocusRequested':
-      return { ...state, keyboardFocusRequest: action.keyboardFocusRequest };
+    case 'groupDeleted':
+      return action.generation === state.generation ? reduceGroupDeleted(state, action) : state;
+    case 'placeholderGroupRemoved':
+      return moveSelection(state, action.selection, action.keyboardFocusRequest);
+    case 'keyboardFocusRequestConsumed':
+      return { ...state, keyboardFocusRequest: null };
     case 'addPlaceholderRuleBox':
     case 'addPlaceholderGroup':
     case 'setPlaceholderLogicOperator':
@@ -448,16 +506,16 @@ export const CompetencyAssociationsProvider = ({
   const isAssociating = isCreatePending && variables?.tagId === tagId;
   const { mutate: updateGroupOperatorMutate } = useUpdateCompetencyCriteriaGroupOperator();
   const { mutateAsync: updateRuleScoreMutateAsync } = useUpdateCompetencyCriteriaRule();
-  const { mutate: mutateDeleteGroup, isPending: isDeletingGroup } = useDeleteCompetencyCriteriaGroup();
+  const {
+    mutate: mutateDeleteGroup,
+    isPending: isDeletePending,
+    variables: deleteVariables,
+  } = useDeleteCompetencyCriteriaGroup();
+  const isDeletingGroup = isDeletePending && deleteVariables?.tagId === tagId;
   const queryClient = useQueryClient();
-  // Closes the gap between a click and the render that disables the delete menus.
-  const isDeleteInFlightRef = useRef(false);
-  // A delete's settle callback runs after the refetch, so it reads the latest selection and placeholder through refs to
-  // respect a click made while the request was in flight.
-  const selectionRef = useRef(selection);
-  selectionRef.current = selection;
-  const placeholderRef = useRef(placeholder);
-  placeholderRef.current = placeholder;
+  // Closes the gap between a click and the render that disables the delete menus. Holds the generation that started
+  // the delete, so a delete still pending for the previous competency does not block this one.
+  const deleteInFlightGenerationRef = useRef<number | null>(null);
 
   const groupsIndex = useMemo(
     () => (groupsQuery.data ? buildCompetencyCriteriaGroupsIndex(groupsQuery.data) : undefined),
@@ -712,24 +770,8 @@ export const CompetencyAssociationsProvider = ({
   }, [groupsIndex, systemDefaultProfile, tagId, updateRuleScoreMutateAsync, showToast, intl]);
 
   const consumeKeyboardFocusRequest = useCallback(() => {
-    dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: null });
+    dispatch({ type: 'keyboardFocusRequestConsumed' });
   }, []);
-
-  // Selects the group's FIRST rule box, unlike `selectGroup`, which selects the last.
-  const selectGroupAfterRemoval = useCallback((
-    groupId: number,
-    freshIndex: CompetencyCriteriaGroupsIndex,
-    shouldRequestKeyboardFocus: boolean,
-  ) => {
-    const ruleKey = systemDefaultProfile
-      ? (ruleBoxesForGroup(groupId, freshIndex, systemDefaultProfile)[0]?.key ?? null)
-      : null;
-    dispatch({
-      type: 'deleteResolved',
-      selection: { groupId, ruleKey },
-      keyboardFocusRequest: shouldRequestKeyboardFocus ? { kind: 'group', groupId, expand: true } : null,
-    });
-  }, [systemDefaultProfile]);
 
   const resolveSelectionAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
@@ -738,45 +780,21 @@ export const CompetencyAssociationsProvider = ({
     if (!freshData) {
       return;
     }
-    const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
-    const currentSelection = selectionRef.current;
-    const target = selectionTargetAfterRemoval(
+    dispatch({
+      type: 'groupDeleted',
+      generation,
       snapshot,
-      freshIndex,
-      currentSelection,
-      placeholderRef.current.parentRuleGroupId,
-    );
-    // A failed or no-op delete leaves the trash button in the DOM, which keeps the browser's focus. Only a
-    // vanished group strands it.
-    const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
-
-    if (target === 'keep-current') {
-      const selectedGroupId = currentSelection?.groupId ?? null;
-      const shouldReturnKeyboardFocusToSelection = isDeletedGroupGone && selectedGroupId !== null;
-      if (shouldReturnKeyboardFocusToSelection) {
-        dispatch({
-          type: 'deleteResolved',
-          selection: 'keep-current',
-          keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, expand: false },
-        });
-      }
-    } else if (target === null) {
-      const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex);
-      dispatch({
-        type: 'deleteResolved',
-        selection: null,
-        keyboardFocusRequest: isPanelEmpty ? { kind: 'empty' } : null,
-      });
-    } else {
-      selectGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
-    }
-  }, [queryClient, tagId, selectGroupAfterRemoval]);
+      freshIndex: buildCompetencyCriteriaGroupsIndex(freshData),
+      deletedGroupId,
+      systemDefaultProfile,
+    });
+  }, [queryClient, tagId, generation, systemDefaultProfile]);
 
   const deleteGroup = useCallback((groupId: number) => {
-    if (isDeleteInFlightRef.current || !groupsIndex) {
+    if (deleteInFlightGenerationRef.current === generation || !groupsIndex) {
       return;
     }
-    isDeleteInFlightRef.current = true;
+    deleteInFlightGenerationRef.current = generation;
     const snapshot = snapshotPageOrder(groupsIndex, accessibleCourseGroups);
     mutateDeleteGroup({ tagId, groupId }, {
       onError: (deleteError) => {
@@ -786,11 +804,22 @@ export const CompetencyAssociationsProvider = ({
         }
       },
       onSettled: () => {
-        isDeleteInFlightRef.current = false;
+        if (deleteInFlightGenerationRef.current === generation) {
+          deleteInFlightGenerationRef.current = null;
+        }
         resolveSelectionAfterDelete(groupId, snapshot);
       },
     });
-  }, [groupsIndex, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveSelectionAfterDelete, showToast, intl]);
+  }, [
+    groupsIndex,
+    accessibleCourseGroups,
+    tagId,
+    generation,
+    mutateDeleteGroup,
+    resolveSelectionAfterDelete,
+    showToast,
+    intl,
+  ]);
 
   const removePlaceholderGroup = useCallback(() => {
     const { parentRuleGroupId } = placeholder;
@@ -799,11 +828,15 @@ export const CompetencyAssociationsProvider = ({
       ? lastBottomTierGroupForCourse(groupsIndex, parentGroup.courseKey)
       : null;
     if (groupsIndex && lastGroup) {
-      selectGroupAfterRemoval(lastGroup.id, groupsIndex, true);
+      dispatch({
+        type: 'placeholderGroupRemoved',
+        selection: selectionOnFirstRuleBox(lastGroup.id, groupsIndex, systemDefaultProfile),
+        keyboardFocusRequest: { kind: 'group', groupId: lastGroup.id, expand: true },
+      });
     } else {
-      dispatch({ type: 'deleteResolved', selection: null, keyboardFocusRequest: null });
+      dispatch({ type: 'placeholderGroupRemoved', selection: null, keyboardFocusRequest: null });
     }
-  }, [placeholder, groupsIndex, selectGroupAfterRemoval]);
+  }, [placeholder, groupsIndex, systemDefaultProfile]);
 
   const contextValue = useMemo<CompetencyAssociationsContextValue>(() => {
     const shared: CompetencyAssociationsContextBase = {
