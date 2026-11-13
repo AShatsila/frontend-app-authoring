@@ -56,7 +56,6 @@ import {
   buildCompetencyCriteriaGroupsIndex,
   effectiveRuleOf,
   selectionTargetAfterRemoval,
-  hasVisibleOrNewCourseGroup,
   lastBottomTierGroupForCourse,
   lastRuleKeyIn,
   ruleBoxesForGroup,
@@ -363,8 +362,8 @@ function reduceGroupDeleted(
     return menuRequest ? { ...state, keyboardFocusRequest: menuRequest } : state;
   }
   if (target === null) {
-    const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex);
-    return moveSelection(state, null, isPanelEmpty ? { kind: 'empty' } : menuRequest);
+    // Nothing is left to select, and a course-level group always holds a rule group, so the panel is empty.
+    return moveSelection(state, null, isDeletedGroupGone ? { kind: 'empty' } : menuRequest);
   }
   return moveSelection(
     state,

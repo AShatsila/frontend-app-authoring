@@ -427,7 +427,7 @@ describe('<CourseGroupSection />', () => {
       expect(await screen.findByRole('button', { name: 'More actions for Demo Course' })).toBeDisabled();
     });
 
-    it('expands itself when a keyboard focus request names one of its rule groups while collapsed', async () => {
+    it('expands itself when selection moves to a rule group a keyboard focus request names while collapsed', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       const { rerender } = renderSection();
       await user.click(await screen.findByRole('button', { name: 'Collapse Demo Course' }));
@@ -438,6 +438,7 @@ describe('<CourseGroupSection />', () => {
           value={{
             groupsIndex: index,
             canEditCourse: () => false,
+            selection: { groupId: 11, ruleKey: ruleKeyOfDefault },
             keyboardFocusRequest: { kind: 'group', groupId: 11, expand: true },
           }}
         >

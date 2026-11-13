@@ -10,7 +10,6 @@ import {
   buildCompetencyCriteriaGroupsIndex,
   effectiveRuleOf,
   selectionTargetAfterRemoval,
-  hasVisibleOrNewCourseGroup,
   isRuleTakenInGroup,
   lastBottomTierGroupForCourse,
   lastRuleKeyIn,
@@ -545,24 +544,5 @@ describe('selectionTargetAfterRemoval', () => {
   it('is null when no course group with a rule group is left', () => {
     const fresh = buildTree([]);
     expect(selectionTargetAfterRemoval(snapshot, fresh, { groupId: 10, ruleKey: 'k' }, null)).toBeNull();
-  });
-});
-
-describe('hasVisibleOrNewCourseGroup', () => {
-  const before = buildTree([{ id: 1, ruleGroupIds: [10] }, { id: 4, ruleGroupIds: [40] }]);
-  // Course group 4 existed but was not rendered.
-  const snapshot = snapshotPageOrder(before, [before.courseGroups[0]]);
-
-  it('is true for a course group that was rendered before', () => {
-    expect(hasVisibleOrNewCourseGroup(snapshot, buildTree([{ id: 1, ruleGroupIds: [10] }]))).toBe(true);
-  });
-
-  it('is true for a course group added since', () => {
-    expect(hasVisibleOrNewCourseGroup(snapshot, buildTree([{ id: 8, ruleGroupIds: [80] }]))).toBe(true);
-  });
-
-  it('is false when only a course group that was never rendered is left, or none', () => {
-    expect(hasVisibleOrNewCourseGroup(snapshot, buildTree([{ id: 4, ruleGroupIds: [40] }]))).toBe(false);
-    expect(hasVisibleOrNewCourseGroup(snapshot, buildTree([]))).toBe(false);
   });
 });

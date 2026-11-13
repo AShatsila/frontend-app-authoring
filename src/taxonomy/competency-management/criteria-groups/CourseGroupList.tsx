@@ -24,7 +24,8 @@ const CourseGroupList = () => {
   const emptyStateRef = useRef<HTMLDivElement>(null);
   const takesKeyboardFocus = keyboardFocusRequest?.kind === 'empty';
 
-  // The empty state mounts in the same render that last emptied the list, so the ref is set by the time this runs.
+  // Reruns when the list length changes, so it takes the request whichever lands first: the request or the empty
+  // state it names.
   useEffect(() => {
     if (takesKeyboardFocus && emptyStateRef.current) {
       emptyStateRef.current.focus({ preventScroll: true });
