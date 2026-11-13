@@ -180,7 +180,7 @@ describe('competency-management api calls', () => {
     });
   });
 
-  it('deletes a criteria group at the same URL the group PATCH uses', async () => {
+  it('sends a DELETE request to the criteria group URL', async () => {
     const { axiosMock } = initializeMocks();
     axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {
       id: 10,

@@ -25,20 +25,20 @@ export interface CriteriaGroupBoxProps {
 }
 
 /** One bottom-tier group's "By completing any/all of the following"
- * bracket, plus its rule boxes. The "By completing..." band focuses the
+ * bracket, plus its rule boxes. The "By completing..." band selects the
  * group; the rule boxes are its siblings, not descendants.
  *
- * A focused rule box scrolls itself into view; the group scrolls only when
- * it is focused and none of its rule boxes is. A saved group with no criteria
- * has no rule key to match, so it is focused as its placeholder rule box by
+ * A selected rule box scrolls itself into view; the group scrolls only when
+ * it is selected and none of its rule boxes is. A saved group with no criteria
+ * has no rule key to match, so it is selected as its placeholder rule box by
  * design, and that box scrolls.
  */
 const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: CriteriaGroupBoxProps) => {
   const intl = useIntl();
   const {
-    focus,
+    selection,
     placeholder,
-    focusGroup,
+    selectGroup,
     status,
     groupsIndex,
     systemDefaultProfile,
@@ -55,28 +55,30 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   } = useCompetencyAssociations();
   const ref = useRef<HTMLDivElement>(null);
 
-  // `null` is the placeholder group's id in `CriteriaFocus`.
+  // `null` is the placeholder group's id in `CriteriaSelection`.
   const groupId = group?.id ?? null;
   const logicOperator = group ? group.logicOperator : placeholder.logicOperator;
-  const isFocused = focus?.groupId === groupId;
+  const isSelected = selection?.groupId === groupId;
   const boxes = status === 'success' && groupId !== null
     ? ruleBoxesForGroup(groupId, groupsIndex, systemDefaultProfile)
     : [];
-  const hasFocusedBox = isFocused && (focus.ruleKey === null || boxes.some((box) => box.key === focus.ruleKey));
+  const hasSelectedBox = isSelected &&
+    (selection.ruleKey === null || boxes.some((box) => box.key === selection.ruleKey));
 
   useEffect(() => {
-    if (isFocused && !hasFocusedBox) {
+    if (isSelected && !hasSelectedBox) {
       ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }, [isFocused, hasFocusedBox]);
+  }, [isSelected, hasSelectedBox]);
 
   const selectButtonRef = useRef<HTMLButtonElement>(null);
   const takesKeyboardFocus = group !== undefined
     && keyboardFocusRequest?.kind === 'group'
     && keyboardFocusRequest.groupId === group.id;
+
   useEffect(() => {
     if (takesKeyboardFocus && selectButtonRef.current) {
-      // `preventScroll`: the focused rule box scrolls itself into view.
+      // `preventScroll`: the selected rule box scrolls itself into view.
       selectButtonRef.current.focus({ preventScroll: true });
       consumeKeyboardFocusRequest();
     }
@@ -116,7 +118,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   return (
     <div
       ref={ref}
-      className={classNames('criteria-group-box', { 'criteria-group-box--focused': isFocused })}
+      className={classNames('criteria-group-box', { 'criteria-group-box--selected': isSelected })}
     >
       {canEdit
         ? (
@@ -128,8 +130,8 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
                   ref={selectButtonRef}
                   type="button"
                   className="criteria-group-box__select-button"
-                  aria-current={isFocused}
-                  onClick={() => focusGroup(group.id)}
+                  aria-current={isSelected}
+                  onClick={() => selectGroup(group.id)}
                 >
                   <span className="sr-only">{sentenceLabel}</span>
                 </button>
@@ -159,8 +161,8 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
           <button
             type="button"
             className="criteria-group-box__header"
-            aria-current={isFocused}
-            onClick={() => group && focusGroup(group.id)}
+            aria-current={isSelected}
+            onClick={() => group && selectGroup(group.id)}
           >
             {sentence}
           </button>
