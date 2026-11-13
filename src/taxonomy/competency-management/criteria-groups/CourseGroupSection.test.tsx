@@ -246,6 +246,32 @@ describe('<CourseGroupSection />', () => {
     },
   );
 
+  it('names each rule group menu button by its position, and the placeholder group\'s as the new one', async () => {
+    axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+    renderSection({
+      selection: { groupId: null, ruleKey: null },
+      canEditCourse: () => true,
+      placeholder: {
+        parentRuleGroupId: courseGroup.id,
+        logicOperator: 'OR',
+        rulePayload: null,
+        opensScoreSettings: false,
+      },
+    });
+
+    await screen.findByText('Demo Course');
+    const names = screen.getAllByRole('button', { name: /^More actions for/ }).map((button) =>
+      button.getAttribute('aria-label')
+    );
+
+    expect(names).toEqual([
+      'More actions for Demo Course',
+      'More actions for rule group 1 in Demo Course',
+      'More actions for rule group 2 in Demo Course',
+      'More actions for the new rule group in Demo Course',
+    ]);
+  });
+
   it('does not render a placeholder group that belongs to a different course-level group', async () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const { container } = renderSection({

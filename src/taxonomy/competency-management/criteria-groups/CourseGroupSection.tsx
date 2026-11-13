@@ -214,13 +214,20 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
                   group={group}
                   subsectionNamesByUsageKey={subsectionNamesByUsageKey}
                   canEdit={canEdit}
+                  position={groupIndex + 1}
+                  courseName={courseName}
                 />
               </Fragment>
             ))}
             {showPlaceholderGroup && (
               <Fragment key="placeholder">
                 {bottomTierGroups.length > 0 && <GroupConnector logicOperator={courseGroup.logicOperator} />}
-                <CriteriaGroupBox subsectionNamesByUsageKey={subsectionNamesByUsageKey} canEdit={canEdit} />
+                <CriteriaGroupBox
+                  subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+                  canEdit={canEdit}
+                  position={bottomTierGroups.length + 1}
+                  courseName={courseName}
+                />
               </Fragment>
             )}
             {canEdit && (

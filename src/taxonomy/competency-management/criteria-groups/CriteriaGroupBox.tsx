@@ -22,6 +22,12 @@ export interface CriteriaGroupBoxProps {
   subsectionNamesByUsageKey: Record<string, string>;
   /** Whether the author can edit this group's any/all logic and its rule boxes' scores. */
   canEdit: boolean;
+  /** The 1-based position of `group` among its course group's rule groups, which names its menu. Unused for the
+   * placeholder.
+   */
+  position: number;
+  /** The course the group belongs to, which names its menu. */
+  courseName: string;
 }
 
 /** One bottom-tier group's "By completing any/all of the following"
@@ -33,7 +39,9 @@ export interface CriteriaGroupBoxProps {
  * has no rule key to match, so it is selected as its placeholder rule box by
  * design, and that box scrolls.
  */
-const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: CriteriaGroupBoxProps) => {
+const CriteriaGroupBox = (
+  { group, subsectionNamesByUsageKey, canEdit, position, courseName }: CriteriaGroupBoxProps,
+) => {
   const intl = useIntl();
   const {
     selection,
@@ -168,7 +176,9 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
                 src={MoreVert}
                 iconAs={Icon}
                 variant="primary"
-                aria-label={intl.formatMessage(messages.ruleGroupMoreActionsLabel)}
+                aria-label={group
+                  ? intl.formatMessage(messages.ruleGroupMoreActionsLabel, { position, courseName })
+                  : intl.formatMessage(messages.placeholderRuleGroupMoreActionsLabel, { courseName })}
                 size="inline"
                 disabled={isMenuDisabled}
               />

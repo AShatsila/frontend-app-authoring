@@ -3,8 +3,16 @@ import { defineMessages } from '@edx/frontend-platform/i18n';
 const messages = defineMessages({
   ruleGroupMoreActionsLabel: {
     id: 'course-authoring.competency-management.criteria-groups.rule-group-more-actions-label',
-    defaultMessage: 'More actions for this group',
-    description: 'Accessible label for the ⋮ button that opens a rule group\'s actions menu.',
+    defaultMessage: 'More actions for rule group {position} in {courseName}',
+    description: 'Accessible label for the ⋮ button that opens a saved rule group\'s actions menu. '
+      + '{position} is the group\'s 1-based position among the rule groups of its course group, '
+      + 'and {courseName} is the name of the course the group belongs to.',
+  },
+  placeholderRuleGroupMoreActionsLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.placeholder-rule-group-more-actions-label',
+    defaultMessage: 'More actions for the new rule group in {courseName}',
+    description: 'Accessible label for the ⋮ button on the unsaved new rule group, which has no position yet. '
+      + '{courseName} is the name of the course the group belongs to.',
   },
   removeRuleGroupMenuItem: {
     id: 'course-authoring.competency-management.criteria-groups.remove-rule-group-menu-item',

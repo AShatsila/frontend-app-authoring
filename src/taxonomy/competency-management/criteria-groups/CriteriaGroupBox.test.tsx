@@ -22,7 +22,13 @@ const renderBox = (
 ) => (
   render(
     <MockCompetencyAssociationsProvider value={contextOverrides}>
-      <CriteriaGroupBox group={group} subsectionNamesByUsageKey={subsectionNamesByUsageKey} canEdit={canEdit} />
+      <CriteriaGroupBox
+        group={group}
+        subsectionNamesByUsageKey={subsectionNamesByUsageKey}
+        canEdit={canEdit}
+        position={1}
+        courseName="Demo Course"
+      />
     </MockCompetencyAssociationsProvider>,
   )
 );
