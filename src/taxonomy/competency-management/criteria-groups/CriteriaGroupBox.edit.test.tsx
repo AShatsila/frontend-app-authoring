@@ -41,6 +41,10 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     user = userEvent.setup();
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('renders the any/all label as plain text with no dropdown when canEdit is false', () => {
     const { container } = renderBox({}, false);
 
@@ -244,7 +248,6 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
         renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 10, expand } });
 
         expect(focus).toHaveBeenCalledWith({ preventScroll: expand });
-        focus.mockRestore();
       },
     );
 

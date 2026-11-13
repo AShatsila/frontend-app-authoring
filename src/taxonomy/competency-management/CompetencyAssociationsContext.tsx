@@ -303,7 +303,7 @@ export type ProviderAction =
     accessibleCourseKeys: ReadonlySet<string>;
     deletedGroupId: number;
     deleteFailed: boolean;
-    systemDefaultProfile: CompetencyRuleProfile | undefined;
+    systemDefaultProfile: CompetencyRuleProfile;
   }
   | { type: 'deleteRefetchFailed'; generation: number; }
   | {
@@ -323,12 +323,9 @@ export type ProviderAction =
 function selectionOnFirstRuleBox(
   groupId: number,
   index: CompetencyCriteriaGroupsIndex,
-  systemDefaultProfile: CompetencyRuleProfile | undefined,
+  systemDefaultProfile: CompetencyRuleProfile,
 ): CriteriaSelection {
-  const ruleKey = systemDefaultProfile
-    ? (ruleBoxesForGroup(groupId, index, systemDefaultProfile)[0]?.key ?? null)
-    : null;
-  return { groupId, ruleKey };
+  return { groupId, ruleKey: ruleBoxesForGroup(groupId, index, systemDefaultProfile)[0]?.key ?? null };
 }
 
 function moveSelection(
@@ -825,6 +822,7 @@ export const CompetencyAssociationsProvider = ({
     deletedGroupId: number,
     snapshot: PageOrderSnapshot,
     deleteFailed: boolean,
+    profile: CompetencyRuleProfile,
   ) => {
     const queryKey = competencyQueryKeys.competencyCriteriaGroups(tagId);
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(queryKey);
@@ -852,12 +850,12 @@ export const CompetencyAssociationsProvider = ({
       accessibleCourseKeys,
       deletedGroupId,
       deleteFailed,
-      systemDefaultProfile,
+      systemDefaultProfile: profile,
     });
-  }, [queryClient, tagId, generation, systemDefaultProfile]);
+  }, [queryClient, tagId, generation]);
 
   const deleteGroup = useCallback((groupId: number) => {
-    if (deleteInFlightGenerationRef.current === generation || !groupsIndex) {
+    if (deleteInFlightGenerationRef.current === generation || !groupsIndex || !systemDefaultProfile) {
       return;
     }
     deleteInFlightGenerationRef.current = generation;
@@ -873,11 +871,12 @@ export const CompetencyAssociationsProvider = ({
         if (deleteInFlightGenerationRef.current === generation) {
           deleteInFlightGenerationRef.current = null;
         }
-        resolveSelectionAfterDelete(groupId, snapshot, deleteError !== null);
+        resolveSelectionAfterDelete(groupId, snapshot, deleteError !== null, systemDefaultProfile);
       },
     });
   }, [
     groupsIndex,
+    systemDefaultProfile,
     accessibleCourseGroups,
     tagId,
     generation,
@@ -893,7 +892,7 @@ export const CompetencyAssociationsProvider = ({
     const lastGroup = groupsIndex && parentGroup?.courseKey != null
       ? lastBottomTierGroupForCourse(groupsIndex, parentGroup.courseKey)
       : null;
-    if (groupsIndex && lastGroup) {
+    if (groupsIndex && systemDefaultProfile && lastGroup) {
       dispatch({
         type: 'placeholderGroupDiscarded',
         selection: selectionOnFirstRuleBox(lastGroup.id, groupsIndex, systemDefaultProfile),

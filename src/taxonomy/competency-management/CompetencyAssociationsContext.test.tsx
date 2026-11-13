@@ -141,6 +141,7 @@ const TestConsumer = () => {
     ['Delete group 10', () => ctx.deleteGroup(10)],
     ['Delete group 20', () => ctx.deleteGroup(20)],
     ['Delete group 30', () => ctx.deleteGroup(30)],
+    ['Delete course group 1', () => ctx.deleteGroup(1)],
     [
       'Delete group 10 twice',
       () => {
@@ -1377,6 +1378,39 @@ describe('CompetencyAssociationsProvider', () => {
       expect(noSelection()).toBeInTheDocument();
     });
 
+    describe('when a course group is deleted', () => {
+      const courseGroupUrl = apiUrls.competencyCriteriaGroup(tagId, 1);
+      const afterDeletingCourseGroup1Response = {
+        groups: twoCoursesWithCriteriaResponse.groups.filter((item) => item.id !== 1 && item.id !== 10),
+        criteria: twoCoursesWithCriteriaResponse.criteria.filter((item) => item.groupId === 20),
+      };
+
+      it('toasts on a failure, keeps selection, and asks to focus the course group\'s menu', async () => {
+        axiosMock.onDelete(courseGroupUrl).reply(500);
+        const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, twoCoursesWithCriteriaResponse);
+        await renderWithSelectionOnGroup10();
+
+        await deleteAndRefetch('Delete course group 1', reads);
+
+        expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
+        expectToast('There was a problem removing this group. Please try again.', ErrorIcon);
+        expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
+        expect(screen.getByText(keyboardRequest({ kind: 'menu', groupId: 1 }))).toBeInTheDocument();
+      });
+
+      it('treats a 404 as success: no toast, and selection moves off the vanished course group', async () => {
+        axiosMock.onDelete(courseGroupUrl).reply(404);
+        const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, afterDeletingCourseGroup1Response);
+        await renderWithSelectionOnGroup10();
+
+        await deleteAndRefetch('Delete course group 1', reads);
+
+        expect(await screen.findByText(selectionOn(20, gteKey))).toBeInTheDocument();
+        expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 20, expand: true }))).toBeInTheDocument();
+        expect(mockShowToast).not.toHaveBeenCalled();
+      });
+    });
+
     describe('when the deleted group held no selection', () => {
       it('requests keyboard focus on its nearest surviving neighbor and leaves selection unset', async () => {
         axiosMock.onDelete(deleteUrl).reply(200, {});
@@ -1449,6 +1483,8 @@ describe('CompetencyAssociationsProvider', () => {
 
       expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
       expect(screen.getByText('Has placeholder: false')).toBeInTheDocument();
+      expect(screen.getByText('Deleting: false')).toBeInTheDocument();
+      expect(screen.getByText('Associating: false')).toBeInTheDocument();
       expect(screen.getByText('Keyboard request: {"kind":"group","groupId":11,"expand":true}')).toBeInTheDocument();
       expect(axiosMock.history.delete).toHaveLength(0);
       expect(axiosMock.history.patch).toHaveLength(0);
