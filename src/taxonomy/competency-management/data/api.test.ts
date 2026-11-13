@@ -182,12 +182,7 @@ describe('competency-management api calls', () => {
 
   it('sends a DELETE request to the criteria group URL', async () => {
     const { axiosMock } = initializeMocks();
-    axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {
-      id: 10,
-      archived: false,
-      cascaded_group_count: 0,
-      cascaded_criteria_count: 1,
-    });
+    axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 10)).reply(200, {});
 
     await expect(deleteCompetencyCriteriaGroup(tagId, 10)).resolves.toBeUndefined();
 
