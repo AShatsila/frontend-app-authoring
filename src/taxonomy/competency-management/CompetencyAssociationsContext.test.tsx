@@ -1177,15 +1177,25 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });
 
-    it('drops a second call made before the first settles, so one request is sent', async () => {
-      axiosMock.onDelete(deleteUrl).reply(200, {});
+    it('drops a second call made while the first delete is pending, so one request is sent', async () => {
+      const deleteGate = deferred();
+      axiosMock.onDelete(deleteUrl).reply(() => deleteGate.released.then(() => [200, {}]));
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
       await renderWithSelectionOnGroup10();
 
-      await deleteAndRefetch('Delete group 10 twice', reads);
+      await click('Delete group 10 twice');
+      await waitFor(() => expect(axiosMock.history.delete).toHaveLength(1));
+      await act(async () => {
+        deleteGate.release();
+      });
+      await waitFor(() => expect(groupsReads()).toHaveLength(2));
+      await act(async () => {
+        reads.release();
+      });
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expect(axiosMock.history.delete).toHaveLength(1);
+      expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
     });
 
     it('requests the empty state when the delete leaves no course group', async () => {
