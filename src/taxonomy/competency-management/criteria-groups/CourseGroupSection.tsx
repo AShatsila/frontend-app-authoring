@@ -12,10 +12,10 @@ import { ExpandLess, ExpandMore, MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
-import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
+import { useCompetencyAssociations } from '@src/taxonomy/competency-management/CompetencyAssociationsContext';
 import { courseKeyOfSelection } from '@src/taxonomy/competency-management/criterionTarget';
-import type { CourseCompetencyCriteriaGroup } from '../data/types';
-import { bottomTierGroupsForCourse } from '../utils';
+import type { CourseCompetencyCriteriaGroup } from '@src/taxonomy/competency-management/data/types';
+import { bottomTierGroupsForCourse } from '@src/taxonomy/competency-management/utils';
 import AddControl from './AddControl';
 import type { AddControlProps } from './AddControl';
 import CriteriaGroupBox from './CriteriaGroupBox';
