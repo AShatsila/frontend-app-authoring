@@ -181,6 +181,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
         )
         : (
           <button
+            ref={selectButtonRef}
             type="button"
             className="criteria-group-box__header"
             aria-current={isSelected}

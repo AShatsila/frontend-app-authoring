@@ -236,6 +236,17 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       },
     );
 
+    it('takes keyboard focus on its read-only header button when a request names it, then consumes the request', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox(
+        { keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true }, consumeKeyboardFocusRequest },
+        false,
+      );
+
+      expect(screen.getByRole('button', { name: 'By completing any of the following' })).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
     it('takes keyboard focus on its menu button when a menu request names it, then consumes the request', () => {
       const consumeKeyboardFocusRequest = jest.fn();
       renderBox({ keyboardFocusRequest: { kind: 'menu', groupId: 10 }, consumeKeyboardFocusRequest });
