@@ -38,7 +38,7 @@ import type {
   CreateCompetencyCriterionPayload,
   GradeRulePayload,
 } from './data/types';
-import { courseKeyOfFocus, resolveCreateTarget } from './criterionTarget';
+import { courseKeyOfSelection, resolveCreateTarget } from './criterionTarget';
 import messages from './messages';
 import {
   clearStaleScoreSettingsOpen,
@@ -55,7 +55,7 @@ import {
   bottomTierGroupsForCourse,
   buildCompetencyCriteriaGroupsIndex,
   effectiveRuleOf,
-  focusTargetAfterRemoval,
+  selectionTargetAfterRemoval,
   hasVisibleOrNewCourseGroup,
   lastBottomTierGroupForCourse,
   lastRuleKeyIn,
@@ -73,7 +73,7 @@ export type { CriteriaPlaceholder };
  * to the group's last box, or to `null` for a saved group with no criteria, which then renders its placeholder
  * rule box on purpose.
  */
-export interface CriteriaFocus {
+export interface CriteriaSelection {
   groupId: number | null;
   ruleKey: string | null;
 }
@@ -90,9 +90,9 @@ export interface CompetencyAssociationsContextBase {
    * than a 403 or 404, behind `status === 'error'`.
    */
   error: Error | null;
-  focus: CriteriaFocus | null;
+  selection: CriteriaSelection | null;
   placeholder: CriteriaPlaceholder;
-  /** Whether a placeholder rule box or group exists, which disables both add controls. Also true for a focused
+  /** Whether a placeholder rule box or group exists, which disables both add controls. Also true for a selected
    * saved group with no criteria, which renders its placeholder rule box on purpose.
    */
   hasPlaceholder: boolean;
@@ -110,9 +110,9 @@ export interface CompetencyAssociationsContextBase {
    * observable. Resets only when the competency changes.
    */
   placeholderDuplicateRejectionCount: number;
-  /** Drops the placeholder by clearing `focus`. */
+  /** Drops the placeholder by clearing `selection`. */
   discardPlaceholder: () => void;
-  /** Deletes a bottom-tier or course-level group, then moves focus per `focusTargetAfterRemoval` once the refetch
+  /** Deletes a bottom-tier or course-level group, then moves selection per `selectionTargetAfterRemoval` once the refetch
    * lands. Dropped while another delete is in flight. A 404 counts as success; any other failure shows a toast.
    */
   deleteGroup: (groupId: number) => void;
@@ -120,20 +120,20 @@ export interface CompetencyAssociationsContextBase {
    * panel's subsection pills.
    */
   isDeletingGroup: boolean;
-  /** Discards the placeholder group without a request and focuses the last saved group in its course group. */
+  /** Discards the placeholder group without a request and selects the last saved group in its course group. */
   removePlaceholderGroup: () => void;
   keyboardFocusRequest: KeyboardFocusRequest | null;
   /** Clears `keyboardFocusRequest` once the component it names has taken it. */
   consumeKeyboardFocusRequest: () => void;
-  /** Focuses a group and its last rule box. A no-op when `groupId` is already
-   * focused, so re-clicking the group heading keeps the rule box the author
+  /** Selects a group and its last rule box. A no-op when `groupId` is already
+   * selected, so re-clicking the group heading keeps the rule box the author
    * selected inside it.
    */
-  focusGroup: (groupId: number) => void;
-  focusRuleBox: (groupId: number, ruleKey: string) => void;
+  selectGroup: (groupId: number) => void;
+  selectRuleBox: (groupId: number, ruleKey: string) => void;
   /** Call when a course row expands, never when it collapses. Feeds `canEditCourse`
-   * for a group-less course and moves focus to the course's last group and rule box
-   * when focus is unset or on another course's group.
+   * for a group-less course and moves selection to the course's last group and rule box
+   * when selection is unset or on another course's group.
    */
   notifyCourseExpanded: (courseId: string) => void;
   /** Creates a criterion for the subsection in the active competency. Shows a
@@ -149,7 +149,7 @@ export interface CompetencyAssociationsContextBase {
   updateRuleScore: (groupId: number, criterionIds: number[], rulePayload: GradeRulePayload) => Promise<void>;
   isAssociating: boolean;
   /** How many times each course row has been expanded, so a card can reopen on an
-   * expansion that leaves focus where it already was.
+   * expansion that leaves selection where it already was.
    */
   expansionCountByCourseId: Record<string, number>;
   /** The permissions request failed, so `canEditCourse` is `false` for courses it
@@ -227,41 +227,41 @@ function isInaccessibleCourseError(error: unknown): boolean {
   return isAxiosError(error) && (error.response?.status === 403 || error.response?.status === 404);
 }
 
-/** The focus to move to when `courseId` is expanded, or `null` when focus
+/** The selection to move to when `courseId` is expanded, or `null` when selection
  * already sits on one of that course's groups or the course has no group.
  */
-function courseExpansionFocus(
+function courseExpansionSelection(
   courseId: string,
-  focus: CriteriaFocus | null,
+  selection: CriteriaSelection | null,
   placeholder: CriteriaPlaceholder,
   index: CompetencyCriteriaGroupsIndex,
   systemDefaultProfile: CompetencyRuleProfile,
-): CriteriaFocus | null {
-  if (courseKeyOfFocus(focus, placeholder, index) === courseId) {
+): CriteriaSelection | null {
+  if (courseKeyOfSelection(selection, placeholder, index) === courseId) {
     return null;
   }
   const target = lastBottomTierGroupForCourse(index, courseId);
   return target ? { groupId: target.id, ruleKey: lastRuleKeyIn(target.id, index, systemDefaultProfile) } : null;
 }
 
-/** The rule key to move focus to when the focused key matches no rule box, or `undefined` when focus is fine. */
+/** The rule key to move selection to when the selected key matches no rule box, or `undefined` when selection is fine. */
 function resolveStaleRuleKey(
-  focus: CriteriaFocus,
+  selection: CriteriaSelection,
   index: CompetencyCriteriaGroupsIndex,
   systemDefaultProfile: CompetencyRuleProfile,
 ): string | null | undefined {
   // A `null` key is a placeholder rule box, which matches no real one by design.
-  if (focus.groupId === null || focus.ruleKey === null || !index.groupsById.has(focus.groupId)) {
+  if (selection.groupId === null || selection.ruleKey === null || !index.groupsById.has(selection.groupId)) {
     return undefined;
   }
   // A rule box is keyed by its rule, so a refetch or a default-profile change can leave the key stale.
-  const hasFocusedBox = ruleBoxesForGroup(focus.groupId, index, systemDefaultProfile)
-    .some((box) => box.key === focus.ruleKey);
-  if (hasFocusedBox) {
+  const hasSelectedBox = ruleBoxesForGroup(selection.groupId, index, systemDefaultProfile)
+    .some((box) => box.key === selection.ruleKey);
+  if (hasSelectedBox) {
     return undefined;
   }
-  const resolved = lastRuleKeyIn(focus.groupId, index, systemDefaultProfile);
-  return resolved === focus.ruleKey ? undefined : resolved;
+  const resolved = lastRuleKeyIn(selection.groupId, index, systemDefaultProfile);
+  return resolved === selection.ruleKey ? undefined : resolved;
 }
 
 export interface ProviderState {
@@ -270,32 +270,36 @@ export interface ProviderState {
    * author left and came back, which a `tagId` comparison cannot.
    */
   generation: number;
-  focus: CriteriaFocus | null;
+  selection: CriteriaSelection | null;
   placeholder: CriteriaPlaceholder;
   placeholderDuplicateRejected: boolean;
   placeholderDuplicateRejectionCount: number;
   keyboardFocusRequest: KeyboardFocusRequest | null;
   /** A course expanded before the groups and default profile loaded. */
   pendingCourseId: string | null;
-  initialFocusDone: boolean;
+  initialSelectionDone: boolean;
   /** Latches once `status` first reaches `'success'` for the competency. */
   settled: boolean;
 }
 
 export type ProviderAction =
   | { type: 'competencyChanged'; tagId: number; }
-  | { type: 'focusGroup'; groupId: number; ruleKey: string | null; }
-  | { type: 'focusRuleBox'; groupId: number; ruleKey: string; }
-  | { type: 'setFocus'; focus: CriteriaFocus; }
+  | { type: 'selectGroup'; groupId: number; ruleKey: string | null; }
+  | { type: 'selectRuleBox'; groupId: number; ruleKey: string; }
+  | { type: 'setSelection'; selection: CriteriaSelection; }
   | PlaceholderAction
   | { type: 'placeholderDuplicateRejected'; }
-  | { type: 'deleteResolved'; focus: CriteriaFocus | null | 'keep'; keyboardFocusRequest: KeyboardFocusRequest | null; }
+  | {
+    type: 'deleteResolved';
+    selection: CriteriaSelection | null | 'keep-current';
+    keyboardFocusRequest: KeyboardFocusRequest | null;
+  }
   | { type: 'keyboardFocusRequested'; keyboardFocusRequest: KeyboardFocusRequest | null; }
   | { type: 'ruleKeyResolved'; groupId: number; staleRuleKey: string | null; resolvedRuleKey: string | null; }
-  | { type: 'createSucceeded'; generation: number; focus: CriteriaFocus; }
+  | { type: 'createSucceeded'; generation: number; selection: CriteriaSelection; }
   | { type: 'courseExpandedBeforeLoad'; courseId: string; }
-  | { type: 'pendingCourseResolved'; focus: CriteriaFocus | null; }
-  | { type: 'initialFocusRan'; focus: CriteriaFocus | null; }
+  | { type: 'pendingCourseResolved'; selection: CriteriaSelection | null; }
+  | { type: 'initialSelectionRan'; selection: CriteriaSelection | null; }
   | { type: 'settled'; };
 
 function reduceProviderState(state: ProviderState, action: ProviderAction): ProviderState {
@@ -304,29 +308,29 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
       return {
         tagId: action.tagId,
         generation: state.generation + 1,
-        focus: null,
+        selection: null,
         placeholder: initialPlaceholder,
         placeholderDuplicateRejected: false,
         placeholderDuplicateRejectionCount: 0,
         keyboardFocusRequest: null,
         pendingCourseId: null,
-        initialFocusDone: false,
+        initialSelectionDone: false,
         settled: false,
       };
-    case 'focusGroup':
-      if (state.focus?.groupId === action.groupId) {
+    case 'selectGroup':
+      if (state.selection?.groupId === action.groupId) {
         return state.pendingCourseId === null ? state : { ...state, pendingCourseId: null };
       }
-      return { ...state, focus: { groupId: action.groupId, ruleKey: action.ruleKey }, pendingCourseId: null };
-    case 'focusRuleBox':
-      return { ...state, focus: { groupId: action.groupId, ruleKey: action.ruleKey }, pendingCourseId: null };
-    case 'setFocus':
-      return { ...state, focus: action.focus };
+      return { ...state, selection: { groupId: action.groupId, ruleKey: action.ruleKey }, pendingCourseId: null };
+    case 'selectRuleBox':
+      return { ...state, selection: { groupId: action.groupId, ruleKey: action.ruleKey }, pendingCourseId: null };
+    case 'setSelection':
+      return { ...state, selection: action.selection };
     case 'deleteResolved':
       return {
         ...state,
-        focus: action.focus === 'keep' ? state.focus : action.focus,
-        placeholderDuplicateRejected: action.focus === 'keep' ? state.placeholderDuplicateRejected : false,
+        selection: action.selection === 'keep-current' ? state.selection : action.selection,
+        placeholderDuplicateRejected: action.selection === 'keep-current' ? state.placeholderDuplicateRejected : false,
         keyboardFocusRequest: action.keyboardFocusRequest,
       };
     case 'keyboardFocusRequested':
@@ -338,21 +342,21 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
     case 'setPlaceholderRulePayload':
       return reducePlaceholderAction(state, action);
     case 'ruleKeyResolved':
-      // Guarded so an action computed from a stale focus cannot overwrite a focus dispatched after it.
-      return state.focus?.groupId === action.groupId && state.focus.ruleKey === action.staleRuleKey
-        ? { ...state, focus: { groupId: action.groupId, ruleKey: action.resolvedRuleKey } }
+      // Guarded so an action computed from a stale selection cannot overwrite a selection dispatched after it.
+      return state.selection?.groupId === action.groupId && state.selection.ruleKey === action.staleRuleKey
+        ? { ...state, selection: { groupId: action.groupId, ruleKey: action.resolvedRuleKey } }
         : state;
     case 'createSucceeded':
-      return action.generation === state.generation ? { ...state, focus: action.focus } : state;
+      return action.generation === state.generation ? { ...state, selection: action.selection } : state;
     case 'courseExpandedBeforeLoad':
       return { ...state, pendingCourseId: action.courseId };
     case 'pendingCourseResolved':
-      return { ...state, pendingCourseId: null, focus: action.focus ?? state.focus };
-    case 'initialFocusRan':
-      // A focus set before the gate opened wins over the auto-focus.
-      return state.focus === null && action.focus !== null
-        ? { ...state, initialFocusDone: true, focus: action.focus, pendingCourseId: null }
-        : { ...state, initialFocusDone: true };
+      return { ...state, pendingCourseId: null, selection: action.selection ?? state.selection };
+    case 'initialSelectionRan':
+      // A selection set before the gate opened wins over the auto-selection.
+      return state.selection === null && action.selection !== null
+        ? { ...state, initialSelectionDone: true, selection: action.selection, pendingCourseId: null }
+        : { ...state, initialSelectionDone: true };
     case 'settled':
       return { ...state, settled: true };
     default:
@@ -360,12 +364,12 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
   }
 }
 
-/** Actions that move focus for a reason other than a delete, which drops a pending keyboard focus request. */
+/** Actions that move the selection for a reason other than a delete, which drops a pending keyboard focus request. */
 const KEYBOARD_REQUEST_CLEARING_ACTIONS: ReadonlySet<ProviderAction['type']> = new Set([
   'competencyChanged',
-  'focusGroup',
-  'focusRuleBox',
-  'setFocus',
+  'selectGroup',
+  'selectRuleBox',
+  'setSelection',
   'addPlaceholderRuleBox',
   'addPlaceholderGroup',
   'discardPlaceholder',
@@ -380,11 +384,13 @@ function providerReducer(state: ProviderState, action: ProviderAction): Provider
     };
   }
   let next = clearStaleScoreSettingsOpen(state, reduceProviderState(state, action));
-  const movesFocus = action.type === 'pendingCourseResolved' && action.focus !== null;
-  if ((PLACEHOLDER_REJECTION_CLEARING_ACTIONS.has(action.type) || movesFocus) && next.placeholderDuplicateRejected) {
+  const movesSelection = action.type === 'pendingCourseResolved' && action.selection !== null;
+  if (
+    (PLACEHOLDER_REJECTION_CLEARING_ACTIONS.has(action.type) || movesSelection) && next.placeholderDuplicateRejected
+  ) {
     next = { ...next, placeholderDuplicateRejected: false };
   }
-  if ((KEYBOARD_REQUEST_CLEARING_ACTIONS.has(action.type) || movesFocus) && next.keyboardFocusRequest) {
+  if ((KEYBOARD_REQUEST_CLEARING_ACTIONS.has(action.type) || movesSelection) && next.keyboardFocusRequest) {
     next = { ...next, keyboardFocusRequest: null };
   }
   return next;
@@ -393,7 +399,7 @@ function providerReducer(state: ProviderState, action: ProviderAction): Provider
 /** Provides per-competency criteria-association state to the course panel.
  *
  * Not remounted per competency (no `key={tagId}`), so the content panel keeps
- * its own state; a `tagId` change instead resets focus during render. Expanded
+ * its own state; a `tagId` change instead resets selection during render. Expanded
  * courses persist across competencies.
  */
 export const CompetencyAssociationsProvider = ({
@@ -408,24 +414,24 @@ export const CompetencyAssociationsProvider = ({
   const [state, dispatch] = useReducer(providerReducer, {
     tagId,
     generation: 0,
-    focus: null,
+    selection: null,
     placeholder: initialPlaceholder,
     placeholderDuplicateRejected: false,
     placeholderDuplicateRejectionCount: 0,
     keyboardFocusRequest: null,
     pendingCourseId: null,
-    initialFocusDone: false,
+    initialSelectionDone: false,
     settled: false,
   });
   const {
-    focus,
+    selection,
     placeholder,
     placeholderDuplicateRejected,
     placeholderDuplicateRejectionCount,
     keyboardFocusRequest,
     generation,
     pendingCourseId,
-    initialFocusDone,
+    initialSelectionDone,
     settled,
   } = state;
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
@@ -446,10 +452,10 @@ export const CompetencyAssociationsProvider = ({
   const queryClient = useQueryClient();
   // Closes the gap between a click and the render that disables the delete menus.
   const isDeleteInFlightRef = useRef(false);
-  // A delete's settle callback runs after the refetch, so it reads the latest focus and placeholder through refs to
+  // A delete's settle callback runs after the refetch, so it reads the latest selection and placeholder through refs to
   // respect a click made while the request was in flight.
-  const focusRef = useRef(focus);
-  focusRef.current = focus;
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
   const placeholderRef = useRef(placeholder);
   placeholderRef.current = placeholder;
 
@@ -463,13 +469,13 @@ export const CompetencyAssociationsProvider = ({
     [groupsQuery.data],
   );
 
-  // Applied during render so the initial-focus effect below already sees it.
+  // Applied during render so the initial-selection effect below already sees it.
   // Skipped on the render that changes competency: the pending course belongs
   // to the previous one, but `groupsIndex` may already be the new one's cached tree.
   if (!competencyChanged && pendingCourseId !== null && groupsIndex && systemDefaultProfile) {
     dispatch({
       type: 'pendingCourseResolved',
-      focus: courseExpansionFocus(pendingCourseId, focus, placeholder, groupsIndex, systemDefaultProfile),
+      selection: courseExpansionSelection(pendingCourseId, selection, placeholder, groupsIndex, systemDefaultProfile),
     });
   }
 
@@ -480,11 +486,11 @@ export const CompetencyAssociationsProvider = ({
       dispatch({ type: 'courseExpandedBeforeLoad', courseId });
       return;
     }
-    const next = courseExpansionFocus(courseId, focus, placeholder, groupsIndex, systemDefaultProfile);
+    const next = courseExpansionSelection(courseId, selection, placeholder, groupsIndex, systemDefaultProfile);
     if (next) {
-      dispatch({ type: 'setFocus', focus: next });
+      dispatch({ type: 'setSelection', selection: next });
     }
-  }, [focus, placeholder, groupsIndex, systemDefaultProfile]);
+  }, [selection, placeholder, groupsIndex, systemDefaultProfile]);
 
   const courseIdsWithGroups = useMemo(
     () => (groupsIndex ? groupsIndex.courseGroups.map((courseGroup) => courseGroup.courseKey) : []),
@@ -525,26 +531,26 @@ export const CompetencyAssociationsProvider = ({
     dispatch({ type: 'settled' });
   }
 
-  const resolvedRuleKey = !competencyChanged && focus && groupsIndex && systemDefaultProfile
-    ? resolveStaleRuleKey(focus, groupsIndex, systemDefaultProfile)
+  const resolvedRuleKey = !competencyChanged && selection && groupsIndex && systemDefaultProfile
+    ? resolveStaleRuleKey(selection, groupsIndex, systemDefaultProfile)
     : undefined;
-  if (focus?.groupId != null && resolvedRuleKey !== undefined) {
-    dispatch({ type: 'ruleKeyResolved', groupId: focus.groupId, staleRuleKey: focus.ruleKey, resolvedRuleKey });
+  if (selection?.groupId != null && resolvedRuleKey !== undefined) {
+    dispatch({ type: 'ruleKeyResolved', groupId: selection.groupId, staleRuleKey: selection.ruleKey, resolvedRuleKey });
   }
 
-  if (!competencyChanged && groupsIndex && isPlaceholderOrphaned(focus, placeholder, groupsIndex)) {
+  if (!competencyChanged && groupsIndex && isPlaceholderOrphaned(selection, placeholder, groupsIndex)) {
     dispatch({ type: 'discardPlaceholder' });
   }
 
-  const focusGroup = useCallback((groupId: number) => {
+  const selectGroup = useCallback((groupId: number) => {
     const ruleKey = (groupsIndex && systemDefaultProfile)
       ? lastRuleKeyIn(groupId, groupsIndex, systemDefaultProfile)
       : null;
-    dispatch({ type: 'focusGroup', groupId, ruleKey });
+    dispatch({ type: 'selectGroup', groupId, ruleKey });
   }, [groupsIndex, systemDefaultProfile]);
 
-  const focusRuleBox = useCallback((groupId: number, ruleKey: string) => {
-    dispatch({ type: 'focusRuleBox', groupId, ruleKey });
+  const selectRuleBox = useCallback((groupId: number, ruleKey: string) => {
+    dispatch({ type: 'selectRuleBox', groupId, ruleKey });
   }, []);
 
   const {
@@ -555,28 +561,28 @@ export const CompetencyAssociationsProvider = ({
     discardPlaceholder,
   } = usePlaceholderActions(dispatch);
 
-  const hasPlaceholder = focus !== null && focus.ruleKey === null;
+  const hasPlaceholder = selection !== null && selection.ruleKey === null;
 
   // Runs once per competency, after groups, profile and every outline have
   // settled. An inaccessible course's group is not rendered, so it is never
-  // auto-focus eligible. Independent of `expandedCourseIds`, which must not
+  // auto-selection eligible. Independent of `expandedCourseIds`, which must not
   // delay it.
   useEffect(() => {
-    if (initialFocusDone || status !== 'success' || !groupsIndex || !systemDefaultProfile) {
+    if (initialSelectionDone || status !== 'success' || !groupsIndex || !systemDefaultProfile) {
       return;
     }
     const allBottomTierGroups = accessibleCourseGroups
       .flatMap((courseGroup) => bottomTierGroupsForCourse(groupsIndex, courseGroup.courseKey));
     dispatch({
-      type: 'initialFocusRan',
-      focus: allBottomTierGroups.length === 1
+      type: 'initialSelectionRan',
+      selection: allBottomTierGroups.length === 1
         ? {
           groupId: allBottomTierGroups[0].id,
           ruleKey: lastRuleKeyIn(allBottomTierGroups[0].id, groupsIndex, systemDefaultProfile),
         }
         : null,
     });
-  }, [initialFocusDone, status, groupsIndex, systemDefaultProfile, accessibleCourseGroups]);
+  }, [initialSelectionDone, status, groupsIndex, systemDefaultProfile, accessibleCourseGroups]);
 
   // Every course with a group plus every expanded course, even a group-less one.
   const courseIdsForPermissions = useMemo(() => {
@@ -601,19 +607,19 @@ export const CompetencyAssociationsProvider = ({
       return;
     }
 
-    // Focus in another course resolves to that course's last group, so the placeholder score does not apply there.
-    const isFocusInCourse = courseKeyOfFocus(focus, placeholder, groupsIndex) === courseId;
-    const target = isFocusInCourse
-      ? focus
-      : courseExpansionFocus(courseId, focus, placeholder, groupsIndex, systemDefaultProfile);
-    const targetPlaceholder = isFocusInCourse ? placeholder : { ...placeholder, rulePayload: null };
+    // Selection in another course resolves to that course's last group, so the placeholder score does not apply there.
+    const isSelectionInCourse = courseKeyOfSelection(selection, placeholder, groupsIndex) === courseId;
+    const target = isSelectionInCourse
+      ? selection
+      : courseExpansionSelection(courseId, selection, placeholder, groupsIndex, systemDefaultProfile);
+    const targetPlaceholder = isSelectionInCourse ? placeholder : { ...placeholder, rulePayload: null };
     const resolved = resolveCreateTarget(courseId, target, targetPlaceholder, groupsIndex, systemDefaultProfile);
     if (resolved.kind === 'duplicate') {
       dispatch({ type: 'placeholderDuplicateRejected' });
       return;
     }
-    if (target && target !== focus) {
-      dispatch({ type: 'setFocus', focus: target });
+    if (target && target !== selection) {
+      dispatch({ type: 'setSelection', selection: target });
     }
 
     const payload: CreateCompetencyCriterionPayload = { object_id: objectId, ...resolved.fields };
@@ -625,7 +631,7 @@ export const CompetencyAssociationsProvider = ({
         dispatch({
           type: 'createSucceeded',
           generation,
-          focus: { groupId: criterion.groupId, ruleKey: ruleKeyOf(criterion, systemDefaultProfile) },
+          selection: { groupId: criterion.groupId, ruleKey: ruleKeyOf(criterion, systemDefaultProfile) },
         });
       },
       (createError: AxiosError) => {
@@ -651,7 +657,7 @@ export const CompetencyAssociationsProvider = ({
     associatedIds,
     groupsIndex,
     systemDefaultProfile,
-    focus,
+    selection,
     placeholder,
     tagId,
     generation,
@@ -694,8 +700,8 @@ export const CompetencyAssociationsProvider = ({
         const [updatedCriterion] = updatedCriteria;
         if (updatedCriterion) {
           dispatch({
-            type: 'setFocus',
-            focus: { groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) },
+            type: 'setSelection',
+            selection: { groupId, ruleKey: ruleKeyOf(updatedCriterion, systemDefaultProfile) },
           });
         }
       })
@@ -709,9 +715,8 @@ export const CompetencyAssociationsProvider = ({
     dispatch({ type: 'keyboardFocusRequested', keyboardFocusRequest: null });
   }, []);
 
-  // Unlike `focusGroup`, lands on the group's first rule box. A group with none gets `null`, which focuses a
-  // placeholder rule box, as `focusGroup` does.
-  const focusGroupAfterRemoval = useCallback((
+  // Selects the group's FIRST rule box, unlike `selectGroup`, which selects the last.
+  const selectGroupAfterRemoval = useCallback((
     groupId: number,
     freshIndex: CompetencyCriteriaGroupsIndex,
     shouldRequestKeyboardFocus: boolean,
@@ -721,12 +726,12 @@ export const CompetencyAssociationsProvider = ({
       : null;
     dispatch({
       type: 'deleteResolved',
-      focus: { groupId, ruleKey },
+      selection: { groupId, ruleKey },
       keyboardFocusRequest: shouldRequestKeyboardFocus ? { kind: 'group', groupId, expand: true } : null,
     });
   }, [systemDefaultProfile]);
 
-  const resolveFocusAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
+  const resolveSelectionAfterDelete = useCallback((deletedGroupId: number, snapshot: PageOrderSnapshot) => {
     const freshData = queryClient.getQueryData<CompetencyCriteriaGroupsResponse>(
       competencyQueryKeys.competencyCriteriaGroups(tagId),
     );
@@ -734,38 +739,38 @@ export const CompetencyAssociationsProvider = ({
       return;
     }
     const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
-    const currentFocus = focusRef.current;
-    const target = focusTargetAfterRemoval(
+    const currentSelection = selectionRef.current;
+    const target = selectionTargetAfterRemoval(
       snapshot,
       freshIndex,
-      currentFocus,
+      currentSelection,
       placeholderRef.current.parentRuleGroupId,
     );
     // A failed or no-op delete leaves the trash button in the DOM, which keeps the browser's focus. Only a
     // vanished group strands it.
     const isDeletedGroupGone = !freshIndex.groupsById.has(deletedGroupId);
 
-    if (target === 'unchanged') {
-      const focusedGroupId = currentFocus?.groupId ?? null;
-      if (isDeletedGroupGone && focusedGroupId !== null) {
+    if (target === 'keep-current') {
+      const selectedGroupId = currentSelection?.groupId ?? null;
+      const shouldReturnKeyboardFocusToSelection = isDeletedGroupGone && selectedGroupId !== null;
+      if (shouldReturnKeyboardFocusToSelection) {
         dispatch({
           type: 'deleteResolved',
-          focus: 'keep',
-          keyboardFocusRequest: { kind: 'group', groupId: focusedGroupId, expand: false },
+          selection: 'keep-current',
+          keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, expand: false },
         });
       }
     } else if (target === null) {
+      const isPanelEmpty = isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex);
       dispatch({
         type: 'deleteResolved',
-        focus: null,
-        keyboardFocusRequest: isDeletedGroupGone && !hasVisibleOrNewCourseGroup(snapshot, freshIndex)
-          ? { kind: 'empty' }
-          : null,
+        selection: null,
+        keyboardFocusRequest: isPanelEmpty ? { kind: 'empty' } : null,
       });
     } else {
-      focusGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
+      selectGroupAfterRemoval(target, freshIndex, isDeletedGroupGone);
     }
-  }, [queryClient, tagId, focusGroupAfterRemoval]);
+  }, [queryClient, tagId, selectGroupAfterRemoval]);
 
   const deleteGroup = useCallback((groupId: number) => {
     if (isDeleteInFlightRef.current || !groupsIndex) {
@@ -782,10 +787,10 @@ export const CompetencyAssociationsProvider = ({
       },
       onSettled: () => {
         isDeleteInFlightRef.current = false;
-        resolveFocusAfterDelete(groupId, snapshot);
+        resolveSelectionAfterDelete(groupId, snapshot);
       },
     });
-  }, [groupsIndex, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveFocusAfterDelete, showToast, intl]);
+  }, [groupsIndex, accessibleCourseGroups, tagId, mutateDeleteGroup, resolveSelectionAfterDelete, showToast, intl]);
 
   const removePlaceholderGroup = useCallback(() => {
     const { parentRuleGroupId } = placeholder;
@@ -794,16 +799,16 @@ export const CompetencyAssociationsProvider = ({
       ? lastBottomTierGroupForCourse(groupsIndex, parentGroup.courseKey)
       : null;
     if (groupsIndex && lastGroup) {
-      focusGroupAfterRemoval(lastGroup.id, groupsIndex, true);
+      selectGroupAfterRemoval(lastGroup.id, groupsIndex, true);
     } else {
-      dispatch({ type: 'deleteResolved', focus: null, keyboardFocusRequest: null });
+      dispatch({ type: 'deleteResolved', selection: null, keyboardFocusRequest: null });
     }
-  }, [placeholder, groupsIndex, focusGroupAfterRemoval]);
+  }, [placeholder, groupsIndex, selectGroupAfterRemoval]);
 
   const contextValue = useMemo<CompetencyAssociationsContextValue>(() => {
     const shared: CompetencyAssociationsContextBase = {
       error,
-      focus,
+      selection,
       placeholder,
       hasPlaceholder,
       addPlaceholderRuleBox,
@@ -813,8 +818,8 @@ export const CompetencyAssociationsProvider = ({
       discardPlaceholder,
       placeholderDuplicateRejected,
       placeholderDuplicateRejectionCount,
-      focusGroup,
-      focusRuleBox,
+      selectGroup,
+      selectRuleBox,
       notifyCourseExpanded,
       associateSubsection,
       updateGroupOperator,
@@ -840,7 +845,7 @@ export const CompetencyAssociationsProvider = ({
   }, [
     status,
     error,
-    focus,
+    selection,
     placeholder,
     hasPlaceholder,
     addPlaceholderRuleBox,
@@ -850,8 +855,8 @@ export const CompetencyAssociationsProvider = ({
     discardPlaceholder,
     placeholderDuplicateRejected,
     placeholderDuplicateRejectionCount,
-    focusGroup,
-    focusRuleBox,
+    selectGroup,
+    selectRuleBox,
     notifyCourseExpanded,
     associateSubsection,
     updateGroupOperator,

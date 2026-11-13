@@ -12,7 +12,7 @@ import classNames from 'classnames';
 
 import { useCourseOutlineIndex } from '@src/course-outline/data';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
-import { courseKeyOfFocus } from '../criterionTarget';
+import { courseKeyOfSelection } from '../criterionTarget';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
 import { bottomTierGroupsForCourse } from '../utils';
 import AddControl from './AddControl';
@@ -34,7 +34,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const {
     canEditCourse,
     expansionCountByCourseId,
-    focus,
+    selection,
     groupsIndex,
     status,
     placeholder,
@@ -61,13 +61,13 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     return names;
   }, [data]);
 
-  // A placeholder group (`focus.groupId === null`) is shown as one more card after the real ones.
-  const showPlaceholderGroup = focus?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
-  const containsFocus = status === 'success' &&
-    courseKeyOfFocus(focus, placeholder, groupsIndex) === courseGroup.courseKey;
-  const holdsPlaceholderRuleBox = focus?.ruleKey === null
-    && focus.groupId !== null
-    && groupsIndex?.groupsById.get(focus.groupId)?.parentId === courseGroup.id;
+  // A placeholder group (`selection.groupId === null`) is shown as one more card after the real ones.
+  const showPlaceholderGroup = selection?.groupId === null && placeholder.parentRuleGroupId === courseGroup.id;
+  const containsSelection = status === 'success' &&
+    courseKeyOfSelection(selection, placeholder, groupsIndex) === courseGroup.courseKey;
+  const holdsPlaceholderRuleBox = selection?.ruleKey === null
+    && selection.groupId !== null
+    && groupsIndex?.groupsById.get(selection.groupId)?.parentId === courseGroup.id;
 
   const bottomTierGroups = status === 'success' ? bottomTierGroupsForCourse(groupsIndex, courseGroup.courseKey) : [];
 
@@ -100,12 +100,12 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
 
   const expansionCount = expansionCountByCourseId[courseGroup.courseKey] ?? 0;
 
-  // A collapsed card reopens when the focus moves into it or its course is expanded, so the focused box is visible.
+  // A collapsed card reopens when the selection moves into it or its course is expanded, so the selected box is visible.
   useEffect(() => {
-    if (containsFocus) {
+    if (containsSelection) {
       setIsCollapsed(false);
     }
-  }, [focus, containsFocus, expansionCount]);
+  }, [selection, containsSelection, expansionCount]);
 
   if (status !== 'success' || !data) {
     return null;
@@ -126,7 +126,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   }
 
   return (
-    <Card className={classNames('course-group-section', { 'course-group-section--focused': containsFocus })}>
+    <Card className={classNames('course-group-section', { 'course-group-section--selected': containsSelection })}>
       <Card.Header
         size="sm"
         title={

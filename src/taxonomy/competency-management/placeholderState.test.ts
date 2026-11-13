@@ -12,8 +12,8 @@ describe('isPlaceholderOrphaned', () => {
   const index = buildCompetencyCriteriaGroupsIndex(singleGroupResponse);
 
   it.each([
-    ['no focus', null, initialPlaceholder, false],
-    ['a real rule box focus', { groupId: 99, ruleKey: 'k' }, initialPlaceholder, false],
+    ['no selection', null, initialPlaceholder, false],
+    ['a real rule box selection', { groupId: 99, ruleKey: 'k' }, initialPlaceholder, false],
     ['a placeholder rule box in a group that exists', { groupId: 10, ruleKey: null }, initialPlaceholder, false],
     ['a placeholder rule box in a missing group', { groupId: 99, ruleKey: null }, initialPlaceholder, true],
     [
@@ -28,8 +28,8 @@ describe('isPlaceholderOrphaned', () => {
       { ...initialPlaceholder, parentRuleGroupId: 99 },
       true,
     ],
-  ])('for %s returns %s', (_label, focus, placeholder, expected) => {
-    expect(isPlaceholderOrphaned(focus, placeholder, index)).toBe(expected);
+  ])('for %s returns %s', (_label, selection, placeholder, expected) => {
+    expect(isPlaceholderOrphaned(selection, placeholder, index)).toBe(expected);
   });
 });
 
@@ -37,13 +37,13 @@ describe('opensScoreSettings', () => {
   const baseState: ProviderState = {
     tagId: 1,
     generation: 0,
-    focus: null,
+    selection: null,
     placeholder: initialPlaceholder,
     placeholderDuplicateRejected: false,
     placeholderDuplicateRejectionCount: 0,
     keyboardFocusRequest: null,
     pendingCourseId: null,
-    initialFocusDone: true,
+    initialSelectionDone: true,
     settled: true,
   };
   const afterAdd = reducePlaceholderAction(baseState, { type: 'addPlaceholderRuleBox', groupId: 10 });
@@ -83,17 +83,17 @@ describe('opensScoreSettings', () => {
   });
 
   describe('clearStaleScoreSettingsOpen', () => {
-    it('clears the flag when focus moves without a new placeholder', () => {
-      const moved = { ...afterAdd, focus: { groupId: 11, ruleKey: null } };
+    it('clears the flag when selection moves without a new placeholder', () => {
+      const moved = { ...afterAdd, selection: { groupId: 11, ruleKey: null } };
 
       expect(clearStaleScoreSettingsOpen(afterAdd, moved).placeholder.opensScoreSettings).toBe(false);
     });
 
-    it('keeps the flag when an add action changed the placeholder along with the focus', () => {
+    it('keeps the flag when an add action changed the placeholder along with the selection', () => {
       expect(clearStaleScoreSettingsOpen(baseState, afterAdd).placeholder.opensScoreSettings).toBe(true);
     });
 
-    it('keeps the flag when focus is unchanged', () => {
+    it('keeps the flag when selection is unchanged', () => {
       const same = { ...afterAdd, tagId: 2 };
 
       expect(clearStaleScoreSettingsOpen(afterAdd, same).placeholder.opensScoreSettings).toBe(true);

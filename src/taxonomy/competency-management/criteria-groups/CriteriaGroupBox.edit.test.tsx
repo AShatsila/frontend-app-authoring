@@ -52,22 +52,22 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
     expect(updateGroupOperator).toHaveBeenCalledWith(10, 'AND');
   });
 
-  it('focuses the group when its select button is clicked', async () => {
-    const focusGroup = jest.fn();
-    renderBox({ focusGroup });
+  it('selects the group when its select button is clicked', async () => {
+    const selectGroup = jest.fn();
+    renderBox({ selectGroup });
 
     await user.click(screen.getByRole('button', { name: 'By completing any of the following' }));
 
-    expect(focusGroup).toHaveBeenCalledWith(10);
+    expect(selectGroup).toHaveBeenCalledWith(10);
   });
 
-  it('does not focus the group when the operator dropdown is used', async () => {
-    const focusGroup = jest.fn();
-    renderBox({ focusGroup });
+  it('does not selection the group when the operator dropdown is used', async () => {
+    const selectGroup = jest.fn();
+    renderBox({ selectGroup });
 
     await user.click(screen.getByRole('button', { name: 'any' }));
 
-    expect(focusGroup).not.toHaveBeenCalled();
+    expect(selectGroup).not.toHaveBeenCalled();
   });
 
   it('never nests a button inside another', () => {
@@ -130,7 +130,7 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       render(
         <MockCompetencyAssociationsProvider
           value={{
-            focus: { groupId: null, ruleKey: null },
+            selection: { groupId: null, ruleKey: null },
             placeholder: { parentRuleGroupId: 1, logicOperator: current, rulePayload: null, opensScoreSettings: false },
             setPlaceholderLogicOperator,
             updateGroupOperator,
@@ -161,7 +161,7 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
   });
 
   it('scrolls the placeholder rule box once, not the group', () => {
-    renderBox({ focus: { groupId: 10, ruleKey: null } });
+    renderBox({ selection: { groupId: 10, ruleKey: null } });
 
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect(scrollIntoView.mock.contexts[0]).toHaveClass('rule-box');
@@ -170,16 +170,16 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
   describe('delete control', () => {
     const openMenu = () => user.click(screen.getByRole('button', { name: 'More actions for this group' }));
 
-    it('calls deleteGroup with its own id, without focusing the group, when Remove group is chosen', async () => {
+    it('calls deleteGroup with its own id, without selecting the group, when Remove group is chosen', async () => {
       const deleteGroup = jest.fn();
-      const focusGroup = jest.fn();
-      renderBox({ deleteGroup, focusGroup });
+      const selectGroup = jest.fn();
+      renderBox({ deleteGroup, selectGroup });
 
       await openMenu();
       await user.click(screen.getByRole('button', { name: 'Remove group' }));
 
       expect(deleteGroup).toHaveBeenCalledWith(10);
-      expect(focusGroup).not.toHaveBeenCalled();
+      expect(selectGroup).not.toHaveBeenCalled();
     });
 
     it('renders no menu when canEdit is false', () => {
@@ -199,7 +199,7 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       const removePlaceholderGroup = jest.fn();
       render(
         <MockCompetencyAssociationsProvider
-          value={{ focus: { groupId: null, ruleKey: null }, deleteGroup, removePlaceholderGroup }}
+          value={{ selection: { groupId: null, ruleKey: null }, deleteGroup, removePlaceholderGroup }}
         >
           <CriteriaGroupBox subsectionNamesByUsageKey={{}} canEdit />
         </MockCompetencyAssociationsProvider>,

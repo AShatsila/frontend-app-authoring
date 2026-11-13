@@ -100,13 +100,13 @@ const deferred = () => {
 const TestConsumer = () => {
   const ctx = useCompetencyAssociations();
   const actions: Array<[string, () => void]> = [
-    ['Focus group 999', () => ctx.focusGroup(999)],
-    ['Focus rule box 999 gte', () => ctx.focusRuleBox(999, gteKey)],
-    ['Focus group 10', () => ctx.focusGroup(10)],
-    ['Focus group 20', () => ctx.focusGroup(20)],
-    ['Focus group 21', () => ctx.focusGroup(21)],
-    ['Focus rule box 10 gte', () => ctx.focusRuleBox(10, gteKey)],
-    ['Focus rule box 21 gte', () => ctx.focusRuleBox(21, gteKey)],
+    ['Select group 999', () => ctx.selectGroup(999)],
+    ['Select rule box 999 gte', () => ctx.selectRuleBox(999, gteKey)],
+    ['Select group 10', () => ctx.selectGroup(10)],
+    ['Select group 20', () => ctx.selectGroup(20)],
+    ['Select group 21', () => ctx.selectGroup(21)],
+    ['Select rule box 10 gte', () => ctx.selectRuleBox(10, gteKey)],
+    ['Select rule box 21 gte', () => ctx.selectRuleBox(21, gteKey)],
     ['Expand course A', () => ctx.notifyCourseExpanded(courseA)],
     ['Expand course B', () => ctx.notifyCourseExpanded(courseB)],
     ['Associate in course A', () => ctx.associateSubsection('new-sub', courseA)],
@@ -114,7 +114,7 @@ const TestConsumer = () => {
     ['Associate in another course', () => ctx.associateSubsection('new-sub', courseOther)],
     ['Associate duplicate', () => ctx.associateSubsection('existing-sub', courseA)],
     ['Discard placeholder', () => ctx.discardPlaceholder()],
-    ['Focus group 11', () => ctx.focusGroup(11)],
+    ['Select group 11', () => ctx.selectGroup(11)],
     ['Delete group 10', () => ctx.deleteGroup(10)],
     ['Delete group 20', () => ctx.deleteGroup(20)],
     [
@@ -147,7 +147,9 @@ const TestConsumer = () => {
   ];
   return (
     <div>
-      <p>Focus: {ctx.focus ? `group ${ctx.focus.groupId}, rule ${ctx.focus.ruleKey ?? 'none'}` : 'none'}</p>
+      <p>
+        Selection: {ctx.selection ? `group ${ctx.selection.groupId}, rule ${ctx.selection.ruleKey ?? 'none'}` : 'none'}
+      </p>
       <p>Status: {ctx.status}</p>
       <p>Has placeholder: {String(ctx.hasPlaceholder)}</p>
       <p>Deleting: {String(ctx.isDeletingGroup)}</p>
@@ -185,9 +187,10 @@ const click = (name: string) => user.click(screen.getByRole('button', { name }))
 
 const waitForSuccess = () => screen.findByText('Status: success');
 const accessibleCourses = () => screen.getByRole('list', { name: 'Accessible courses' });
-const noFocus = () => screen.getByText('Focus: none');
-const focusOnGroup = (groupId: number) => new RegExp(`^Focus: group ${groupId},`);
-const focusOn = (groupId: number, ruleKey: string | null) => `Focus: group ${groupId}, rule ${ruleKey ?? 'none'}`;
+const noSelection = () => screen.getByText('Selection: none');
+const selectionOnGroup = (groupId: number) => new RegExp(`^Selection: group ${groupId},`);
+const selectionOn = (groupId: number, ruleKey: string | null) =>
+  `Selection: group ${groupId}, rule ${ruleKey ?? 'none'}`;
 
 /** Lets effects and the state updates they dispatch run to completion. */
 const flushEffects = (ms = 0) =>
@@ -216,17 +219,17 @@ describe('CompetencyAssociationsProvider', () => {
     jest.restoreAllMocks();
   });
 
-  describe('initial focus', () => {
-    it('focuses the sole bottom-tier group once the groups query and every visible course outline resolve', async () => {
+  describe('initial selection', () => {
+    it('selects the sole bottom-tier group once the groups query and every visible course outline resolve', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
       renderProvider();
 
-      expect(await screen.findByText(focusOn(10, gteKey))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(10, gteKey))).toBeInTheDocument();
     });
 
-    it('leaves focus unset when more than one bottom-tier group exists across visible course groups', async () => {
+    it('leaves selection unset when more than one bottom-tier group exists across visible course groups', async () => {
       axiosMock.onGet(groupsUrl).reply(200, twoGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
@@ -234,34 +237,34 @@ describe('CompetencyAssociationsProvider', () => {
 
       await waitForSuccess();
       await flushEffects();
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
-    it('leaves focus unset when there are no visible course-level groups', async () => {
+    it('leaves selection unset when there are no visible course-level groups', async () => {
       axiosMock.onGet(groupsUrl).reply(200, noGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       renderProvider();
 
       await waitForSuccess();
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
-    it('keeps a click made before the data resolves instead of auto-focusing the sole group (10)', async () => {
+    it('keeps a click made before the data resolves instead of auto-selecting the sole group (10)', async () => {
       const outlineGate = deferred();
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(() => outlineGate.released.then(() => [200, outlineFixture]));
       renderProvider();
 
-      await click('Focus rule box 999 gte');
-      expect(screen.getByText(focusOnGroup(999))).toBeInTheDocument();
+      await click('Select rule box 999 gte');
+      expect(screen.getByText(selectionOnGroup(999))).toBeInTheDocument();
 
       await act(async () => {
         outlineGate.release();
       });
       await waitForSuccess();
 
-      expect(screen.getByText(focusOnGroup(999))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(999))).toBeInTheDocument();
     });
   });
 
@@ -315,7 +318,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(/^Error: .*500/)).toBeInTheDocument();
     });
 
-    it('excludes every course-level group and auto-focuses nothing when every course outline fails', async () => {
+    it('excludes every course-level group and auto-selects nothing when every course outline fails', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(403);
@@ -324,7 +327,7 @@ describe('CompetencyAssociationsProvider', () => {
       await waitForSuccess();
       await flushEffects();
       expect(accessibleCourses()).toBeEmptyDOMElement();
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
     it('does not count a course whose outline is still loading as accessible, and stays pending', async () => {
@@ -339,7 +342,7 @@ describe('CompetencyAssociationsProvider', () => {
       await screen.findByText('Groups index: loaded');
       expect(accessibleCourses()).toBeEmptyDOMElement();
       expect(screen.getByText('Status: pending')).toBeInTheDocument();
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
     it('treats a course whose outline request is paused offline as unresolved', async () => {
@@ -362,7 +365,7 @@ describe('CompetencyAssociationsProvider', () => {
         await flushEffects(50);
         expect(axiosMock.history.get.some((req) => req.url === courseAOutlineUrl)).toBe(false);
         expect(screen.getByText('Status: pending')).toBeInTheDocument();
-        expect(noFocus()).toBeInTheDocument();
+        expect(noSelection()).toBeInTheDocument();
       } finally {
         onlineManager.setOnline(true);
       }
@@ -398,7 +401,7 @@ describe('CompetencyAssociationsProvider', () => {
     expect(screen.getByText('Status: success')).toBeInTheDocument();
   });
 
-  it('does not delay initial focus when a group-less course is expanded', async () => {
+  it('does not delay initial selection when a group-less course is expanded', async () => {
     const outlineGate = deferred();
     axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
     axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -410,7 +413,7 @@ describe('CompetencyAssociationsProvider', () => {
       outlineGate.release();
     });
 
-    expect(await screen.findByText(focusOnGroup(10))).toBeInTheDocument();
+    expect(await screen.findByText(selectionOnGroup(10))).toBeInTheDocument();
   });
 
   it('keeps an expanded group-less course editable after the competency changes', async () => {
@@ -431,7 +434,7 @@ describe('CompetencyAssociationsProvider', () => {
     expect(screen.getByText('Can edit course B: true')).toBeInTheDocument();
   });
 
-  describe('notifyCourseExpanded focus', () => {
+  describe('notifyCourseExpanded selection', () => {
     const renderWithCourseB = async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -441,35 +444,35 @@ describe('CompetencyAssociationsProvider', () => {
       await waitForSuccess();
     };
 
-    it('moves focus from course A\'s group to course B\'s last group by ordering (21) and its last rule box', async () => {
+    it('moves selection from course A\'s group to course B\'s last group by ordering (21) and its last rule box', async () => {
       await renderWithCourseB();
-      await click('Focus group 10');
+      await click('Select group 10');
 
       await click('Expand course B');
 
-      expect(screen.getByText(focusOn(21, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(21, eqKey))).toBeInTheDocument();
     });
 
-    it('moves focus again when an already-expanded course is expanded after focus went back to another course', async () => {
+    it('moves selection again when an already-expanded course is expanded after selection went back to another course', async () => {
       await renderWithCourseB();
-      await click('Focus group 10');
+      await click('Select group 10');
       await click('Expand course B');
-      await click('Focus group 10');
+      await click('Select group 10');
 
       await click('Expand course B');
 
-      expect(screen.getByText(focusOn(21, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(21, eqKey))).toBeInTheDocument();
     });
 
-    it('focuses course B\'s last group by ordering (21) when nothing is focused', async () => {
+    it('selects course B\'s last group by ordering (21) when nothing is selected', async () => {
       await renderWithCourseB();
 
       await click('Expand course B');
 
-      expect(screen.getByText(focusOnGroup(21))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(21))).toBeInTheDocument();
     });
 
-    it('counts every expansion of a course, even one that leaves focus unchanged', async () => {
+    it('counts every expansion of a course, even one that leaves selection unchanged', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
@@ -481,36 +484,36 @@ describe('CompetencyAssociationsProvider', () => {
       await click('Expand course A');
 
       expect(screen.getByText('Course A expansions: 2')).toBeInTheDocument();
-      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
     });
 
-    it('leaves focus unchanged when the expanded course has no groups', async () => {
+    it('leaves selection unchanged when the expanded course has no groups', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
       renderProvider();
       await waitForSuccess();
-      await click('Focus group 10');
+      await click('Select group 10');
 
       await click('Expand course B');
 
-      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
     });
 
-    it('leaves focus unchanged when it is already on a group of the expanded course', async () => {
+    it('leaves selection unchanged when it is already on a group of the expanded course', async () => {
       await renderWithCourseB();
-      await click('Focus group 20');
-      expect(screen.getByText(focusOn(20, null))).toBeInTheDocument();
+      await click('Select group 20');
+      expect(screen.getByText(selectionOn(20, null))).toBeInTheDocument();
 
       await click('Expand course B');
 
-      expect(screen.getByText(focusOn(20, null))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(20, null))).toBeInTheDocument();
     });
 
-    it('associates into course B\'s last group by ordering (21), the group that expansion focused', async () => {
+    it('associates into course B\'s last group by ordering (21), the group that expansion selected', async () => {
       await renderWithCourseB();
       axiosMock.onPost(createUrl).reply(201, createdCriterion(21, eqRule));
-      await click('Focus group 10');
+      await click('Select group 10');
       await click('Expand course B');
 
       await click('Associate in course B');
@@ -551,15 +554,15 @@ describe('CompetencyAssociationsProvider', () => {
       await waitForSuccess();
     };
 
-    it('focuses course B\'s last group by ordering (21) and rule box once the data arrives, and associates into it', async () => {
+    it('selects course B\'s last group by ordering (21) and rule box once the data arrives, and associates into it', async () => {
       renderWithPendingGroupsAndProfile();
       axiosMock.onPost(createUrl).reply(201, createdCriterion(21, eqRule));
       await click('Expand course B');
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
 
       await finishLoading();
 
-      expect(screen.getByText(focusOn(21, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(21, eqKey))).toBeInTheDocument();
       await click('Associate in course B');
       await expectSinglePost({
         object_id: 'new-sub',
@@ -569,45 +572,45 @@ describe('CompetencyAssociationsProvider', () => {
       });
     });
 
-    it('keeps the author\'s own pick (10) over the expansion focus (21) when they picked after expanding', async () => {
+    it('keeps the author\'s own pick (10) over the expansion selection (21) when they picked after expanding', async () => {
       renderWithPendingGroupsAndProfile();
       await click('Expand course B');
-      await click('Focus group 10');
+      await click('Select group 10');
 
       await finishLoading();
 
-      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
     });
 
-    it('moves focus to course B\'s last group (21) when an earlier pick (10) also has a stale rule key', async () => {
+    it('moves selection to course B\'s last group (21) when an earlier pick (10) also has a stale rule key', async () => {
       renderWithPendingGroupsAndProfile();
-      await click('Focus rule box 10 gte');
+      await click('Select rule box 10 gte');
       await click('Expand course B');
 
       await finishLoading();
 
-      expect(screen.getByText(focusOn(21, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(21, eqKey))).toBeInTheDocument();
     });
 
-    it('focuses course A\'s only group (10) when course A is expanded after course B', async () => {
+    it('selects course A\'s only group (10) when course A is expanded after course B', async () => {
       renderWithPendingGroupsAndProfile();
       await click('Expand course B');
       await click('Expand course A');
 
       await finishLoading();
 
-      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
     });
 
-    it('focuses the expanded course\'s last group (21) rather than the sole accessible group (10)', async () => {
-      // Course B's outline fails, so auto-focus alone would choose group 10, course A's only leaf.
+    it('selects the expanded course\'s last group (21) rather than the sole accessible group (10)', async () => {
+      // Course B's outline fails, so auto-selection alone would choose group 10, course A's only leaf.
       renderWithPendingGroupsAndProfile({ courseBOutlineStatus: 403 });
       await click('Expand course B');
 
       await finishLoading();
       await waitFor(() => expect(accessibleCourses()).toHaveTextContent(courseA));
 
-      expect(screen.getByText(focusOnGroup(21))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(21))).toBeInTheDocument();
     });
 
     it('does not apply a pending expansion to a previously loaded competency it switches to', async () => {
@@ -623,7 +626,7 @@ describe('CompetencyAssociationsProvider', () => {
       await click('Expand course B');
       rerender(providerFor(otherTagId));
 
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
     it('is dropped when the competency changes', async () => {
@@ -637,7 +640,7 @@ describe('CompetencyAssociationsProvider', () => {
       rerender(providerFor(otherTagId));
       await waitForSuccess();
 
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
   });
 
@@ -713,7 +716,7 @@ describe('CompetencyAssociationsProvider', () => {
         );
       };
       render(<Parent />);
-      await screen.findByText(focusOnGroup(10));
+      await screen.findByText(selectionOnGroup(10));
       const rendersBefore = probeRenders;
 
       await click('Re-render provider');
@@ -735,40 +738,40 @@ describe('CompetencyAssociationsProvider', () => {
     });
   });
 
-  describe('focusGroup', () => {
-    it('keeps the selected rule box when the already-focused group is focused again', async () => {
+  describe('selectGroup', () => {
+    it('keeps the selected rule box when the already-selected group is selected again', async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
       axiosMock.onGet(courseBOutlineUrl).reply(200, outlineFixture);
       renderProvider();
       await waitForSuccess();
-      await click('Focus group 21');
-      expect(screen.getByText(focusOn(21, eqKey))).toBeInTheDocument();
-      await click('Focus rule box 21 gte');
-      expect(screen.getByText(focusOn(21, gteKey))).toBeInTheDocument();
+      await click('Select group 21');
+      expect(screen.getByText(selectionOn(21, eqKey))).toBeInTheDocument();
+      await click('Select rule box 21 gte');
+      expect(screen.getByText(selectionOn(21, gteKey))).toBeInTheDocument();
 
-      await click('Focus group 21');
+      await click('Select group 21');
 
-      expect(screen.getByText(focusOn(21, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(21, gteKey))).toBeInTheDocument();
     });
 
-    it('moves focus to the rule box\'s own group when a rule box of another group is focused', async () => {
+    it('moves selection to the rule box\'s own group when a rule box of another group is selected', async () => {
       axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
       axiosMock.onGet(courseBOutlineUrl).reply(200, outlineFixture);
       renderProvider();
       await waitForSuccess();
-      await click('Focus group 10');
+      await click('Select group 10');
 
-      await click('Focus rule box 21 gte');
+      await click('Select rule box 21 gte');
 
-      expect(screen.getByText(focusOn(21, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(21, gteKey))).toBeInTheDocument();
     });
   });
 
-  describe('when the focused rule key matches none of the focused group\'s rule boxes', () => {
+  describe('when the selected rule key matches none of the selected group\'s rule boxes', () => {
     const groupsWithRule = (rule: GradeRulePayload | null) => ({
       ...singleGroupResponse,
       criteria: rule
@@ -797,14 +800,14 @@ describe('CompetencyAssociationsProvider', () => {
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
     });
 
-    it('moves focus to the group\'s last rule box and creates into it', async () => {
+    it('moves selection to the group\'s last rule box and creates into it', async () => {
       axiosMock.onPost(createUrl).reply(201, createdCriterion(10, eqRule));
       renderProvider();
-      await screen.findByText(focusOn(10, gteKey));
+      await screen.findByText(selectionOn(10, gteKey));
 
       await refetchGroupsAs(groupsWithRule(eqRule));
 
-      expect(await screen.findByText(focusOn(10, eqKey))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(10, eqKey))).toBeInTheDocument();
       await click('Associate in course A');
       await expectSinglePost({
         object_id: 'new-sub',
@@ -814,21 +817,21 @@ describe('CompetencyAssociationsProvider', () => {
       });
     });
 
-    it('keeps the group focused with no rule box when it has none left, and creates into it', async () => {
+    it('keeps the group selected with no rule box when it has none left, and creates into it', async () => {
       axiosMock.onPost(createUrl).reply(201, createdCriterion(10));
       renderProvider();
-      await screen.findByText(focusOn(10, gteKey));
+      await screen.findByText(selectionOn(10, gteKey));
 
       await refetchGroupsAs(groupsWithRule(null));
 
-      expect(await screen.findByText(focusOn(10, null))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(10, null))).toBeInTheDocument();
       await click('Associate in course A');
       await expectSinglePost({ object_id: 'new-sub', group_id: 10 });
     });
 
-    // Unlike "focuses the response's group and rule after a successful create", whose group 999 is absent from the
-    // tree so re-resolution never runs, this refetches a tree containing the new box and checks focus stays on it.
-    it('keeps focus on the rule box a create just added to the focused group', async () => {
+    // Unlike "selects the response's group and rule after a successful create", whose group 999 is absent from the
+    // tree so re-resolution never runs, this refetches a tree containing the new box and checks selection stays on it.
+    it('keeps selection on the rule box a create just added to the selected group', async () => {
       axiosMock.onPost(createUrl).reply(() => {
         groupsReply = {
           ...singleGroupResponse,
@@ -844,13 +847,13 @@ describe('CompetencyAssociationsProvider', () => {
         return [201, createdCriterion(10, eqRule)];
       });
       renderProvider();
-      await screen.findByText(focusOn(10, gteKey));
+      await screen.findByText(selectionOn(10, gteKey));
 
       await click('Associate in course A');
 
-      expect(await screen.findByText(focusOn(10, eqKey))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(10, eqKey))).toBeInTheDocument();
       await flushEffects();
-      expect(screen.getByText(focusOn(10, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(10, eqKey))).toBeInTheDocument();
     });
   });
 
@@ -873,19 +876,19 @@ describe('CompetencyAssociationsProvider', () => {
       await waitForSuccess();
     });
 
-    it('resets focus and re-arms the auto-focus when both competencies\' trees are already cached', async () => {
+    it('resets selection and re-arms the auto-selection when both competencies\' trees are already cached', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(otherGroupsUrl).reply(200, otherSingleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
       const { rerender } = renderProvider();
-      await screen.findByText(focusOnGroup(10));
+      await screen.findByText(selectionOnGroup(10));
       rerender(providerFor(otherTagId));
-      await screen.findByText(focusOnGroup(30));
+      await screen.findByText(selectionOnGroup(30));
 
       rerender(providerFor(tagId));
 
-      expect(await screen.findByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOnGroup(10))).toBeInTheDocument();
     });
   });
 
@@ -902,73 +905,73 @@ describe('CompetencyAssociationsProvider', () => {
       return view;
     };
 
-    it('adding a rule box focuses the group with no rule key', async () => {
+    it('adding a rule box selects the group with no rule key', async () => {
       await renderLoaded();
 
       await click('Add placeholder rule box in group 10');
 
-      expect(screen.getByText(focusOn(10, null))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(10, null))).toBeInTheDocument();
       expect(screen.getByText('Has placeholder: true')).toBeInTheDocument();
     });
 
-    it('adding a group replaces a placeholder rule box, since focus has one slot', async () => {
+    it('adding a group replaces a placeholder rule box, since selection has one slot', async () => {
       await renderLoaded();
       await click('Add placeholder rule box in group 10');
-      expect(screen.getByText(focusOn(10, null))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(10, null))).toBeInTheDocument();
 
       await click('Add placeholder group under course A');
 
-      expect(screen.getByText('Focus: group null, rule none')).toBeInTheDocument();
+      expect(screen.getByText('Selection: group null, rule none')).toBeInTheDocument();
       expect(screen.getByText(/"parentRuleGroupId":1,"logicOperator":"OR"/)).toBeInTheDocument();
     });
 
-    it('focusing a real group clears the placeholder', async () => {
+    it('selecting a real group clears the placeholder', async () => {
       await renderLoaded(courseBGroupsResponse);
       await click('Add placeholder rule box in group 10');
       expect(screen.getByText('Has placeholder: true')).toBeInTheDocument();
 
-      await click('Focus group 21');
+      await click('Select group 21');
 
       expect(screen.getByText('Has placeholder: false')).toBeInTheDocument();
-      expect(screen.getByText(focusOn(21, eqKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(21, eqKey))).toBeInTheDocument();
     });
 
-    it('keeps the placeholder rule box focus instead of resolving its null key to the last box', async () => {
+    it('keeps the placeholder rule box selection instead of resolving its null key to the last box', async () => {
       await renderLoaded();
       await click('Add placeholder rule box in group 10');
       await flushEffects();
 
-      expect(screen.getByText(focusOn(10, null))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(10, null))).toBeInTheDocument();
     });
 
-    it('moves focus off a placeholder onto another course\'s last group when that course expands', async () => {
+    it('moves selection off a placeholder onto another course\'s last group when that course expands', async () => {
       await renderLoaded(twoCoursesResponse);
       await click('Add placeholder rule box in group 10');
 
       await click('Expand course B');
 
-      expect(await screen.findByText(focusOnGroup(20))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOnGroup(20))).toBeInTheDocument();
     });
 
     it.each([
-      ['rule box in a real group', 'Add placeholder rule box in group 10', focusOn(10, null)],
-      ['group', 'Add placeholder group under course A', 'Focus: group null, rule none'],
-    ])('keeps a placeholder %s focused when its own course expands', async (_label, addAction, expectedFocus) => {
+      ['rule box in a real group', 'Add placeholder rule box in group 10', selectionOn(10, null)],
+      ['group', 'Add placeholder group under course A', 'Selection: group null, rule none'],
+    ])('keeps a placeholder %s selected when its own course expands', async (_label, addAction, expectedSelection) => {
       await renderLoaded();
       await click(addAction);
 
       await click('Expand course A');
 
-      expect(screen.getByText(expectedFocus)).toBeInTheDocument();
+      expect(screen.getByText(expectedSelection)).toBeInTheDocument();
     });
 
-    it('discarding the placeholder clears focus', async () => {
+    it('discarding the placeholder clears selection', async () => {
       await renderLoaded();
       await click('Add placeholder group under course A');
 
       await click('Discard placeholder');
 
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
     it('sends nothing and flags a rejection when the placeholder\'s default score duplicates a box', async () => {
@@ -994,12 +997,12 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText('Duplicate rejected: false')).toBeInTheDocument();
     });
 
-    it('drops the focus on a group missing from the loaded tree', async () => {
+    it('drops the selection on a group missing from the loaded tree', async () => {
       await renderLoaded();
 
-      await click('Focus group 999');
+      await click('Select group 999');
 
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
     it('counts each rejection, including a repeat while the flag is already set', async () => {
@@ -1113,11 +1116,11 @@ describe('CompetencyAssociationsProvider', () => {
       return control;
     };
 
-    const renderWithFocusOnGroup10 = async () => {
+    const renderWithSelectionOnGroup10 = async () => {
       renderProvider();
       await waitForSuccess();
-      await click('Focus group 10');
-      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      await click('Select group 10');
+      expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
     };
 
     const deleteAndRefetch = async (action: string, reads: { release: () => void; }) => {
@@ -1128,56 +1131,56 @@ describe('CompetencyAssociationsProvider', () => {
       });
     };
 
-    it('stays pending until the refetch lands, then focuses the neighbor and requests keyboard focus for it', async () => {
+    it('stays pending until the refetch lands, then selects the neighbor and requests keyboard focus for it', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       await click('Delete group 10');
 
       await waitFor(() => expect(groupsReads()).toHaveLength(2));
       // The delete itself has resolved, but the refetch has not.
       expect(screen.getByText('Deleting: true')).toBeInTheDocument();
-      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
 
       await act(async () => {
         reads.release();
       });
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
       expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 11, expand: true }))).toBeInTheDocument();
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('treats a 404 as success: no toast, and focus still moves off the vanished group', async () => {
+    it('treats a 404 as success: no toast, and selection still moves off the vanished group', async () => {
       axiosMock.onDelete(deleteUrl).reply(404);
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       await deleteAndRefetch('Delete group 10', reads);
 
-      expect(await screen.findByText(focusOnGroup(11))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOnGroup(11))).toBeInTheDocument();
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('toasts on a failure, keeps focus when the group is still there, and requests no keyboard focus', async () => {
+    it('toasts on a failure, keeps selection when the group is still there, and requests no keyboard focus', async () => {
       axiosMock.onDelete(deleteUrl).reply(500);
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, twoGroupsWithCriteriaResponse);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       await deleteAndRefetch('Delete group 10', reads);
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expectToast('Couldn\'t remove the group. The panel was refreshed.', ErrorIcon);
-      expect(screen.getByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });
 
     it('drops a second call made before the first settles, so one request is sent', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       await deleteAndRefetch('Delete group 10 twice', reads);
 
@@ -1189,28 +1192,28 @@ describe('CompetencyAssociationsProvider', () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(singleGroupResponse, noGroupsResponse);
       renderProvider();
-      expect(await screen.findByText(focusOnGroup(10))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOnGroup(10))).toBeInTheDocument();
 
       await deleteAndRefetch('Delete group 10', reads);
 
       expect(await screen.findByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
 
-    it('clears the keyboard focus request when focus is written some other way', async () => {
+    it('clears the keyboard focus request when selection is written some other way', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
       await deleteAndRefetch('Delete group 10', reads);
       expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, expand: true })))
         .toBeInTheDocument();
 
-      await click('Focus group 11');
+      await click('Select group 11');
 
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });
 
-    it('focuses the course group above when deleting the only rule group removes its course group', async () => {
+    it('selects the course group above when deleting the only rule group removes its course group', async () => {
       axiosMock.onDelete(apiUrls.updateCompetencyCriteriaGroup(tagId, 20)).reply(200, {});
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
         groups: twoCoursesWithCriteriaResponse.groups.filter((group) => group.id !== 2 && group.id !== 20),
@@ -1218,42 +1221,42 @@ describe('CompetencyAssociationsProvider', () => {
       });
       renderProvider();
       await waitForSuccess();
-      await click('Focus group 20');
+      await click('Select group 20');
 
       await deleteAndRefetch('Delete group 20', reads);
 
-      expect(await screen.findByText(focusOn(10, gteKey))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(10, gteKey))).toBeInTheDocument();
       expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 10, expand: true }))).toBeInTheDocument();
     });
 
-    it('keeps focus, and asks to keep sections as they are, when the deleted group did not hold focus', async () => {
+    it('keeps selection, and asks to keep sections as they are, when the deleted group did not hold selection', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
       renderProvider();
       await waitForSuccess();
-      await click('Focus group 11');
+      await click('Select group 11');
 
       await deleteAndRefetch('Delete group 10', reads);
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
       expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 11, expand: false }))).toBeInTheDocument();
     });
 
     it('respects a click made on another group while the delete is pending', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       await click('Delete group 10');
       await waitFor(() => expect(groupsReads()).toHaveLength(2));
-      await click('Focus group 11');
+      await click('Select group 11');
       await act(async () => {
         reads.release();
       });
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
-      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
     });
 
     it('requests the empty state when only a course group the author cannot see is left', async () => {
@@ -1263,35 +1266,35 @@ describe('CompetencyAssociationsProvider', () => {
         criteria: twoCoursesWithCriteriaResponse.criteria.filter((item) => item.groupId === 20),
       });
       axiosMock.onGet(courseBOutlineUrl).reply(403);
-      await renderWithFocusOnGroup10();
+      await renderWithSelectionOnGroup10();
 
       await deleteAndRefetch('Delete group 10', reads);
 
       expect(await screen.findByText(keyboardRequest({ kind: 'empty' }))).toBeInTheDocument();
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
     });
   });
 
   describe('removePlaceholderGroup', () => {
-    it('sends no request, and focuses the last saved group of the placeholder\'s course with a keyboard request', async () => {
+    it('sends no request, and selects the last saved group of the placeholder\'s course with a keyboard request', async () => {
       axiosMock.onGet(groupsUrl).reply(200, twoGroupsWithCriteriaResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
       renderProvider();
       await waitForSuccess();
       await click('Add placeholder group under course A');
-      expect(screen.getByText('Focus: group null, rule none')).toBeInTheDocument();
+      expect(screen.getByText('Selection: group null, rule none')).toBeInTheDocument();
 
       await click('Remove placeholder group');
 
-      expect(screen.getByText(focusOn(11, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
       expect(screen.getByText('Keyboard request: {"kind":"group","groupId":11,"expand":true}')).toBeInTheDocument();
       expect(axiosMock.history.delete).toHaveLength(0);
       expect(axiosMock.history.patch).toHaveLength(0);
       expect(axiosMock.history.post).toHaveLength(0);
     });
 
-    it('clears focus, with no keyboard request, when the placeholder\'s course group has no saved group', async () => {
+    it('clears selection, with no keyboard request, when the placeholder\'s course group has no saved group', async () => {
       axiosMock.onGet(groupsUrl).reply(200, {
         groups: singleGroupResponse.groups.filter((group) => group.id !== 10),
         criteria: [],
@@ -1304,13 +1307,13 @@ describe('CompetencyAssociationsProvider', () => {
 
       await click('Remove placeholder group');
 
-      expect(noFocus()).toBeInTheDocument();
+      expect(noSelection()).toBeInTheDocument();
       expect(screen.getByText('Keyboard request: null')).toBeInTheDocument();
     });
   });
 
   describe('associateSubsection', () => {
-    it('sends the focused group\'s id and rule when the focus is a group belonging to the clicked subsection\'s course', async () => {
+    it('sends the selected group\'s id and rule when the selection is a group belonging to the clicked subsection\'s course', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
@@ -1318,7 +1321,7 @@ describe('CompetencyAssociationsProvider', () => {
       renderProvider();
       await waitForSuccess();
 
-      await click('Focus rule box 10 gte');
+      await click('Select rule box 10 gte');
       await click('Associate in course A');
 
       await expectSinglePost({
@@ -1329,7 +1332,7 @@ describe('CompetencyAssociationsProvider', () => {
       });
     });
 
-    it('omits group_id and rule fields when focus is unset and the course has no groups', async () => {
+    it('omits group_id and rule fields when selection is unset and the course has no groups', async () => {
       axiosMock.onGet(groupsUrl).reply(200, noGroupsResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onPost(createUrl).reply(201, createdCriterion(20));
@@ -1341,7 +1344,7 @@ describe('CompetencyAssociationsProvider', () => {
       await expectSinglePost({ object_id: 'new-sub' });
     });
 
-    describe('when focus is not on the clicked subsection\'s course, and the course has groups', () => {
+    describe('when selection is not on the clicked subsection\'s course, and the course has groups', () => {
       beforeEach(() => {
         axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
         axiosMock.onGet(profileUrl).reply(200, profileResponse);
@@ -1349,11 +1352,11 @@ describe('CompetencyAssociationsProvider', () => {
         axiosMock.onGet(courseBOutlineUrl).reply(200, outlineFixture);
       });
 
-      it('targets the course\'s last group and rule box when nothing is focused, and focuses them', async () => {
+      it('targets the course\'s last group and rule box when nothing is selected, and selects them', async () => {
         axiosMock.onPost(createUrl).reply(201, createdCriterion(21, eqRule));
         renderProvider();
         await waitForSuccess();
-        noFocus();
+        noSelection();
 
         await click('Associate in course B');
 
@@ -1363,26 +1366,26 @@ describe('CompetencyAssociationsProvider', () => {
           rule_type_override: 'grade',
           rule_payload_override: eqRule,
         });
-        expect(screen.getByText(focusOn(21, eqKey))).toBeInTheDocument();
+        expect(screen.getByText(selectionOn(21, eqKey))).toBeInTheDocument();
       });
 
-      it('targets the course\'s last group when focus is on another course\'s group', async () => {
+      it('targets the course\'s last group when selection is on another course\'s group', async () => {
         axiosMock.onPost(createUrl).reply(201, createdCriterion(10));
         renderProvider();
         await waitForSuccess();
-        await click('Focus group 21');
+        await click('Select group 21');
 
         await click('Associate in course A');
 
         await expectSinglePost({ object_id: 'new-sub', group_id: 10 });
-        expect(screen.getByText(focusOn(10, null))).toBeInTheDocument();
+        expect(screen.getByText(selectionOn(10, null))).toBeInTheDocument();
       });
 
-      it('targets the course\'s last group when the focused group no longer exists in the tree', async () => {
+      it('targets the course\'s last group when the selected group no longer exists in the tree', async () => {
         axiosMock.onPost(createUrl).reply(201, createdCriterion(21, eqRule));
         renderProvider();
         await waitForSuccess();
-        await click('Focus rule box 999 gte');
+        await click('Select rule box 999 gte');
 
         await click('Associate in course B');
 
@@ -1395,7 +1398,7 @@ describe('CompetencyAssociationsProvider', () => {
       });
     });
 
-    it('omits group_id and rule fields when focus is a group belonging to a different course', async () => {
+    it('omits group_id and rule fields when selection is a group belonging to a different course', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
@@ -1403,7 +1406,7 @@ describe('CompetencyAssociationsProvider', () => {
       renderProvider();
       await waitForSuccess();
 
-      await click('Focus rule box 10 gte');
+      await click('Select rule box 10 gte');
       await click('Associate in another course');
 
       await expectSinglePost({ object_id: 'new-sub' });
@@ -1423,7 +1426,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(axiosMock.history.post).toHaveLength(0);
     });
 
-    it('focuses the response\'s group and rule after a successful create, not a stale local read', async () => {
+    it('selects the response\'s group and rule after a successful create, not a stale local read', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
@@ -1434,7 +1437,7 @@ describe('CompetencyAssociationsProvider', () => {
 
       await click('Associate in course A');
 
-      expect(await screen.findByText(focusOn(999, eqKey))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(999, eqKey))).toBeInTheDocument();
     });
 
     it.each([
@@ -1454,7 +1457,7 @@ describe('CompetencyAssociationsProvider', () => {
 
       visits.forEach((id) => rerender(providerFor(id)));
       await waitForSuccess();
-      await click('Focus rule box 999 gte');
+      await click('Select rule box 999 gte');
       await act(async () => {
         createGate.release();
         await new Promise((resolve) => {
@@ -1462,7 +1465,7 @@ describe('CompetencyAssociationsProvider', () => {
         });
       });
 
-      expect(screen.getByText(focusOnGroup(999))).toBeInTheDocument();
+      expect(screen.getByText(selectionOnGroup(999))).toBeInTheDocument();
     });
 
     it('handles the result of every create when several are started before the first one settles', async () => {
@@ -1476,7 +1479,7 @@ describe('CompetencyAssociationsProvider', () => {
       await click('Associate two in one tick');
 
       await waitFor(() => expectToast(createFailedMessage, ErrorIcon));
-      await screen.findByText(focusOnGroup(888));
+      await screen.findByText(selectionOnGroup(888));
       expect(axiosMock.history.post).toHaveLength(2);
     });
 
@@ -1590,7 +1593,7 @@ describe('CompetencyAssociationsProvider', () => {
   });
 
   describe('updateRuleScore', () => {
-    it('sends the batch payload and focuses the rule box keyed from the response on success', async () => {
+    it('sends the batch payload and selects the rule box keyed from the response on success', async () => {
       // The refetch after the save returns the edited rule, as the server would.
       let groupsReply = singleGroupResponse;
       axiosMock.onGet(groupsUrl).reply(() => [200, groupsReply]);
@@ -1629,23 +1632,23 @@ describe('CompetencyAssociationsProvider', () => {
         rule_type_override: 'grade',
         rule_payload_override: { op: 'gte', value: 0.8, scale: 'percent' },
       });
-      expect(await screen.findByText(focusOn(10, 'grade:gte:0.8:percent'))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(10, 'grade:gte:0.8:percent'))).toBeInTheDocument();
     });
 
-    it('shows a failure toast on rejection, without changing focus', async () => {
+    it('shows a failure toast on rejection, without changing selection', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(profileUrl).reply(200, profileResponse);
       axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
       axiosMock.onPatch(updateRuleScoreUrl).reply(500);
       renderProvider();
-      expect(await screen.findByText(focusOn(10, gteKey))).toBeInTheDocument();
+      expect(await screen.findByText(selectionOn(10, gteKey))).toBeInTheDocument();
 
       await click('Update rule score');
 
       await waitFor(() => {
         expectToast('There was a problem updating this rule\'s score. Please try again.', ErrorIcon);
       });
-      expect(screen.getByText(focusOn(10, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(selectionOn(10, gteKey))).toBeInTheDocument();
     });
   });
 });

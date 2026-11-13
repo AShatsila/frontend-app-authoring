@@ -37,11 +37,11 @@ const response: CompetencyCriteriaGroupsResponse = {
 const boxes = ruleBoxesForGroup(10, buildCompetencyCriteriaGroupsIndex(response), systemDefaultProfile);
 
 const renderList = (
-  focus: { groupId: number; ruleKey: string; } | null = null,
+  selection: { groupId: number; ruleKey: string; } | null = null,
   listedBoxes = boxes,
 ) => (
   render(
-    <MockCompetencyAssociationsProvider value={{ focus }}>
+    <MockCompetencyAssociationsProvider value={{ selection }}>
       <RuleBoxList
         groupId={10}
         boxes={listedBoxes}
@@ -95,7 +95,7 @@ describe('<RuleBoxList />', () => {
     ).toEqual(['Subsection A', 'Subsection B']);
   });
 
-  it('marks only the box matching the context focus as current', () => {
+  it('marks only the box matching the context selection as current', () => {
     renderList({ groupId: 10, ruleKey: 'grade:lte:0.9:percent' });
 
     const [defaultBox, overrideBox] = screen.getAllByRole('button');
@@ -103,7 +103,7 @@ describe('<RuleBoxList />', () => {
     expect(overrideBox).toHaveAttribute('aria-current', 'true');
   });
 
-  it('marks no box as current when the focused key matches none rendered', () => {
+  it('marks no box as current when the selected key matches none rendered', () => {
     renderList({ groupId: 10, ruleKey: 'stale-key-that-matches-nothing' });
 
     screen.getAllByRole('button').forEach((control) => {
@@ -176,7 +176,7 @@ describe('<RuleBoxList />', () => {
       render(
         <MockCompetencyAssociationsProvider
           value={{
-            focus: { groupId: 10, ruleKey: null },
+            selection: { groupId: 10, ruleKey: null },
             placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null, opensScoreSettings: true },
             setPlaceholderRulePayload,
           }}
@@ -203,7 +203,7 @@ describe('<RuleBoxList />', () => {
         return (
           <MockCompetencyAssociationsProvider
             value={{
-              focus: { groupId: 10, ruleKey: null },
+              selection: { groupId: 10, ruleKey: null },
               placeholder: {
                 parentRuleGroupId: null,
                 logicOperator: 'OR',
@@ -246,7 +246,7 @@ describe('<RuleBoxList />', () => {
       const ui = (duplicateRejectionCount: number) => (
         <MockCompetencyAssociationsProvider
           value={{
-            focus: { groupId: 10, ruleKey: null },
+            selection: { groupId: 10, ruleKey: null },
             placeholderDuplicateRejected: true,
             placeholderDuplicateRejectionCount: duplicateRejectionCount,
           }}
@@ -326,7 +326,7 @@ describe('<RuleBoxList />', () => {
       canEdit = true,
     ) =>
       render(
-        <MockCompetencyAssociationsProvider value={{ focus: { groupId: 10, ruleKey: null }, ...contextOverrides }}>
+        <MockCompetencyAssociationsProvider value={{ selection: { groupId: 10, ruleKey: null }, ...contextOverrides }}>
           <RuleBoxList
             groupId={10}
             boxes={placeholderBoxes}
@@ -355,8 +355,8 @@ describe('<RuleBoxList />', () => {
       );
     });
 
-    it('is absent when another rule box in the group is focused', () => {
-      const { container } = renderWithPlaceholder({ focus: { groupId: 10, ruleKey: placeholderBoxes[0].key } });
+    it('is absent when another rule box in the group is selected', () => {
+      const { container } = renderWithPlaceholder({ selection: { groupId: 10, ruleKey: placeholderBoxes[0].key } });
 
       expect(container.querySelectorAll('.rule-box')).toHaveLength(1);
     });

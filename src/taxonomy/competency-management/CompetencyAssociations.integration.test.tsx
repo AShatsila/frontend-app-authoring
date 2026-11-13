@@ -100,7 +100,7 @@ describe('competency associations over the real provider', () => {
     axiosMock.onGet(profileUrl).reply(200, defaultProfileResponse);
   });
 
-  it('expanding a course moves focus to its last group and last rule box, reopening its collapsed card', async () => {
+  it('expanding a course moves selection to its last group and last rule box, reopening its collapsed card', async () => {
     axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(
@@ -108,7 +108,7 @@ describe('competency associations over the real provider', () => {
       outlineOf('Course B', { 'b-sub-1': 'Homework 1', 'b-sub-2': 'Homework 2' }),
     );
     renderPanel();
-    // Focus starts on course A's group, with the course B card collapsed.
+    // Select starts on course A's group, with the course B card collapsed.
     await screen.findAllByText(/^By completing/);
     await user.click(groupHeaders()[0]);
     expect(groupHeaders()[0]).toHaveAttribute('aria-current', 'true');
@@ -127,7 +127,7 @@ describe('competency associations over the real provider', () => {
     expect(scrollIntoView.mock.contexts.at(-1)).toBe(lastRuleBox.parentElement);
   });
 
-  it('selecting a subsection in a course with no groups creates its group and rule box and focuses them', async () => {
+  it('selecting a subsection in a course with no groups creates its group and rule box and selects them', async () => {
     let groupsReply = singleGroupResponse;
     axiosMock.onGet(groupsUrl).reply(() => [200, groupsReply]);
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(
@@ -153,7 +153,7 @@ describe('competency associations over the real provider', () => {
       }];
     });
     renderPanel();
-    // Course A's only group is auto-focused, so a missing `group_id` is not the focus-less default.
+    // Course A's only group is auto-selected, so a missing `group_id` is not the selection-less default.
     expect(await screen.findByRole('heading', { name: 'From within Course A ...' })).toBeInTheDocument();
     expect(groupHeaders()).toHaveLength(1);
     await user.click(screen.getByRole('button', { name: 'Expand' }));
@@ -171,7 +171,7 @@ describe('competency associations over the real provider', () => {
     expect(scrollIntoView.mock.contexts).toContain(ruleBoxes[1].parentElement);
   });
 
-  it('selecting a subsection in a course while focus is on another course adds to that course\'s last group', async () => {
+  it('selecting a subsection in a course while selection is on another course adds to that course\'s last group', async () => {
     axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(
       200,
@@ -188,7 +188,7 @@ describe('competency associations over the real provider', () => {
     });
     renderPanel([courseARow, courseBRow]);
     await screen.findAllByRole('heading', { name: /^From within Course/ });
-    // Expanding course A and then course B leaves the focus on course B's last group.
+    // Expanding course A and then course B leaves the selection on course B's last group.
     await user.click(screen.getAllByRole('button', { name: 'Expand' })[0]);
     await user.click(screen.getAllByRole('button', { name: 'Expand' })[1]);
     expect(currentStates(groupHeaders())).toEqual(['false', 'false', 'true']);
@@ -287,7 +287,7 @@ describe('competency associations over the real provider', () => {
     });
   });
 
-  it('moves the focus when a second group header and then a second rule box are clicked', async () => {
+  it('moves the selection when a second group header and then a second rule box are clicked', async () => {
     axiosMock.onGet(groupsUrl).reply(200, courseBGroupsResponse);
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseB)).reply(
@@ -309,7 +309,7 @@ describe('competency associations over the real provider', () => {
     expect(currentStates(ruleBoxControls())).toEqual(['false', 'true']);
   });
 
-  it('shows an empty saved group\'s placeholder box without opening its score settings when the group is focused', async () => {
+  it('shows an empty saved group\'s placeholder box without opening its score settings when the group is selected', async () => {
     axiosMock.onGet(groupsUrl).reply(200, twoGroupsResponse);
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
     renderPanel([courseARow]);
@@ -329,7 +329,7 @@ describe('competency associations over the real provider', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  describe('focus after a committed score', () => {
+  describe('selection after a committed score', () => {
     const scorePill = (percent: number) =>
       screen.getByRole('button', { name: new RegExp(`With a score of ${percent}%`) });
 
