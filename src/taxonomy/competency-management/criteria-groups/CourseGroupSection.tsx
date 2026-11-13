@@ -73,8 +73,8 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
 
   const bottomTierGroups = status === 'success' ? bottomTierGroupsForCourse(groupsIndex, courseGroup.courseKey) : [];
 
-  // A collapsed section has not mounted its cards, so a pending keyboard focus request for one of them either opens
-  // the section or, when the author's collapse is to be kept, lands on the section's expand toggle instead.
+  // A collapsed section has not mounted its cards. A request that moves selection into it is opened by the selection
+  // effect below. One that keeps the author's collapse lands on the section's expand toggle instead.
   const request = keyboardFocusRequest?.kind === 'group'
       && bottomTierGroups.some((group) => group.id === keyboardFocusRequest.groupId)
     ? keyboardFocusRequest
@@ -82,12 +82,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const holdsFocusRequestTarget = request !== null;
   const requestExpandsSection = request?.expand === true;
   useEffect(() => {
-    if (!holdsFocusRequestTarget || !isCollapsed) {
-      return;
-    }
-    if (requestExpandsSection) {
-      setIsCollapsed(false);
-    } else {
+    if (holdsFocusRequestTarget && isCollapsed && !requestExpandsSection) {
       sectionToggleRef.current?.focus();
       consumeKeyboardFocusRequest();
     }

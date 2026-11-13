@@ -207,8 +207,9 @@ export interface PageOrderSnapshot {
   knownCourseGroupIds: number[];
 }
 
-/** Captures the order `CourseGroupList` renders: `accessibleCourseGroups`
- * order, then `bottomTierGroupsForCourse` order within each.
+/** Captures the group order for `selectionTargetAfterRemoval`, which locates a deleted group's neighbors in it. It
+ * must match what `CourseGroupList` renders: the accessible course-level groups in the given order, each with its
+ * bottom-tier groups sorted by `ordering`, then `id`.
  */
 export function snapshotPageOrder(
   index: CompetencyCriteriaGroupsIndex,
@@ -223,25 +224,8 @@ export function snapshotPageOrder(
   };
 }
 
-const isRenderedOrNew = (snapshot: PageOrderSnapshot, courseGroupId: number) => (
-  !snapshot.knownCourseGroupIds.includes(courseGroupId)
-  || snapshot.entries.some((entry) => entry.courseGroupId === courseGroupId)
-);
-
-/** Whether `freshIndex` holds a course-level group that was rendered before the delete or is new since. */
-export function hasVisibleOrNewCourseGroup(
-  snapshot: PageOrderSnapshot,
-  freshIndex: CompetencyCriteriaGroupsIndex,
-): boolean {
-  return freshIndex.courseGroups.some((courseGroup) => isRenderedOrNew(snapshot, courseGroup.id));
-}
-
 type Survives = (id: number) => boolean;
 type SelectionRef = { groupId: number | null; ruleKey: string | null; };
-
-const survivingRuleGroups = (entry: PageOrderEntry, survives: Survives) => (
-  survives(entry.courseGroupId) ? entry.ruleGroupIds.filter(survives) : []
-);
 
 function selectionSurvives(selection: SelectionRef, placeholderParentId: number | null, survives: Survives): boolean {
   if (selection.groupId === null) {
@@ -261,25 +245,24 @@ function courseEntryPositionOf(
     : snapshot.entries.findIndex((entry) => entry.ruleGroupIds.includes(groupId));
 }
 
-function nearestSiblingGroup(entry: PageOrderEntry, selectedGroupId: number | null, survives: Survives) {
-  if (selectedGroupId === null || !survives(entry.courseGroupId)) {
+/** The nearest surviving rule group above the selected one in its course-level group, else the nearest below. */
+function nearestInCourseGroup(entry: PageOrderEntry, selectedGroupId: number | null, survives: Survives) {
+  if (selectedGroupId === null) {
     return undefined;
   }
   const position = entry.ruleGroupIds.indexOf(selectedGroupId);
-  const above = entry.ruleGroupIds.slice(0, position).filter(survives).pop();
-  return above ?? entry.ruleGroupIds.slice(position + 1).find(survives);
+  const nearestAbove = entry.ruleGroupIds.slice(0, position).filter(survives).at(-1);
+  return nearestAbove ?? entry.ruleGroupIds.slice(position + 1).find(survives);
 }
 
+// Flattened across course-level groups, the last survivor is the last group of the nearest course group above that
+// has one.
 function lastGroupOfCourseAbove(snapshot: PageOrderSnapshot, position: number, survives: Survives) {
-  return snapshot.entries.slice(0, position).reverse()
-    .map((entry) => survivingRuleGroups(entry, survives).pop())
-    .find((id) => id !== undefined);
+  return snapshot.entries.slice(0, position).flatMap((entry) => entry.ruleGroupIds).filter(survives).at(-1);
 }
 
 function firstGroupOfCourseBelow(snapshot: PageOrderSnapshot, position: number, survives: Survives) {
-  return snapshot.entries.slice(position + 1)
-    .map((entry) => survivingRuleGroups(entry, survives)[0])
-    .find((id) => id !== undefined);
+  return snapshot.entries.slice(position + 1).flatMap((entry) => entry.ruleGroupIds).find(survives);
 }
 
 // A course-level group that existed at the snapshot is either covered by the rules above or inaccessible to the
@@ -296,8 +279,8 @@ function firstGroupOfNewCourse(snapshot: PageOrderSnapshot, freshIndex: Competen
  * `'keep-current'` when selection needs no move, or `null` when nothing is left to
  * select. In order:
  *
- * 1. The selected group still exists (for the placeholder group, its
- *    course-level group still exists): `'keep-current'`.
+ * 1. Nothing is selected, or the selected group still exists (for the placeholder
+ *    group, its course-level group still exists or it has no parent): `'keep-current'`.
  * 2. Its course-level group survives: the nearest surviving group above it
  *    in the snapshot, else the nearest below.
  * 3. Otherwise the last group of the nearest surviving course-level group
@@ -308,9 +291,10 @@ function firstGroupOfNewCourse(snapshot: PageOrderSnapshot, freshIndex: Competen
  *    new course's outline may still be loading.
  * 5. Otherwise `null`.
  *
- * Nothing selected before the delete is `'keep-current'`. A placeholder rule box
- * (`ruleKey === null` with a real `groupId`) is treated as a selection of that
- * group.
+ * Rules 2 and 3 apply only when the selected group is in `snapshot.entries`. A
+ * surviving course-level group is one with a surviving rule group. A placeholder
+ * rule box (`ruleKey === null` with a real `groupId`) is treated as a selection of
+ * that group.
  */
 export function selectionTargetAfterRemoval(
   snapshot: PageOrderSnapshot,
@@ -325,7 +309,7 @@ export function selectionTargetAfterRemoval(
   const position = courseEntryPositionOf(snapshot, selection, placeholderParentId);
   const inKnownCourse = position === -1
     ? undefined
-    : nearestSiblingGroup(snapshot.entries[position], selection.groupId, survives)
+    : nearestInCourseGroup(snapshot.entries[position], selection.groupId, survives)
       ?? lastGroupOfCourseAbove(snapshot, position, survives)
       ?? firstGroupOfCourseBelow(snapshot, position, survives);
   return inKnownCourse ?? firstGroupOfNewCourse(snapshot, freshIndex) ?? null;
