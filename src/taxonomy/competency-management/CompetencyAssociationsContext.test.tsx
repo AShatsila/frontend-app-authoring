@@ -1165,7 +1165,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
-    it('toasts on a failure, keeps selection when the group is still there, and requests no keyboard focus', async () => {
+    it('toasts on a failure, keeps selection when the group is still there, and asks to focus its menu', async () => {
       axiosMock.onDelete(deleteUrl).reply(500);
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, twoGroupsWithCriteriaResponse);
       await renderWithSelectionOnGroup10();
@@ -1175,7 +1175,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expectToast('Couldn\'t remove the group. The panel was refreshed.', ErrorIcon);
       expect(screen.getByText(selectionOnGroup(10))).toBeInTheDocument();
-      expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'menu', groupId: 10 }))).toBeInTheDocument();
     });
 
     it('clears selection when the refetch after a successful delete fails', async () => {

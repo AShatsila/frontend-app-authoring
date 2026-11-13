@@ -72,17 +72,36 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
   }, [isSelected, hasSelectedBox]);
 
   const selectButtonRef = useRef<HTMLButtonElement>(null);
-  const takesKeyboardFocus = group !== undefined
-    && keyboardFocusRequest?.kind === 'group'
-    && keyboardFocusRequest.groupId === group.id;
+  const groupRequest = group !== undefined
+      && keyboardFocusRequest?.kind === 'group'
+      && keyboardFocusRequest.groupId === group.id
+    ? keyboardFocusRequest
+    : null;
+  const takesKeyboardFocus = groupRequest !== null;
+  // A moved selection scrolls its own rule box into view. `expand: false` marks an unchanged one, which nothing else
+  // scrolls, so the focus has to.
+  const selectionMoved = groupRequest?.expand === true;
 
   useEffect(() => {
     if (takesKeyboardFocus && selectButtonRef.current) {
-      // `preventScroll`: the selected rule box scrolls itself into view.
-      selectButtonRef.current.focus({ preventScroll: true });
+      selectButtonRef.current.focus({ preventScroll: selectionMoved });
       consumeKeyboardFocusRequest();
     }
-  }, [takesKeyboardFocus, consumeKeyboardFocusRequest]);
+  }, [takesKeyboardFocus, selectionMoved, consumeKeyboardFocusRequest]);
+
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  // Waits for the toggle to be enabled again, since a disabled button cannot take focus.
+  const takesMenuFocus = group !== undefined
+    && keyboardFocusRequest?.kind === 'menu'
+    && keyboardFocusRequest.groupId === group.id
+    && !isDeletingGroup;
+
+  useEffect(() => {
+    if (takesMenuFocus && menuToggleRef.current) {
+      menuToggleRef.current.focus();
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesMenuFocus, consumeKeyboardFocusRequest]);
 
   const sentenceLabel = intl.formatMessage(messages.criteriaGroupBoxLabel, {
     operator: logicOperator === 'AND'
@@ -140,6 +159,7 @@ const CriteriaGroupBox = ({ group, subsectionNamesByUsageKey, canEdit }: Criteri
             </div>
             <Dropdown>
               <Dropdown.Toggle
+                ref={menuToggleRef}
                 id={`rule-group-menu-toggle-${group?.id ?? 'placeholder'}`}
                 as={IconButton}
                 src={MoreVert}

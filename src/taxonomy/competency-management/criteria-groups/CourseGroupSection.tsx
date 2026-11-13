@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import {
   Card,
@@ -49,6 +49,8 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const sectionToggleRef = useRef<HTMLButtonElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
   const { data } = useCourseOutlineIndex(courseGroup.courseKey, { refetchOnMount: false });
 
   const subsectionNamesByUsageKey = useMemo(() => {
@@ -72,7 +74,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   const bottomTierGroups = status === 'success' ? bottomTierGroupsForCourse(groupsIndex, courseGroup.courseKey) : [];
 
   // A collapsed section has not mounted its cards, so a pending keyboard focus request for one of them either opens
-  // the section or, when the author's collapse is to be kept, is dropped rather than left to linger.
+  // the section or, when the author's collapse is to be kept, lands on the section's expand toggle instead.
   const request = keyboardFocusRequest?.kind === 'group'
       && bottomTierGroups.some((group) => group.id === keyboardFocusRequest.groupId)
     ? keyboardFocusRequest
@@ -86,9 +88,25 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     if (requestExpandsSection) {
       setIsCollapsed(false);
     } else {
+      sectionToggleRef.current?.focus();
       consumeKeyboardFocusRequest();
     }
   }, [holdsFocusRequestTarget, requestExpandsSection, isCollapsed, consumeKeyboardFocusRequest]);
+
+  const canEdit = canEditCourse(courseGroup.courseKey);
+  const isRendered = status === 'success' && Boolean(data);
+  // Waits for the toggle to render and be enabled again, since a disabled button cannot take focus.
+  const takesMenuFocus = isRendered
+    && canEdit
+    && keyboardFocusRequest?.kind === 'menu'
+    && keyboardFocusRequest.groupId === courseGroup.id
+    && !isDeletingGroup;
+  useEffect(() => {
+    if (takesMenuFocus && menuToggleRef.current) {
+      menuToggleRef.current.focus();
+      consumeKeyboardFocusRequest();
+    }
+  }, [takesMenuFocus, consumeKeyboardFocusRequest]);
 
   const handleToggleCollapsed = () => {
     // A collapsed section hides its placeholder, so it is dropped instead of lingering unseen.
@@ -112,7 +130,6 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
   }
 
   const courseName = data.courseStructure.displayName;
-  const canEdit = canEditCourse(courseGroup.courseKey);
   const toggleLabel = intl.formatMessage(
     isCollapsed ? messages.expandCourseGroupButtonLabel : messages.collapseCourseGroupButtonLabel,
     { courseName },
@@ -132,6 +149,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
         title={
           <Stack direction="horizontal" gap={1} className="course-group-section__title">
             <IconButton
+              ref={sectionToggleRef}
               src={isCollapsed ? ExpandMore : ExpandLess}
               alt={toggleLabel}
               aria-label={toggleLabel}
@@ -149,6 +167,7 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
         actions={canEdit && (
           <Dropdown>
             <Dropdown.Toggle
+              ref={menuToggleRef}
               id={`course-group-menu-toggle-${courseGroup.id}`}
               as={IconButton}
               src={MoreVert}

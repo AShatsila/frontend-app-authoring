@@ -220,6 +220,44 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
       expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
     });
 
+    it.each([true, false])(
+      'focuses the select button, scrolling only when selection did not move (expand: %s)',
+      (expand) => {
+        const focus = jest.spyOn(HTMLButtonElement.prototype, 'focus');
+        renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 10, expand } });
+
+        expect(focus).toHaveBeenCalledWith({ preventScroll: expand });
+        focus.mockRestore();
+      },
+    );
+
+    it('takes keyboard focus on its menu button when a menu request names it, then consumes the request', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({ keyboardFocusRequest: { kind: 'menu', groupId: 10 }, consumeKeyboardFocusRequest });
+
+      expect(screen.getByRole('button', { name: 'More actions for this group' })).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a menu request pending while the menu button is still disabled', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({
+        keyboardFocusRequest: { kind: 'menu', groupId: 10 },
+        consumeKeyboardFocusRequest,
+        isDeletingGroup: true,
+      });
+
+      expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+    });
+
+    it('ignores a menu request that names another group', () => {
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderBox({ keyboardFocusRequest: { kind: 'menu', groupId: 99 }, consumeKeyboardFocusRequest });
+
+      expect(screen.getByRole('button', { name: 'More actions for this group' })).not.toHaveFocus();
+      expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
+    });
+
     it('ignores a keyboard focus request that names another group', () => {
       const consumeKeyboardFocusRequest = jest.fn();
       renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 99, expand: true }, consumeKeyboardFocusRequest });

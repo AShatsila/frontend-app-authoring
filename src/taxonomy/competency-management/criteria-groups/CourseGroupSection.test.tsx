@@ -444,11 +444,13 @@ describe('<CourseGroupSection />', () => {
       expect(screen.getByRole('button', { name: 'Collapse Demo Course' })).toBeInTheDocument();
     });
 
-    it('stays collapsed and drops a request that does not ask to expand it', async () => {
+    it('stays collapsed and focuses its expand button for a request that does not ask to expand it', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
       const consumeKeyboardFocusRequest = jest.fn();
       const { rerender } = renderSection({ consumeKeyboardFocusRequest });
       await user.click(await screen.findByRole('button', { name: 'Collapse Demo Course' }));
+      // The clicked toggle keeps focus, so move it away to see the request place it.
+      screen.getByRole('button', { name: 'Expand Demo Course' }).blur();
 
       rerender(
         <MockCompetencyAssociationsProvider
@@ -463,9 +465,35 @@ describe('<CourseGroupSection />', () => {
         </MockCompetencyAssociationsProvider>,
       );
 
-      expect(screen.getByRole('button', { name: 'Expand Demo Course' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Expand Demo Course' })).toHaveFocus();
       expect(screen.queryByText('Subsection 1A')).not.toBeInTheDocument();
       expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes keyboard focus on its menu button when a menu request names it, then consumes the request', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderSection({
+        canEditCourse: () => true,
+        keyboardFocusRequest: { kind: 'menu', groupId: courseGroup.id },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(await screen.findByRole('button', { name: 'More actions for Demo Course' })).toHaveFocus();
+      expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a menu request that names another group', async () => {
+      axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
+      const consumeKeyboardFocusRequest = jest.fn();
+      renderSection({
+        canEditCourse: () => true,
+        keyboardFocusRequest: { kind: 'menu', groupId: 99 },
+        consumeKeyboardFocusRequest,
+      });
+
+      expect(await screen.findByRole('button', { name: 'More actions for Demo Course' })).not.toHaveFocus();
+      expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();
     });
 
     it('stays collapsed for a keyboard focus request that names a group of another course group', async () => {
