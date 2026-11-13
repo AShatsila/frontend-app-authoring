@@ -77,11 +77,9 @@ export interface CriteriaSelection {
   ruleKey: string | null;
 }
 
-/** A one-shot request for the browser's keyboard focus, left by a delete because the menu toggle that had it is
- * gone or was disabled. Kept here because the cards can unmount (or be collapsed) before the new target renders.
- * `group` names the bottom-tier group card that takes it, and `expand` whether a collapsed course-level group holding
- * that card opens for it (false when selection did not move). `menu` names the group, bottom-tier or course-level,
- * whose menu toggle takes it after a failed delete. `empty` is the "no associations" message.
+/** A one-shot request for the browser's keyboard focus, left by a delete whose menu toggle is gone or disabled. `group`
+ * names the bottom-tier card that takes it (`expand`: whether a collapsed section holding it opens), `menu` the group
+ * whose menu toggle takes it after a failed delete, and `empty` the "no associations" message.
  */
 export type KeyboardFocusRequest =
   | { kind: 'group'; groupId: number; expand: boolean; }
