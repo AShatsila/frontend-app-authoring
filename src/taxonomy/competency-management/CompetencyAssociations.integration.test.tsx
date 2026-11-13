@@ -108,7 +108,7 @@ describe('competency associations over the real provider', () => {
       outlineOf('Course B', { 'b-sub-1': 'Homework 1', 'b-sub-2': 'Homework 2' }),
     );
     renderPanel();
-    // Select starts on course A's group, with the course B card collapsed.
+    // Selection starts on course A's group, with the course B card collapsed.
     await screen.findAllByText(/^By completing/);
     await user.click(groupHeaders()[0]);
     expect(groupHeaders()[0]).toHaveAttribute('aria-current', 'true');

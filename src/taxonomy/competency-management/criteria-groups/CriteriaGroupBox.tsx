@@ -57,7 +57,7 @@ const CriteriaGroupBox = (
     isAssociating,
     deleteGroup,
     isDeletingGroup,
-    removePlaceholderGroup,
+    discardPlaceholderGroup,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
   } = useCompetencyAssociations();
@@ -183,7 +183,7 @@ const CriteriaGroupBox = (
                 disabled={isMenuDisabled}
               />
               <Dropdown.Menu>
-                <Dropdown.Item onClick={() => (group ? deleteGroup(group.id) : removePlaceholderGroup())}>
+                <Dropdown.Item onClick={() => (group ? deleteGroup(group.id) : discardPlaceholderGroup())}>
                   {intl.formatMessage(messages.removeRuleGroupMenuItem)}
                 </Dropdown.Item>
               </Dropdown.Menu>

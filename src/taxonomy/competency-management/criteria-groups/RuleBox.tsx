@@ -26,7 +26,7 @@ export interface RuleBoxProps {
   suggestion?: { rulePayload: GradeRulePayload; onApply: () => void; };
   /** Placeholder only: open the score popover on mount. */
   autoOpen?: boolean;
-  /** Selection the score pill on mount, for a box that remounted because its score changed. */
+  /** Focus the score pill on mount, for a box that remounted because its score changed. */
   focusPillOnMount?: boolean;
   /** Called with the payload and the pending save as soon as the popover commits a score, before the save
    * settles, so the owner can prepare for the remount a changed score causes.
