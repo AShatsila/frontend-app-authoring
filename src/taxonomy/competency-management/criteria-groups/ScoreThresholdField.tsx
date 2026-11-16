@@ -51,7 +51,7 @@ const ScoreThresholdField = ({
   scoreSuggestion,
 }: ScoreThresholdFieldProps) => {
   const intl = useIntl();
-  const [isOpen, setIsOpen] = useState(autoOpen || hintIsError);
+  const [isOpen, setIsOpen] = useState(hintIsError);
   // Held in state rather than a ref, because `ModalPopup` needs the anchor element on the first render when
   // `autoOpen` is set, and a ref object is still null then.
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
@@ -65,11 +65,14 @@ const ScoreThresholdField = ({
   const initialFocus = hintIsError && scoreSuggestion ? 'suggestion' : 'input';
 
   useEffect(() => {
-    if (focusButtonOnMount) {
+    // The popover returns focus to whatever was focused when it opened, so the button takes focus first.
+    if (autoOpen || focusButtonOnMount) {
       scoreSettingsButtonRef.current?.focus();
     }
-    // Runs once: the flag is true only for the box the author just added.
-  }, [focusButtonOnMount]);
+    if (autoOpen) {
+      setIsOpen(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen) {

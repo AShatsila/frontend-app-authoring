@@ -261,6 +261,12 @@ describe('competency associations over the real provider', () => {
     await waitFor(() => expect(input).toHaveFocus());
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const buttons = screen.getAllByRole('button', { name: /With a score of/ });
+    await waitFor(() => expect(document.activeElement).toBe(buttons.at(-1)));
   });
 
   it('+ Rule on a group whose default score is free focuses the new box\'s score settings button without opening the popover', async () => {
@@ -354,8 +360,11 @@ describe('competency associations over the real provider', () => {
     await user.click(groupHeaders()[1]);
 
     expect(currentStates(groupHeaders())).toEqual(['false', 'true']);
-    expect(screen.getAllByRole('button', { name: /With a score of/ })).toHaveLength(1);
+    const placeholderButtons = screen.getAllByRole('button', { name: /With a score of/ });
+    expect(placeholderButtons).toHaveLength(1);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // A stale just-added flag would focus this button when the placeholder mounts.
+    expect(placeholderButtons[0]).not.toHaveFocus();
 
     await user.click(groupHeaders()[0]);
 
@@ -397,6 +406,7 @@ describe('competency associations over the real provider', () => {
 
       await waitFor(() => expect(buttonBefore).toHaveTextContent('85%'));
       await waitFor(() => expect(document.activeElement).toBe(buttonBefore));
+      expect(ruleBoxWithScore('85')).toHaveAttribute('aria-current', 'true');
     });
 
     it('keeps focus on the same placeholder score settings button, with its dialog closed, after the placeholder score is committed', async () => {
