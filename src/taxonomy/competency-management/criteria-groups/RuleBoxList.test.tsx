@@ -233,11 +233,14 @@ describe('<RuleBoxList />', () => {
       expect(screen.getByText('80% or higher')).toBeInTheDocument();
     });
 
-    it('opens the placeholder\'s score popover with the input focused when it appears', async () => {
+    it('opens the just-added placeholder\'s score settings with the percentage selected when its default score is taken', async () => {
       renderTakenPlaceholder();
 
       expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
-      await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
+      const input = screen.getByRole('textbox') as HTMLInputElement;
+      await waitFor(() => expect(input).toHaveFocus());
+      expect(input.selectionStart).toBe(0);
+      expect(input.selectionEnd).toBe(input.value.length);
     });
   });
 
@@ -321,6 +324,13 @@ describe('<RuleBoxList />', () => {
       systemDefaultProfile,
     );
 
+    const afterAddPlaceholder = {
+      parentRuleGroupId: null,
+      logicOperator: 'OR' as const,
+      rulePayload: null,
+      justAdded: true,
+    };
+
     const renderWithPlaceholder = (
       contextOverrides: MockCompetencyAssociationsOverrides = {},
       canEdit = true,
@@ -346,13 +356,21 @@ describe('<RuleBoxList />', () => {
     });
 
     it('keeps the score settings closed when the placeholder was not just added', () => {
-      renderWithPlaceholder();
+      renderWithPlaceholder({
+        placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null, justAdded: false },
+      });
 
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /With a score of 70% or higher/ })).toHaveAttribute(
-        'aria-expanded',
-        'false',
-      );
+      const scoreSettingsButton = screen.getByRole('button', { name: /With a score of 70% or higher/ });
+      expect(scoreSettingsButton).toHaveAttribute('aria-expanded', 'false');
+      expect(scoreSettingsButton).not.toHaveFocus();
+    });
+
+    it('focuses the just-added placeholder\'s score settings button, with the popover closed, when its default score is free', () => {
+      renderWithPlaceholder({ placeholder: afterAddPlaceholder });
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /With a score of 70% or higher/ })).toHaveFocus();
     });
 
     it('is absent when another rule box in the group is focused', () => {
@@ -361,13 +379,6 @@ describe('<RuleBoxList />', () => {
       expect(container.querySelectorAll('.rule-box')).toHaveLength(1);
     });
 
-    const afterAddPlaceholder = {
-      parentRuleGroupId: null,
-      logicOperator: 'OR' as const,
-      rulePayload: null,
-      justAdded: true,
-    };
-
     // A placeholder has no saved criteria, so its score lives in context until content is picked.
     it('writes a score change to setPlaceholderRulePayload, not updateRuleScore', async () => {
       const user = userEvent.setup();
@@ -375,6 +386,7 @@ describe('<RuleBoxList />', () => {
       const updateRuleScore = jest.fn();
       renderWithPlaceholder({ placeholder: afterAddPlaceholder, setPlaceholderRulePayload, updateRuleScore });
 
+      await user.click(screen.getByRole('button', { name: /With a score of 70% or higher/ }));
       const placeholderInput = screen.getByRole('textbox');
       await user.clear(placeholderInput);
       await user.type(placeholderInput, '80');
@@ -389,6 +401,7 @@ describe('<RuleBoxList />', () => {
       const setPlaceholderRulePayload = jest.fn();
       renderWithPlaceholder({ placeholder: afterAddPlaceholder, setPlaceholderRulePayload });
 
+      await user.click(screen.getByRole('button', { name: /With a score of 70% or higher/ }));
       const placeholderInput = screen.getByRole('textbox');
       await user.clear(placeholderInput);
       await user.type(placeholderInput, '75');

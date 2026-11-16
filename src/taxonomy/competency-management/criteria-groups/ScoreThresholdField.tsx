@@ -28,7 +28,7 @@ export interface ScoreThresholdFieldProps {
    * when there is no link.
    */
   hintIsError?: boolean;
-  /** Focuses the score settings button on mount, for a field that remounted while its popover was committing. */
+  /** Focuses the score settings button once, when the field mounts. */
   focusButtonOnMount?: boolean;
   /** Changes on every repeat rejection, so the popover reopens and refocuses each time. */
   rejectionCount?: number;
@@ -66,10 +66,17 @@ const ScoreThresholdField = ({
 
   useEffect(() => {
     if (focusButtonOnMount) {
-      // Deferred: the popover that just closed returns focus to its previous element after this effect, which would undo an immediate focus().
-      requestAnimationFrame(() => scoreSettingsButtonRef.current?.focus());
+      scoreSettingsButtonRef.current?.focus();
     }
+    // Runs once: the flag is true only for the box the author just added.
   }, [focusButtonOnMount]);
+
+  useEffect(() => {
+    if (isOpen) {
+      // A new score remounts the popover body while it is open, so focus is placed again.
+      panelRef.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus();
+    }
+  }, [rulePayload.op, rulePayload.value]);
 
   useEffect(() => {
     if (!hintIsError) {
@@ -133,6 +140,7 @@ const ScoreThresholdField = ({
       >
         <div ref={panelRef} className="score-threshold-field__panel shadow">
           <ScoreSettingsPopover
+            key={`${rulePayload.op}:${rulePayload.value}`}
             rulePayload={rulePayload}
             onCommit={onChange}
             onRequestClose={() => setIsOpen(false)}
