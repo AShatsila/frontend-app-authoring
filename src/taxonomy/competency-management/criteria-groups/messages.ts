@@ -170,25 +170,15 @@ const messages = defineMessages({
   },
   comparisonOperatorAccessibleLabel: {
     id: 'course-authoring.competency-management.criteria-groups.comparison-operator-accessible-label',
-    defaultMessage: 'Comparison, {operator}',
-    description: 'Accessible name of the menu button that picks how a score is compared. "{operator}" is the '
-      + 'current comparison in words, such as "or higher".',
+    defaultMessage: '{op, select, gte {Comparison, or higher} lte {Comparison, or lower} other {Comparison, equal to}}',
+    description: 'Accessible name of the menu button that picks how a score is compared. '
+      + '"{op}" is the current comparison: gte (at least), lte (at most) or any other value for an exact match.',
   },
-  comparisonEqLabel: {
-    id: 'course-authoring.competency-management.criteria-groups.comparison-eq-label',
-    defaultMessage: 'equal to',
-    description: 'The comparison in words for a rule that matches an exact score, used in the accessible name '
-      + 'of the comparison menu button.',
-  },
-  comparisonGteLabel: {
-    id: 'course-authoring.competency-management.criteria-groups.comparison-gte-label',
-    defaultMessage: 'or higher',
-    description: 'Accessible name of the ">=" menu item, which sets the rule to match a score or higher.',
-  },
-  comparisonLteLabel: {
-    id: 'course-authoring.competency-management.criteria-groups.comparison-lte-label',
-    defaultMessage: 'or lower',
-    description: 'Accessible name of the "<=" menu item, which sets the rule to match a score or lower.',
+  comparisonOptionLabel: {
+    id: 'course-authoring.competency-management.criteria-groups.comparison-option-label',
+    defaultMessage: '{op, select, gte {>= or higher} lte {<= or lower} other {= equal to}}',
+    description: 'Text of one item in the comparison menu: the symbol followed by its meaning in words. '
+      + '"{op}" is the comparison: gte (at least), lte (at most) or any other value for an exact match.',
   },
 });
 

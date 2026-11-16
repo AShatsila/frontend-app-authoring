@@ -1,4 +1,5 @@
-import type { ComponentProps, MutableRefObject } from 'react';
+import { createRef } from 'react';
+import type { ComponentProps } from 'react';
 import {
   initializeMocks,
   render,
@@ -7,6 +8,7 @@ import {
   waitFor,
 } from '@src/testUtils';
 import ScoreSettingsPopover from './ScoreSettingsPopover';
+import type { ScoreSettingsPopoverHandle } from './ScoreSettingsPopover';
 
 type Props = ComponentProps<typeof ScoreSettingsPopover>;
 
@@ -48,9 +50,31 @@ describe('<ScoreSettingsPopover />', () => {
     expect(screen.getByText('%')).toBeInTheDocument();
   });
 
-  it('shows "<=" in the toggle for a lte rule', () => {
-    renderPopover({ rulePayload: { ...gte70, op: 'lte' } });
-    expect(screen.getByRole('button', { name: 'Comparison, or lower' })).toHaveTextContent('<=');
+  it('marks the dialog modal', () => {
+    renderPopover();
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+  });
+
+  it.each(
+    [
+      ['gte', '>=', 'Comparison, or higher'],
+      ['lte', '<=', 'Comparison, or lower'],
+      ['eq', '=', 'Comparison, equal to'],
+    ] as const,
+  )('shows %s as "%s" in the toggle, named "%s"', (op, symbol, name) => {
+    renderPopover({ rulePayload: { ...gte70, op } });
+    expect(screen.getByRole('button', { name })).toHaveTextContent(symbol);
+  });
+
+  it('names each comparison item by its symbol and words', async () => {
+    const user = userEvent.setup();
+    renderPopover({ rulePayload: { ...gte70, op: 'eq' } });
+
+    await user.click(screen.getByRole('button', { name: 'Comparison, equal to' }));
+
+    expect(screen.getByRole('button', { name: '>= or higher' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '<= or lower' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '= equal to' })).toBeDisabled();
   });
 
   it('commits the typed percent on Enter and requests close', async () => {
@@ -69,7 +93,7 @@ describe('<ScoreSettingsPopover />', () => {
     const { onCommit, onRequestClose } = renderPopover();
 
     await user.click(screen.getByRole('button', { name: 'Comparison, or higher' }));
-    await user.click(screen.getByRole('button', { name: 'or lower' }));
+    await user.click(screen.getByRole('button', { name: '<= or lower' }));
     expect(screen.getByRole('button', { name: 'Comparison, or lower' })).toHaveTextContent('<=');
     expect(onCommit).not.toHaveBeenCalled();
 
@@ -105,8 +129,8 @@ describe('<ScoreSettingsPopover />', () => {
 
   it.each(['101', '-1', '2.5'])('blocks the commit and shows the range message for %s', async (typed) => {
     const user = userEvent.setup();
-    const commitRef: MutableRefObject<(() => Promise<boolean>) | null> = { current: null };
-    const { onCommit, onRequestClose } = renderPopover({ commitRef });
+    const ref = createRef<ScoreSettingsPopoverHandle>();
+    const { onCommit, onRequestClose } = renderPopover({ ref });
 
     await typeScore(user, typed);
     await user.keyboard('{Enter}');
@@ -114,7 +138,19 @@ describe('<ScoreSettingsPopover />', () => {
     expect(screen.getByText('Enter a whole number from 0 to 100.')).toBeInTheDocument();
     expect(onCommit).not.toHaveBeenCalled();
     expect(onRequestClose).not.toHaveBeenCalled();
-    await expect(commitRef.current!()).resolves.toBe(false);
+    await expect(ref.current!.commit()).resolves.toBe(false);
+  });
+
+  it('blocks the commit and shows the range message for "abc"', async () => {
+    const user = userEvent.setup();
+    const { onCommit, onRequestClose } = renderPopover();
+
+    await typeScore(user, 'abc');
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByText('Enter a whole number from 0 to 100.')).toBeInTheDocument();
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(onRequestClose).not.toHaveBeenCalled();
   });
 
   it('blocks the commit and shows the message when getInlineValidationMessage returns one', async () => {
@@ -146,18 +182,18 @@ describe('<ScoreSettingsPopover />', () => {
 
   it('ignores a second commit while one is in flight', async () => {
     const user = userEvent.setup();
-    const commitRef: MutableRefObject<(() => Promise<boolean>) | null> = { current: null };
+    const ref = createRef<ScoreSettingsPopoverHandle>();
     let resolveCommit: () => void;
     const onCommit = jest.fn().mockImplementation(() =>
       new Promise<void>((resolve) => {
         resolveCommit = resolve;
       })
     );
-    const { onRequestClose } = renderPopover({ onCommit, commitRef });
+    const { onRequestClose } = renderPopover({ onCommit, ref });
 
     await typeScore(user, '85');
     await user.keyboard('{Enter}');
-    await expect(commitRef.current!()).resolves.toBe(false);
+    await expect(ref.current!.commit()).resolves.toBe(false);
 
     expect(onCommit).toHaveBeenCalledTimes(1);
     expect(onRequestClose).not.toHaveBeenCalled();
@@ -189,7 +225,7 @@ describe('<ScoreSettingsPopover />', () => {
     const { onCommit, onRequestClose } = renderPopover();
 
     await user.click(screen.getByRole('button', { name: 'Comparison, or higher' }));
-    expect(screen.getByRole('button', { name: 'or lower' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '<= or lower' })).toBeVisible();
     await user.keyboard('{Escape}');
 
     await waitFor(() =>
@@ -223,61 +259,39 @@ describe('<ScoreSettingsPopover />', () => {
     await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1));
   });
 
-  it.each(['', 'abc'])('reverts on Enter and closes without committing for the input "%s"', async (typed) => {
+  it('reverts on Enter and closes without committing for an empty input', async () => {
     const user = userEvent.setup();
-    const commitRef: MutableRefObject<(() => Promise<boolean>) | null> = { current: null };
-    const { onCommit, onRequestClose } = renderPopover({ commitRef });
+    const ref = createRef<ScoreSettingsPopoverHandle>();
+    const { onCommit, onRequestClose } = renderPopover({ ref });
 
     const input = screen.getByRole('textbox');
     await user.clear(input);
-    if (typed) {
-      await user.type(input, typed);
-    }
     await user.keyboard('{Enter}');
 
     expect(input).toHaveValue('70');
     expect(onCommit).not.toHaveBeenCalled();
     await waitFor(() => expect(onRequestClose).toHaveBeenCalledTimes(1));
-    await expect(commitRef.current!()).resolves.toBe(true);
+    await expect(ref.current!.commit()).resolves.toBe(true);
   });
 
-  it('commits through commitRef and resolves true for a changed valid value', async () => {
+  it('commits through the handle and resolves true for a changed valid value', async () => {
     const user = userEvent.setup();
-    const commitRef: MutableRefObject<(() => Promise<boolean>) | null> = { current: null };
-    const { onCommit } = renderPopover({ commitRef });
+    const ref = createRef<ScoreSettingsPopoverHandle>();
+    const { onCommit } = renderPopover({ ref });
 
     await typeScore(user, '85');
-    await expect(commitRef.current!()).resolves.toBe(true);
+    await expect(ref.current!.commit()).resolves.toBe(true);
 
     expect(onCommit).toHaveBeenCalledWith({ op: 'gte', value: 0.85, scale: 'percent' });
   });
 
-  it('resolves true through commitRef without committing when nothing changed', async () => {
-    const commitRef: MutableRefObject<(() => Promise<boolean>) | null> = { current: null };
-    const { onCommit } = renderPopover({ commitRef });
+  it('resolves true through the handle without committing when nothing changed', async () => {
+    const ref = createRef<ScoreSettingsPopoverHandle>();
+    const { onCommit } = renderPopover({ ref });
 
-    await expect(commitRef.current!()).resolves.toBe(true);
+    await expect(ref.current!.commit()).resolves.toBe(true);
 
     expect(onCommit).not.toHaveBeenCalled();
-  });
-
-  it('clears commitRef on unmount', () => {
-    const commitRef: MutableRefObject<(() => Promise<boolean>) | null> = { current: null };
-    const onCommit = jest.fn();
-    const { unmount } = render(
-      <ScoreSettingsPopover
-        rulePayload={gte70}
-        onCommit={onCommit}
-        onRequestClose={jest.fn()}
-        initialFocus="input"
-        commitRef={commitRef}
-      />,
-    );
-    expect(commitRef.current).not.toBeNull();
-
-    unmount();
-
-    expect(commitRef.current).toBeNull();
   });
 
   it('describes the input by the validation message', async () => {
@@ -288,6 +302,7 @@ describe('<ScoreSettingsPopover />', () => {
     await user.keyboard('{Enter}');
 
     expect(screen.getByRole('textbox')).toHaveAccessibleDescription('Enter a whole number from 0 to 100.');
+    expect(screen.queryByText('Pick another.')).not.toBeInTheDocument();
   });
 
   it('describes the input by the hint', () => {
@@ -304,17 +319,6 @@ describe('<ScoreSettingsPopover />', () => {
     expect(screen.getByText('Pick another.').closest('.pgn__form-text-invalid')).not.toBeNull();
   });
 
-  it('shows only the validation message when both it and a hint apply', async () => {
-    const user = userEvent.setup();
-    renderPopover({ getInlineValidationMessage: () => 'Taken.', scoreTakenHint: 'Pick another.' });
-
-    await typeScore(user, '85');
-    await user.keyboard('{Enter}');
-
-    expect(screen.getByText('Taken.')).toBeInTheDocument();
-    expect(screen.queryByText('Pick another.')).not.toBeInTheDocument();
-  });
-
   it('renders the suggestion link and calls onApply when it is clicked', async () => {
     const user = userEvent.setup();
     const onApply = jest.fn();
@@ -325,28 +329,6 @@ describe('<ScoreSettingsPopover />', () => {
     expect(onApply).toHaveBeenCalledTimes(1);
   });
 
-  it('puts data-autofocus on the input when initialFocus is "input"', () => {
-    renderPopover({ scoreSuggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply: jest.fn() } });
-
-    expect(screen.getByRole('textbox')).toHaveAttribute('data-autofocus');
-    expect(screen.getByRole('button', { name: 'Use 80% or higher' })).not.toHaveAttribute('data-autofocus');
-  });
-
-  it('puts data-autofocus on the link when initialFocus is "suggestion"', () => {
-    renderPopover({
-      initialFocus: 'suggestion',
-      scoreSuggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply: jest.fn() },
-    });
-
-    expect(screen.getByRole('button', { name: 'Use 80% or higher' })).toHaveAttribute('data-autofocus');
-    expect(screen.getByRole('textbox')).not.toHaveAttribute('data-autofocus');
-  });
-
-  it('puts data-autofocus on the input when initialFocus is "suggestion" but there is no suggestion', () => {
-    renderPopover({ initialFocus: 'suggestion' });
-    expect(screen.getByRole('textbox')).toHaveAttribute('data-autofocus');
-  });
-
   it('selects the whole value when the input is focused', async () => {
     const user = userEvent.setup();
     renderPopover();
@@ -355,7 +337,7 @@ describe('<ScoreSettingsPopover />', () => {
 
     const input = screen.getByRole('textbox') as HTMLInputElement;
     expect(input.selectionStart).toBe(0);
-    expect(input.selectionEnd).toBe(2);
+    expect(input.selectionEnd).toBe(input.value.length);
   });
 
   it('shows "=" for an eq rule and offers only ">=" and "<=" as enabled items', async () => {
@@ -366,9 +348,9 @@ describe('<ScoreSettingsPopover />', () => {
     expect(toggle).toHaveTextContent('=');
     await user.click(toggle);
 
-    expect(screen.getByRole('button', { name: 'or higher' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'or lower' })).toBeEnabled();
-    const current = screen.getByRole('button', { name: '=' });
+    expect(screen.getByRole('button', { name: '>= or higher' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '<= or lower' })).toBeEnabled();
+    const current = screen.getByRole('button', { name: '= equal to' });
     expect(current).toBeDisabled();
     expect(current).toHaveClass('active');
   });

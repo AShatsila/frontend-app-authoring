@@ -1,11 +1,11 @@
 import {
-  useEffect,
-  useLayoutEffect,
+  forwardRef,
   useId,
+  useImperativeHandle,
   useRef,
   useState,
 } from 'react';
-import type { KeyboardEvent, MutableRefObject } from 'react';
+import type { KeyboardEvent } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Button, Dropdown, Form } from '@openedx/paragon';
 import type { GradeRulePayload } from '../data/types';
@@ -28,11 +28,6 @@ export interface ScoreSettingsPopoverProps {
   scoreSuggestion?: { rulePayload: GradeRulePayload; onApply: () => void; };
   /** Which element carries `data-autofocus` for the owner's focus lock. */
   initialFocus: 'input' | 'suggestion';
-  /** Filled with the commit function, so the owner can commit on a click outside. The function
-   * resolves `true` when the owner may close (committed, or nothing changed) and `false` when
-   * validation failed, a commit is already in flight, or the commit was rejected.
-   */
-  commitRef?: MutableRefObject<(() => Promise<boolean>) | null>;
 }
 
 /** `rulePayload.value` is a 0.0-1.0 fraction (openedx-core ADR 0002), not a 0-100 percentage. */
@@ -40,16 +35,17 @@ const percentOf = (rulePayload: GradeRulePayload): string => String(Math.round(r
 
 const OPERATOR_SYMBOLS: Record<GradeRulePayload['op'], string> = { gte: '>=', lte: '<=', eq: '=' };
 
-const OPERATOR_LABELS = {
-  gte: messages.comparisonGteLabel,
-  lte: messages.comparisonLteLabel,
-  eq: messages.comparisonEqLabel,
-};
+export interface ScoreSettingsPopoverHandle {
+  /** Resolves `true` when the owner may close (committed, or nothing changed) and `false` when
+   * validation failed, a commit is already in flight, or the commit was rejected.
+   */
+  commit: () => Promise<boolean>;
+}
 
 /** Body of the popover that edits a rule box's comparison and score. Validates and commits on Enter,
- * or when the owner calls `commitRef.current`.
+ * or when the owner calls `commit` on the ref.
  */
-const ScoreSettingsPopover = ({
+const ScoreSettingsPopover = forwardRef<ScoreSettingsPopoverHandle, ScoreSettingsPopoverProps>(({
   rulePayload,
   onCommit,
   onRequestClose,
@@ -58,8 +54,7 @@ const ScoreSettingsPopover = ({
   hintIsError = false,
   scoreSuggestion,
   initialFocus,
-  commitRef,
-}: ScoreSettingsPopoverProps) => {
+}, ref) => {
   const intl = useIntl();
   const headingId = useId();
   const inputId = useId();
@@ -86,7 +81,7 @@ const ScoreSettingsPopover = ({
     }
     const trimmedInput = inputValue.trim();
     const numericPercent = Number(trimmedInput);
-    if (trimmedInput === '' || !Number.isFinite(numericPercent)) {
+    if (trimmedInput === '') {
       revertToLastPersisted();
       return true;
     }
@@ -121,22 +116,8 @@ const ScoreSettingsPopover = ({
     }
   };
 
-  // Always the latest closure, so the owner's ref never commits stale input.
-  const commitRefLatest = useRef(commit);
-  useLayoutEffect(() => {
-    commitRefLatest.current = commit;
-  });
-
-  useEffect(() => {
-    if (!commitRef) {
-      return undefined;
-    }
-    const ref = commitRef;
-    ref.current = () => commitRefLatest.current();
-    return () => {
-      ref.current = null;
-    };
-  }, [commitRef]);
+  // No dependency array: the handle must hold the latest closure, so the owner never commits stale input.
+  useImperativeHandle(ref, () => ({ commit }));
 
   const handleInputEnter = async (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
@@ -169,6 +150,7 @@ const ScoreSettingsPopover = ({
   return (
     <div
       role="dialog"
+      aria-modal="true"
       aria-labelledby={headingId}
       className="score-settings"
       onKeyDown={handleEscape}
@@ -184,7 +166,7 @@ const ScoreSettingsPopover = ({
               variant="outline-primary"
               size="sm"
               aria-label={intl.formatMessage(messages.comparisonOperatorAccessibleLabel, {
-                operator: intl.formatMessage(OPERATOR_LABELS[localOp]),
+                op: localOp,
               })}
             >
               {OPERATOR_SYMBOLS[localOp]}
@@ -194,23 +176,21 @@ const ScoreSettingsPopover = ({
                 as="button"
                 type="button"
                 active={localOp === 'gte'}
-                aria-label={intl.formatMessage(messages.comparisonGteLabel)}
                 onClick={() => setLocalOp('gte')}
               >
-                {OPERATOR_SYMBOLS.gte}
+                {intl.formatMessage(messages.comparisonOptionLabel, { op: 'gte' })}
               </Dropdown.Item>
               <Dropdown.Item
                 as="button"
                 type="button"
                 active={localOp === 'lte'}
-                aria-label={intl.formatMessage(messages.comparisonLteLabel)}
                 onClick={() => setLocalOp('lte')}
               >
-                {OPERATOR_SYMBOLS.lte}
+                {intl.formatMessage(messages.comparisonOptionLabel, { op: 'lte' })}
               </Dropdown.Item>
               {rulePayload.op === 'eq' && (
                 <Dropdown.Item as="button" type="button" disabled active={localOp === 'eq'}>
-                  {OPERATOR_SYMBOLS.eq}
+                  {intl.formatMessage(messages.comparisonOptionLabel, { op: 'eq' })}
                 </Dropdown.Item>
               )}
             </Dropdown.Menu>
@@ -259,6 +239,8 @@ const ScoreSettingsPopover = ({
       )}
     </div>
   );
-};
+});
+
+ScoreSettingsPopover.displayName = 'ScoreSettingsPopover';
 
 export default ScoreSettingsPopover;

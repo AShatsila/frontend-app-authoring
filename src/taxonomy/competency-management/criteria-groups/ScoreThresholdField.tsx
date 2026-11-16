@@ -4,12 +4,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { MutableRefObject } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { Icon, ModalPopup } from '@openedx/paragon';
 import { ExpandMore } from '@openedx/paragon/icons';
 import type { GradeRulePayload } from '../data/types';
 import ScoreSettingsPopover from './ScoreSettingsPopover';
+import type { ScoreSettingsPopoverHandle } from './ScoreSettingsPopover';
 import messages from './messages';
 
 export interface ScoreThresholdFieldProps {
@@ -61,7 +61,7 @@ const ScoreThresholdField = ({
     setAnchor(node);
   }, []);
   const panelRef = useRef<HTMLDivElement>(null);
-  const commitRef: MutableRefObject<(() => Promise<boolean>) | null> = useRef(null);
+  const popoverRef = useRef<ScoreSettingsPopoverHandle>(null);
   const initialFocus = hintIsError && scoreSuggestion ? 'suggestion' : 'input';
 
   useEffect(() => {
@@ -88,7 +88,7 @@ const ScoreThresholdField = ({
     if (!isOpen) {
       return;
     }
-    const mayClose = await commitRef.current?.() ?? true;
+    const mayClose = await popoverRef.current?.commit() ?? true;
     if (mayClose) {
       setIsOpen(false);
     }
@@ -141,7 +141,7 @@ const ScoreThresholdField = ({
             hintIsError={hintIsError}
             scoreSuggestion={scoreSuggestion}
             initialFocus={initialFocus}
-            commitRef={commitRef}
+            ref={popoverRef}
           />
         </div>
       </ModalPopup>
