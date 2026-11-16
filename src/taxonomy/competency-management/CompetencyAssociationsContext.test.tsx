@@ -1263,7 +1263,7 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText(keyboardRequest(null))).toBeInTheDocument();
     });
 
-    it('selects the course group above when deleting the only rule group removes its course group', async () => {
+    it('selects the last rule group of the course group above when deleting the only rule group removes its course group', async () => {
       axiosMock.onDelete(apiUrls.competencyCriteriaGroup(tagId, 20)).reply(200, {});
       const reads = mockGroupsReads(twoCoursesWithCriteriaResponse, {
         groups: twoCoursesWithCriteriaResponse.groups.filter((item) => item.id !== 2 && item.id !== 20),
@@ -1281,6 +1281,7 @@ describe('CompetencyAssociationsProvider', () => {
     });
 
     it('lands on the first rule box of the neighbor group, not its last', async () => {
+      // Group 11 holds a `gte` box, then an `eq` box.
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(threeGroupsWithCriteriaResponse, afterDeletingGroup10OfThreeResponse);
       await renderWithSelectionOnGroup10();

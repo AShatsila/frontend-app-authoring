@@ -451,7 +451,7 @@ describe('<CourseGroupSection />', () => {
 
     it('renders no menu when the author cannot edit this course', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-      renderSection();
+      renderSection({ canEditCourse: () => false });
 
       await screen.findByText('Demo Course');
       expect(screen.queryByRole('button', { name: /More actions for/ })).not.toBeInTheDocument();

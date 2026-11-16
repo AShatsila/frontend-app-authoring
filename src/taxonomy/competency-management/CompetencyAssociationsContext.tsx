@@ -67,8 +67,7 @@ import {
 
 export type { CriteriaPlaceholder };
 
-/** The rule box or group the author is working in, which the ticket calls "in focus"; `ruleKey` is a rule box's key
- * within its group.
+/** The rule box or group the author is working in; `ruleKey` is a rule box's key within its group.
  * `ruleKey === null` is an unsaved placeholder rule box in the group, and `groupId === null` is an unsaved
  * placeholder group under `placeholder.parentRuleGroupId`. A non-null `ruleKey` that matches no box re-resolves
  * to the group's last box, or to `null` for a saved group with no criteria, which then renders its placeholder

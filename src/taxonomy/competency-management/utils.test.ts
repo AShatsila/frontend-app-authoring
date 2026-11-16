@@ -434,6 +434,8 @@ describe('snapshotPageOrder', () => {
       id: 3,
       ruleGroupIds: [30],
     }]);
+    // `buildTree` assigns `ordering` by array position, so `[11, 10]` sorts 11 first. `accessible` is passed in reverse
+    // on purpose, to show the snapshot keeps the given order.
     // Course group 3 is not accessible, so it is left out of what is rendered.
     const accessible = [index.courseGroups[1], index.courseGroups[0]];
 
