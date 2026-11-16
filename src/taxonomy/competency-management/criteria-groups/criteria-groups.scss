@@ -240,11 +240,6 @@
     z-index: 1;
     font: inherit;
     cursor: pointer;
-
-    .pgn__icon {
-      width: 1rem;
-      height: 1rem;
-    }
   }
 
   .score-threshold-field__panel {
@@ -256,6 +251,8 @@
     padding: .75rem 1rem 1rem;
     background-color: var(--pgn-color-white);
     border-radius: var(--pgn-size-border-radius-base);
+    // The invalid variant keeps Paragon's own feedback color.
+    --pgn-color-text-muted: var(--pgn-color-gray-700);
   }
 
   .score-settings__heading {
@@ -281,15 +278,6 @@
     .form-control {
       text-align: center;
     }
-  }
-
-  // The invalid variant keeps Paragon's own feedback color.
-  .score-settings .pgn__form-text {
-    font-size: var(--pgn-typography-font-size-sm);
-  }
-
-  .score-settings .pgn__form-text-default {
-    color: var(--pgn-color-gray-700);
   }
 
   .score-settings__suggestion {
