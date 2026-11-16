@@ -77,15 +77,25 @@ const messages = defineMessages({
   },
   noAssociationsMessage: {
     id: 'course-authoring.competency-management.criteria-groups.no-associations-message',
-    defaultMessage: 'No content associated.',
+    defaultMessage: 'No content associated with {competencyName} yet.',
     description: 'First line of the empty state shown in the associations block when the selected competency '
-      + 'has no course content associated with it yet.',
+      + 'has no criteria associations in any course. {competencyName} is the selected competency\'s name, '
+      + 'shown in bold.',
+  },
+  noAssociationsInListedCoursesMessage: {
+    id: 'course-authoring.competency-management.criteria-groups.no-associations-in-listed-courses-message',
+    defaultMessage: 'No content associated with {competencyName} in the courses listed here. '
+      + '{count, plural, one {# association is} other {# associations are}} in courses that are not listed.',
+    description: 'First line of the empty state shown in the associations block when the selected competency has '
+      + 'criteria associations, but none in the courses currently listed in the course list below that the user '
+      + 'can view. {competencyName} is the selected competency\'s name, shown in bold. {count} is the number of '
+      + 'the competency\'s criteria associations in courses that are not currently listed.',
   },
   noAssociationsPromptMessage: {
     id: 'course-authoring.competency-management.criteria-groups.no-associations-prompt-message',
-    defaultMessage: 'Make content selections to associate this competency with course content.',
+    defaultMessage: 'Make content selections to create competency criteria associations.',
     description: 'Second line of the empty state shown in the associations block, prompting the user '
-      + 'to make content selections below.',
+      + 'to make content selections in the course list below.',
   },
   scoreThresholdInputAccessibleLabel: {
     id: 'course-authoring.competency-management.criteria-groups.score-threshold-input-accessible-label',

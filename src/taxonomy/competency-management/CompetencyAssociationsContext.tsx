@@ -14,6 +14,7 @@ import { useQueries } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import type { AxiosError } from 'axios';
+import { isEqual } from 'lodash';
 
 import { getCourseOutlineIndex } from '@src/course-outline/data';
 import { courseOutlineQueryKeys } from '@src/course-outline/data/queryKeys';
@@ -28,6 +29,7 @@ import {
   useUpdateCompetencyCriteriaRule,
 } from './data/apiHooks';
 import type {
+  CompetencyCriteriaGroupsResponse,
   CompetencyGroupLogicOperator,
   CompetencyRuleProfile,
   CourseCompetencyCriteriaGroup,
@@ -133,8 +135,9 @@ export interface CompetencyAssociationsContextBase {
    * (`courses.manage_tags`).
    */
   canEditCourse: (courseId: string) => boolean;
-  /** The `objectId` of every criterion in the tree, for the duplicate guard
-   * and the content panel's "already associated" marking.
+  /** The `objectId` of every criterion in the listed courses, for the duplicate guard
+   * and the content panel's "already associated" marking. Content can only be picked
+   * from a listed course, so the guard needs nothing outside them.
    */
   associatedObjectIds: Set<string>;
   /** Course-level groups whose course outline loaded. A course added by a later
@@ -143,17 +146,32 @@ export interface CompetencyAssociationsContextBase {
   accessibleCourseGroups: CourseCompetencyCriteriaGroup[];
   /** The active competency's short external id (e.g. "CCRS-1.3"), or `null`. */
   competencyExternalId: string | null;
+  /** Tells the provider which course keys the course list shows; call only
+   * once its query has succeeded. A change in the keys discards an unsaved
+   * placeholder.
+   */
+  notifyCoursesDisplayed: (courseKeys: string[]) => void;
+  /** The course keys last given to `notifyCoursesDisplayed`, which the groups
+   * fetch is scoped to; `undefined` until the first call. Until it matches the
+   * course list's own keys, `criteriaCounts` describes the previously listed courses.
+   */
+  displayedCourseKeys: string[] | undefined;
+  /** The groups response's association counts: `criteriaCount` in the listed
+   * courses and `totalCriteriaCount` across the instance. `undefined` while the
+   * groups for the current scope are loading, and while the groups query is in error.
+   */
+  criteriaCounts: Pick<CompetencyCriteriaGroupsResponse, 'criteriaCount' | 'totalCriteriaCount'> | undefined;
 }
 
 /** Discriminated on `status`. `groupsIndex` and `systemDefaultProfile` are
  * always defined when `status` is `'success'`, and may be missing otherwise.
  *
  * `'pending'` until the groups, the default rule profile and every course
- * outline have settled, then `'success'` for the rest of that competency, even
- * when a later groups refetch adds a course whose outline has not loaded yet.
- * `'error'` if the groups, the profile or any course outline failed, including
- * a failure after `'success'`. An outline that fails with a 403 or 404 only
- * hides its course and does not affect `status`.
+ * outline have settled, then `'success'` until the competency or the set of
+ * listed courses changes, even when a later groups refetch adds a course whose
+ * outline has not loaded yet. `'error'` if the groups, the profile or any
+ * course outline failed, including a failure after `'success'`. An outline that
+ * fails with a 403 or 404 only hides its course and does not affect `status`.
  */
 export type CompetencyAssociationsContextValue =
   & CompetencyAssociationsContextBase
@@ -247,12 +265,17 @@ export interface ProviderState {
   /** A course expanded before the groups and default profile loaded. */
   pendingCourseId: string | null;
   initialFocusDone: boolean;
-  /** Latches once `status` first reaches `'success'` for the competency. */
+  /** Latches once `status` first reaches `'success'` for the competency, and
+   * again for each new set of listed courses.
+   */
   settled: boolean;
+  /** See `CompetencyAssociationsContextBase.displayedCourseKeys`. Kept across competencies. */
+  displayedCourseKeys: string[] | undefined;
 }
 
 export type ProviderAction =
   | { type: 'competencyChanged'; tagId: number; }
+  | { type: 'coursesDisplayed'; courseKeys: string[]; }
   | { type: 'focusGroup'; groupId: number; ruleKey: string | null; }
   | { type: 'focusRuleBox'; groupId: number; ruleKey: string; }
   | { type: 'setFocus'; focus: CriteriaFocus; }
@@ -278,7 +301,31 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
         pendingCourseId: null,
         initialFocusDone: false,
         settled: false,
+        displayedCourseKeys: state.displayedCourseKeys,
       };
+    case 'coursesDisplayed': {
+      if (isEqual(state.displayedCourseKeys, action.courseKeys)) {
+        return state;
+      }
+      const next = { ...state, displayedCourseKeys: action.courseKeys };
+      if (state.displayedCourseKeys === undefined) {
+        return next;
+      }
+      // A new scope is a fresh load: `status` waits for its groups and for the
+      // outline of every listed course that has a group, so an empty list never
+      // shows while the outlines that decide access are still loading.
+      next.settled = false;
+      // Drops an unsaved placeholder even when its course stays listed (#683
+      // leaves that open). Its course is only known through the previous
+      // scope's index, and the new response can differ from it, so the
+      // placeholder would need re-validating either way; a discard is the
+      // predictable outcome. A saved focus is kept: `courseKeyOfFocus` finds no
+      // course for a group outside the scope, and it shows again once its page is listed.
+      const hasPlaceholderFocus = state.focus !== null && state.focus.ruleKey === null;
+      return hasPlaceholderFocus
+        ? reducePlaceholderAction({ ...next, placeholderDuplicateRejected: false }, { type: 'discardPlaceholder' })
+        : next;
+    }
     case 'focusGroup':
       if (state.focus?.groupId === action.groupId) {
         return state.pendingCourseId === null ? state : { ...state, pendingCourseId: null };
@@ -355,6 +402,7 @@ export const CompetencyAssociationsProvider = ({
     pendingCourseId: null,
     initialFocusDone: false,
     settled: false,
+    displayedCourseKeys: undefined,
   });
   const {
     focus,
@@ -365,6 +413,7 @@ export const CompetencyAssociationsProvider = ({
     pendingCourseId,
     initialFocusDone,
     settled,
+    displayedCourseKeys,
   } = state;
   const [expandedCourseIds, setExpandedCourseIds] = useState<Set<string>>(new Set());
   const [expansionCountByCourseId, setExpansionCountByCourseId] = useState<Record<string, number>>({});
@@ -374,7 +423,11 @@ export const CompetencyAssociationsProvider = ({
     dispatch({ type: 'competencyChanged', tagId });
   }
 
-  const groupsQuery = useCompetencyCriteriaGroups(tagId);
+  const notifyCoursesDisplayed = useCallback((courseKeys: string[]) => {
+    dispatch({ type: 'coursesDisplayed', courseKeys });
+  }, []);
+
+  const groupsQuery = useCompetencyCriteriaGroups(tagId, displayedCourseKeys);
   const profileQuery = useDefaultCompetencyRuleProfile();
   const { mutateAsync: createCriterion, isPending: isCreatePending, variables } = useCreateCompetencyCriterion();
   const isAssociating = isCreatePending && variables?.tagId === tagId;
@@ -389,6 +442,17 @@ export const CompetencyAssociationsProvider = ({
   const associatedIds = useMemo(
     () => (groupsQuery.data ? associatedObjectIds(groupsQuery.data) : new Set<string>()),
     [groupsQuery.data],
+  );
+  // `data` outlives a failed refetch under the same key, so after a write
+  // whose refetch failed it holds the pre-write counts beside the panel's error.
+  const countsData = groupsQuery.isError ? undefined : groupsQuery.data;
+  const criteriaCount = countsData?.criteriaCount;
+  const totalCriteriaCount = countsData?.totalCriteriaCount;
+  const criteriaCounts = useMemo(
+    () => (criteriaCount !== undefined && totalCriteriaCount !== undefined
+      ? { criteriaCount, totalCriteriaCount }
+      : undefined),
+    [criteriaCount, totalCriteriaCount],
   );
 
   // Applied during render so the initial-focus effect below already sees it.
@@ -659,6 +723,9 @@ export const CompetencyAssociationsProvider = ({
       associatedObjectIds: associatedIds,
       accessibleCourseGroups,
       competencyExternalId,
+      notifyCoursesDisplayed,
+      displayedCourseKeys,
+      criteriaCounts,
     };
     if (status === 'success' && groupsIndex && systemDefaultProfile) {
       return { ...shared, status, groupsIndex, systemDefaultProfile };
@@ -692,6 +759,9 @@ export const CompetencyAssociationsProvider = ({
     associatedIds,
     accessibleCourseGroups,
     competencyExternalId,
+    notifyCoursesDisplayed,
+    displayedCourseKeys,
+    criteriaCounts,
   ]);
 
   return (

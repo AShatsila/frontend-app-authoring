@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { onlineManager } from '@tanstack/react-query';
 import { Error as ErrorIcon, InfoOutline } from '@openedx/paragon/icons';
@@ -128,6 +128,8 @@ const TestConsumer = () => {
       <p>Associating: {String(ctx.isAssociating)}</p>
       <p>Course A expansions: {ctx.expansionCountByCourseId[courseA] ?? 0}</p>
       <p>Groups index: {ctx.groupsIndex ? 'loaded' : 'missing'}</p>
+      <p>Displayed course keys: {JSON.stringify(ctx.displayedCourseKeys ?? null)}</p>
+      <p>Criteria counts: {JSON.stringify(ctx.criteriaCounts ?? null)}</p>
       <p>Competency: {String(ctx.competencyExternalId)}</p>
       <p>Can edit course B: {String(ctx.canEditCourse(courseB))}</p>
       <p>Can edit another course: {String(ctx.canEditCourse(courseOther))}</p>
@@ -142,8 +144,24 @@ const TestConsumer = () => {
   );
 };
 
-const providerFor = (id: number, children: ReactNode = <TestConsumer />) => (
+/** The course keys reported by default: every course the fixtures use. */
+const defaultReportedCourseKeys = [courseA, courseB];
+
+/** Stands in for `CourseSearchBrowse`, which reports its listed courses' keys once its page loads. */
+const ReportCourseKeys = ({ courseKeys }: { courseKeys: string[]; }) => {
+  const { notifyCoursesDisplayed } = useCompetencyAssociations();
+  useEffect(() => notifyCoursesDisplayed(courseKeys), [notifyCoursesDisplayed, courseKeys]);
+  return null;
+};
+
+/** @param courseKeys Reported through `notifyCoursesDisplayed`; `null` reports nothing. */
+const providerFor = (
+  id: number,
+  children: ReactNode = <TestConsumer />,
+  courseKeys: string[] | null = defaultReportedCourseKeys,
+) => (
   <CompetencyAssociationsProvider tagId={id} competencyExternalId="CCRS-1.3">
+    {courseKeys !== null && <ReportCourseKeys courseKeys={courseKeys} />}
     {children}
   </CompetencyAssociationsProvider>
 );
@@ -855,6 +873,113 @@ describe('CompetencyAssociationsProvider', () => {
       rerender(providerFor(tagId));
 
       expect(await screen.findByText(focusOnGroup(10))).toBeInTheDocument();
+    });
+  });
+
+  describe('listed course changes (#683)', () => {
+    beforeEach(() => {
+      axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, outlineFixture);
+    });
+
+    it('stays pending and sends no groups request until course keys are reported', async () => {
+      render(providerFor(tagId, <TestConsumer />, null));
+      await waitFor(() => expect(axiosMock.history.get.some((req) => req.url === profileUrl)).toBe(true));
+      await flushEffects();
+
+      expect(screen.getByText('Status: pending')).toBeInTheDocument();
+      expect(screen.getByText('Displayed course keys: null')).toBeInTheDocument();
+      expect(axiosMock.history.get.filter((req) => req.url === groupsUrl)).toHaveLength(0);
+    });
+
+    it('scopes the groups request to the reported course keys and exposes the response counts', async () => {
+      renderProvider();
+      await waitForSuccess();
+
+      const groupsRequests = axiosMock.history.get.filter((req) => req.url === groupsUrl);
+      expect(groupsRequests).toHaveLength(1);
+      expect(groupsRequests[0].params).toEqual({ course_keys: defaultReportedCourseKeys.join(',') });
+      expect(screen.getByText(`Displayed course keys: ${JSON.stringify(defaultReportedCourseKeys)}`))
+        .toBeInTheDocument();
+      expect(screen.getByText('Criteria counts: {"criteriaCount":1,"totalCriteriaCount":1}')).toBeInTheDocument();
+    });
+
+    it('is pending again until a newly listed course\'s outline loads', async () => {
+      const courseBOutlineGate = deferred();
+      axiosMock.onGet(groupsUrl).reply((config) => [
+        200,
+        config.params.course_keys === courseB ? twoCoursesResponse : singleGroupResponse,
+      ]);
+      axiosMock.onGet(courseBOutlineUrl).reply(() => courseBOutlineGate.released.then(() => [200, outlineFixture]));
+      const { rerender } = renderProvider();
+      await waitForSuccess();
+
+      rerender(providerFor(tagId, <TestConsumer />, [courseB]));
+      await screen.findByText('Groups index: loaded');
+      await flushEffects();
+      expect(screen.getByText('Status: pending')).toBeInTheDocument();
+
+      await act(async () => {
+        courseBOutlineGate.release();
+      });
+      await waitForSuccess();
+    });
+
+    it.each([
+      ['rule box', 'Add placeholder rule box in group 10'],
+      ['group', 'Add placeholder group under course A'],
+    ])('discards a placeholder %s when different course keys are reported', async (_label, addButton) => {
+      const { rerender } = renderProvider();
+      await waitForSuccess();
+      await click(addButton);
+      expect(screen.getByText('Has placeholder: true')).toBeInTheDocument();
+
+      rerender(providerFor(tagId, <TestConsumer />, [courseOther]));
+
+      expect(screen.getByText('Has placeholder: false')).toBeInTheDocument();
+      expect(noFocus()).toBeInTheDocument();
+    });
+
+    it('keeps a placeholder when the same course keys are reported in a new array', async () => {
+      const { rerender } = renderProvider();
+      await waitForSuccess();
+      await click('Add placeholder rule box in group 10');
+
+      rerender(providerFor(tagId, <TestConsumer />, [...defaultReportedCourseKeys]));
+
+      expect(screen.getByText('Has placeholder: true')).toBeInTheDocument();
+      expect(screen.getByText(focusOn(10, null))).toBeInTheDocument();
+    });
+
+    it('keeps a focused saved rule box when different course keys are reported', async () => {
+      const { rerender } = renderProvider();
+      await waitForSuccess();
+      await click('Focus rule box 10 gte');
+
+      rerender(providerFor(tagId, <TestConsumer />, [courseOther]));
+
+      expect(screen.getByText(focusOn(10, gteKey))).toBeInTheDocument();
+    });
+
+    it('ignores a kept focus whose group is out of scope: a create in a listed course sends no group fields', async () => {
+      axiosMock.onGet(groupsUrl).reply((config) => [
+        200,
+        config.params.course_keys === courseOther ? noGroupsResponse : singleGroupResponse,
+      ]);
+      axiosMock.onPost(createUrl).reply(201, createdCriterion(30));
+      const { rerender } = renderProvider();
+      await waitForSuccess();
+      await click('Focus rule box 10 gte'); // group 10 belongs to course A
+
+      rerender(providerFor(tagId, <TestConsumer />, [courseOther]));
+      await screen.findByText('Status: pending');
+      await waitForSuccess();
+      expect(screen.getByText(focusOn(10, gteKey))).toBeInTheDocument();
+
+      await click('Associate in another course');
+
+      await expectSinglePost({ object_id: 'new-sub' });
     });
   });
 
