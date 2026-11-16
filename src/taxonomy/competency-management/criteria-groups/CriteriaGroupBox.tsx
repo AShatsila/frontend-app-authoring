@@ -1,17 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import {
-  Dropdown,
-  Icon,
-  IconButton,
-} from '@openedx/paragon';
-import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
 import { ruleBoxesForGroup } from '../utils';
 import AddControl from './AddControl';
 import type { AddControlProps } from './AddControl';
+import GroupActionsMenu from './GroupActionsMenu';
 import LogicOperatorSelect from './LogicOperatorSelect';
 import RuleBoxList from './RuleBoxList';
 import messages from './messages';
@@ -167,26 +162,16 @@ const CriteriaGroupBox = (
               )}
               {sentence}
             </div>
-            <Dropdown>
-              <Dropdown.Toggle
-                ref={menuToggleRef}
-                id={`rule-group-menu-toggle-${group?.id ?? 'placeholder'}`}
-                as={IconButton}
-                src={MoreVert}
-                iconAs={Icon}
-                variant="primary"
-                aria-label={group
-                  ? intl.formatMessage(messages.ruleGroupMoreActionsLabel, { position, courseName })
-                  : intl.formatMessage(messages.placeholderRuleGroupMoreActionsLabel, { courseName })}
-                size="inline"
-                disabled={isMenuDisabled}
-              />
-              <Dropdown.Menu>
-                <Dropdown.Item onClick={() => (group ? deleteGroup(group.id) : discardPlaceholderGroup())}>
-                  {intl.formatMessage(messages.removeRuleGroupMenuItem)}
-                </Dropdown.Item>
-              </Dropdown.Menu>
-            </Dropdown>
+            <GroupActionsMenu
+              toggleRef={menuToggleRef}
+              id={`rule-group-menu-toggle-${group?.id ?? 'placeholder'}`}
+              toggleLabel={group
+                ? intl.formatMessage(messages.ruleGroupMoreActionsLabel, { position, courseName })
+                : intl.formatMessage(messages.placeholderRuleGroupMoreActionsLabel, { courseName })}
+              removeLabel={intl.formatMessage(messages.removeRuleGroupMenuItem)}
+              disabled={isMenuDisabled}
+              onRemove={() => (group ? deleteGroup(group.id) : discardPlaceholderGroup())}
+            />
           </div>
         )
         : (
