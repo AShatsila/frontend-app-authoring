@@ -55,6 +55,7 @@ import {
   bottomTierGroupsForCourse,
   buildCompetencyCriteriaGroupsIndex,
   effectiveRuleOf,
+  firstGroupOfNewCourse,
   selectionTargetAfterRemoval,
   lastBottomTierGroupForCourse,
   lastRuleKeyIn,
@@ -282,6 +283,10 @@ export interface ProviderState {
   keyboardFocusRequest: KeyboardFocusRequest | null;
   /** A course expanded before the groups and default profile loaded. */
   pendingCourseId: string | null;
+  /** The page order from before a delete that left no visible group while a new course group's outline was still
+   * loading, so the first group of the new course can take selection once the outline settles.
+   */
+  pendingNewCourseSnapshot: PageOrderSnapshot | null;
   initialSelectionDone: boolean;
   /** Latches once `status` first reaches `'success'` for the competency. */
   settled: boolean;
@@ -303,6 +308,8 @@ export type ProviderAction =
     accessibleCourseKeys: ReadonlySet<string>;
     deletedGroupId: number;
     deleteFailed: boolean;
+    /** Whether a course group added since the snapshot has an outline that is neither loaded nor failed. */
+    hasUnsettledNewCourse: boolean;
     systemDefaultProfile: CompetencyRuleProfile;
   }
   | { type: 'deleteRefetchFailed'; generation: number; }
@@ -316,6 +323,11 @@ export type ProviderAction =
   | { type: 'createSucceeded'; generation: number; selection: CriteriaSelection; }
   | { type: 'courseExpandedBeforeLoad'; courseId: string; }
   | { type: 'pendingCourseResolved'; selection: CriteriaSelection | null; }
+  | {
+    type: 'newCourseResolved';
+    selection: CriteriaSelection | null;
+    keyboardFocusRequest: KeyboardFocusRequest;
+  }
   | { type: 'initialSelectionRan'; selection: CriteriaSelection | null; }
   | { type: 'settled'; };
 
@@ -365,7 +377,15 @@ function reduceGroupDeleted(
   state: ProviderState,
   action: Extract<ProviderAction, { type: 'groupDeleted'; }>,
 ): ProviderState {
-  const { snapshot, freshIndex, accessibleCourseKeys, deletedGroupId, deleteFailed, systemDefaultProfile } = action;
+  const {
+    snapshot,
+    freshIndex,
+    accessibleCourseKeys,
+    deletedGroupId,
+    deleteFailed,
+    hasUnsettledNewCourse,
+    systemDefaultProfile,
+  } = action;
   const target = selectionTargetAfterRemoval(
     snapshot,
     freshIndex,
@@ -393,6 +413,10 @@ function reduceGroupDeleted(
     const keyboardFocusRequest = requestWithoutSelectionMove();
     return keyboardFocusRequest ? { ...state, keyboardFocusRequest } : state;
   }
+  if (target === null && hasUnsettledNewCourse) {
+    // Neither selection nor the empty state's focus request is settled until that outline loads.
+    return { ...moveSelection(state, null, null), pendingNewCourseSnapshot: snapshot };
+  }
   if (target === null) {
     // The panel is empty only if the fresh data has no accessible group: the selected group can also be missing from
     // the snapshot.
@@ -417,6 +441,7 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
         placeholderDuplicateRejectionCount: 0,
         keyboardFocusRequest: null,
         pendingCourseId: null,
+        pendingNewCourseSnapshot: null,
         initialSelectionDone: false,
         settled: false,
       };
@@ -455,6 +480,11 @@ function reduceProviderState(state: ProviderState, action: ProviderAction): Prov
       return { ...state, pendingCourseId: action.courseId };
     case 'pendingCourseResolved':
       return { ...state, pendingCourseId: null, selection: action.selection ?? state.selection };
+    case 'newCourseResolved':
+      // A selection made while the outline loaded wins.
+      return state.selection === null
+        ? { ...moveSelection(state, action.selection, action.keyboardFocusRequest), pendingNewCourseSnapshot: null }
+        : { ...state, pendingNewCourseSnapshot: null };
     case 'initialSelectionRan':
       // A selection set before the gate opened wins over the auto-selection.
       return state.selection === null && action.selection !== null
@@ -523,6 +553,7 @@ export const CompetencyAssociationsProvider = ({
     placeholderDuplicateRejectionCount: 0,
     keyboardFocusRequest: null,
     pendingCourseId: null,
+    pendingNewCourseSnapshot: null,
     initialSelectionDone: false,
     settled: false,
   });
@@ -534,6 +565,7 @@ export const CompetencyAssociationsProvider = ({
     keyboardFocusRequest,
     generation,
     pendingCourseId,
+    pendingNewCourseSnapshot,
     initialSelectionDone,
     settled,
   } = state;
@@ -621,6 +653,21 @@ export const CompetencyAssociationsProvider = ({
     () => (groupsIndex ? visibleCourseGroups(groupsIndex, new Set(outlines.accessibleCourseIds)) : []),
     [groupsIndex, outlines.accessibleCourseIds],
   );
+
+  // Skipped on the render that changes competency, whose snapshot belongs to the previous one.
+  if (
+    !competencyChanged && pendingNewCourseSnapshot !== null && groupsIndex && systemDefaultProfile
+    && !outlines.isPending
+  ) {
+    const target = firstGroupOfNewCourse(pendingNewCourseSnapshot, groupsIndex, new Set(outlines.accessibleCourseIds));
+    dispatch({
+      type: 'newCourseResolved',
+      selection: target === undefined ? null : selectionOnFirstRuleBox(target, groupsIndex, systemDefaultProfile),
+      keyboardFocusRequest: target === undefined
+        ? { kind: 'empty' }
+        : { kind: 'group', groupId: target, selectionMoved: true },
+    });
+  }
 
   const error = groupsQuery.error ?? profileQuery.error ?? outlines.error;
   let status: 'pending' | 'error' | 'success' = 'success';
@@ -834,7 +881,7 @@ export const CompetencyAssociationsProvider = ({
       return;
     }
     const freshIndex = buildCompetencyCriteriaGroupsIndex(freshData);
-    // A course added since the snapshot has no loaded outline yet, so it counts as not accessible.
+    // A course added since the snapshot may have no loaded outline yet, which counts as not accessible.
     const accessibleCourseKeys = new Set(
       freshIndex.courseGroups
         .map((courseGroup) => courseGroup.courseKey)
@@ -842,6 +889,11 @@ export const CompetencyAssociationsProvider = ({
           queryClient.getQueryState(courseOutlineQueryKeys.index(courseKey))?.status === 'success'
         ),
     );
+    const hasUnsettledNewCourse = freshIndex.courseGroups.some((courseGroup) => {
+      const outlineStatus = queryClient.getQueryState(courseOutlineQueryKeys.index(courseGroup.courseKey))?.status;
+      return !snapshot.knownCourseGroupIds.includes(courseGroup.id)
+        && outlineStatus !== 'success' && outlineStatus !== 'error';
+    });
     dispatch({
       type: 'groupDeleted',
       generation,
@@ -850,6 +902,7 @@ export const CompetencyAssociationsProvider = ({
       accessibleCourseKeys,
       deletedGroupId,
       deleteFailed,
+      hasUnsettledNewCourse,
       systemDefaultProfile: profile,
     });
   }, [queryClient, tagId, generation]);

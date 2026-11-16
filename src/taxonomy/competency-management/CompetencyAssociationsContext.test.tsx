@@ -1457,6 +1457,22 @@ describe('CompetencyAssociationsProvider', () => {
       });
     });
 
+    it('selects the first rule box of a new course group once its outline loads, and requests keyboard focus', async () => {
+      axiosMock.onDelete(deleteUrl).reply(200, {});
+      const reads = mockGroupsReads(singleGroupResponse, {
+        groups: twoCoursesResponse.groups.filter((item) => item.id !== 1 && item.id !== 10),
+        criteria: [criterion(902, 'sub-b', 20)],
+      });
+      renderProvider();
+      expect(await screen.findByText(selectionOnGroup(10))).toBeInTheDocument();
+
+      await deleteAndRefetch('Delete group 10', reads);
+
+      expect(await screen.findByText(selectionOn(20, gteKey))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 20, selectionMoved: true })))
+        .toBeInTheDocument();
+    });
+
     it('clears selection and requests the empty state when only a new course the author cannot access remains', async () => {
       axiosMock.onDelete(deleteUrl).reply(200, {});
       const reads = mockGroupsReads(singleGroupResponse, {

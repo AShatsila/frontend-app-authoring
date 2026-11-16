@@ -43,6 +43,7 @@ describe('justAdded', () => {
     placeholderDuplicateRejectionCount: 0,
     keyboardFocusRequest: null,
     pendingCourseId: null,
+    pendingNewCourseSnapshot: null,
     initialSelectionDone: true,
     settled: true,
   };

@@ -267,7 +267,7 @@ function firstGroupOfCourseBelow(snapshot: PageOrderSnapshot, position: number, 
 
 // A course-level group that existed at the snapshot is either covered by the rules above or inaccessible to the
 // author, so only a new, accessible one can hold a visible target.
-function firstGroupOfNewCourse(
+export function firstGroupOfNewCourse(
   snapshot: PageOrderSnapshot,
   freshIndex: CompetencyCriteriaGroupsIndex,
   accessibleCourseKeys: ReadonlySet<string>,
