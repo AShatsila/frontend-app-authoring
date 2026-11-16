@@ -111,13 +111,13 @@ const CourseGroupSection = ({ courseGroup }: CourseGroupSectionProps) => {
     ? keyboardFocusRequest
     : null;
   const holdsFocusRequestTarget = request !== null;
-  const requestExpandsSection = request?.kind === 'group' && request.expand;
+  const requestMovesSelection = request?.kind === 'group' && request.selectionMoved;
   useEffect(() => {
-    if (holdsFocusRequestTarget && isCollapsed && !requestExpandsSection) {
+    if (holdsFocusRequestTarget && isCollapsed && !requestMovesSelection) {
       sectionToggleRef.current?.focus();
       consumeKeyboardFocusRequest();
     }
-  }, [holdsFocusRequestTarget, requestExpandsSection, isCollapsed, consumeKeyboardFocusRequest]);
+  }, [holdsFocusRequestTarget, requestMovesSelection, isCollapsed, consumeKeyboardFocusRequest]);
 
   const isMenuDisabled = isDeletingGroup || isAssociating;
   const canEdit = canEditCourse(courseGroup.courseKey);

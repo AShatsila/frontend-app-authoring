@@ -481,7 +481,7 @@ describe('<CourseGroupSection />', () => {
             canEditCourse: () => false,
             consumeKeyboardFocusRequest,
             selection: { groupId: 11, ruleKey: ruleKeyOfDefault },
-            keyboardFocusRequest: { kind: 'group', groupId: 11, expand: true },
+            keyboardFocusRequest: { kind: 'group', groupId: 11, selectionMoved: true },
           }}
         >
           <CourseGroupSection courseGroup={courseGroup} />
@@ -509,7 +509,7 @@ describe('<CourseGroupSection />', () => {
             groupsIndex: index,
             canEditCourse: () => false,
             consumeKeyboardFocusRequest,
-            keyboardFocusRequest: { kind: 'group', groupId: 11, expand: false },
+            keyboardFocusRequest: { kind: 'group', groupId: 11, selectionMoved: false },
           }}
         >
           <CourseGroupSection courseGroup={courseGroup} />
@@ -582,7 +582,7 @@ describe('<CourseGroupSection />', () => {
           value={{
             groupsIndex: index,
             canEditCourse: () => false,
-            keyboardFocusRequest: { kind: 'group', groupId: 999, expand: true },
+            keyboardFocusRequest: { kind: 'group', groupId: 999, selectionMoved: true },
           }}
         >
           <CourseGroupSection courseGroup={courseGroup} />

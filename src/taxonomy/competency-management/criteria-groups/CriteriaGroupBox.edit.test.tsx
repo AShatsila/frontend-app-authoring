@@ -235,26 +235,29 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
 
     it('takes keyboard focus on its select button when a request names it, then consumes the request', () => {
       const consumeKeyboardFocusRequest = jest.fn();
-      renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true }, consumeKeyboardFocusRequest });
+      renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 10, selectionMoved: true },
+        consumeKeyboardFocusRequest,
+      });
 
       expect(screen.getByRole('button', { name: 'By completing any of the following' })).toHaveFocus();
       expect(consumeKeyboardFocusRequest).toHaveBeenCalledTimes(1);
     });
 
     it.each([true, false])(
-      'focuses the select button, scrolling only when selection did not move (expand: %s)',
-      (expand) => {
+      'focuses the select button, scrolling only when selection did not move (selectionMoved: %s)',
+      (selectionMoved) => {
         const focus = jest.spyOn(HTMLButtonElement.prototype, 'focus');
-        renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 10, expand } });
+        renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 10, selectionMoved } });
 
-        expect(focus).toHaveBeenCalledWith({ preventScroll: expand });
+        expect(focus).toHaveBeenCalledWith({ preventScroll: selectionMoved });
       },
     );
 
     it('takes keyboard focus on its read-only header button when a request names it, then consumes the request', () => {
       const consumeKeyboardFocusRequest = jest.fn();
       renderBox(
-        { keyboardFocusRequest: { kind: 'group', groupId: 10, expand: true }, consumeKeyboardFocusRequest },
+        { keyboardFocusRequest: { kind: 'group', groupId: 10, selectionMoved: true }, consumeKeyboardFocusRequest },
         false,
       );
 
@@ -291,7 +294,10 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
 
     it('ignores a keyboard focus request that names another group', () => {
       const consumeKeyboardFocusRequest = jest.fn();
-      renderBox({ keyboardFocusRequest: { kind: 'group', groupId: 99, expand: true }, consumeKeyboardFocusRequest });
+      renderBox({
+        keyboardFocusRequest: { kind: 'group', groupId: 99, selectionMoved: true },
+        consumeKeyboardFocusRequest,
+      });
 
       expect(screen.getByRole('button', { name: 'By completing any of the following' })).not.toHaveFocus();
       expect(consumeKeyboardFocusRequest).not.toHaveBeenCalled();

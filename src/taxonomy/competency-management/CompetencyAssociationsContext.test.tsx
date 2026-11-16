@@ -1174,7 +1174,8 @@ describe('CompetencyAssociationsProvider', () => {
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expect(screen.getByText(selectionOn(11, gteKey))).toBeInTheDocument();
-      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 11, expand: true }))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 11, selectionMoved: true })))
+        .toBeInTheDocument();
       expect(mockShowToast).not.toHaveBeenCalled();
     });
 
@@ -1254,7 +1255,7 @@ describe('CompetencyAssociationsProvider', () => {
       const reads = mockGroupsReads(twoGroupsWithCriteriaResponse, afterDeletingGroup10Response);
       await renderWithSelectionOnGroup10();
       await deleteAndRefetch('Delete group 10', reads);
-      expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, expand: true })))
+      expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, selectionMoved: true })))
         .toBeInTheDocument();
 
       await click('Select group 11');
@@ -1275,7 +1276,8 @@ describe('CompetencyAssociationsProvider', () => {
       await deleteAndRefetch('Delete group 20', reads);
 
       expect(await screen.findByText(selectionOn(10, gteKey))).toBeInTheDocument();
-      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 10, expand: true }))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 10, selectionMoved: true })))
+        .toBeInTheDocument();
     });
 
     it('lands on the first rule box of the neighbor group, not its last', async () => {
@@ -1299,7 +1301,8 @@ describe('CompetencyAssociationsProvider', () => {
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expect(screen.getByText(selectionOn(12, eqKey))).toBeInTheDocument();
-      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 12, expand: false }))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 12, selectionMoved: false })))
+        .toBeInTheDocument();
     });
 
     it('respects a click made on another group\'s rule box while the delete is pending', async () => {
@@ -1316,7 +1319,8 @@ describe('CompetencyAssociationsProvider', () => {
 
       expect(await screen.findByText('Deleting: false')).toBeInTheDocument();
       expect(screen.getByText(selectionOn(12, eqKey))).toBeInTheDocument();
-      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 12, expand: false }))).toBeInTheDocument();
+      expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 12, selectionMoved: false })))
+        .toBeInTheDocument();
     });
 
     describe('when the author switches competency while a delete is pending', () => {
@@ -1406,7 +1410,8 @@ describe('CompetencyAssociationsProvider', () => {
         await deleteAndRefetch('Delete course group 1', reads);
 
         expect(await screen.findByText(selectionOn(20, gteKey))).toBeInTheDocument();
-        expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 20, expand: true }))).toBeInTheDocument();
+        expect(screen.getByText(keyboardRequest({ kind: 'group', groupId: 20, selectionMoved: true })))
+          .toBeInTheDocument();
         expect(mockShowToast).not.toHaveBeenCalled();
       });
     });
@@ -1420,7 +1425,7 @@ describe('CompetencyAssociationsProvider', () => {
 
         await deleteAndRefetch('Delete group 10', reads);
 
-        expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, expand: false })))
+        expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, selectionMoved: false })))
           .toBeInTheDocument();
         expect(noSelection()).toBeInTheDocument();
       });
@@ -1434,7 +1439,7 @@ describe('CompetencyAssociationsProvider', () => {
 
         await deleteAndRefetch('Delete group 10', reads);
 
-        expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, expand: false })))
+        expect(await screen.findByText(keyboardRequest({ kind: 'group', groupId: 11, selectionMoved: false })))
           .toBeInTheDocument();
         expect(screen.getByText('Selection: group null, rule none')).toBeInTheDocument();
       });
@@ -1485,7 +1490,8 @@ describe('CompetencyAssociationsProvider', () => {
       expect(screen.getByText('Has placeholder: false')).toBeInTheDocument();
       expect(screen.getByText('Deleting: false')).toBeInTheDocument();
       expect(screen.getByText('Associating: false')).toBeInTheDocument();
-      expect(screen.getByText('Keyboard request: {"kind":"group","groupId":11,"expand":true}')).toBeInTheDocument();
+      expect(screen.getByText('Keyboard request: {"kind":"group","groupId":11,"selectionMoved":true}'))
+        .toBeInTheDocument();
       expect(axiosMock.history.delete).toHaveLength(0);
       expect(axiosMock.history.patch).toHaveLength(0);
       expect(axiosMock.history.post).toHaveLength(0);

@@ -82,11 +82,11 @@ export interface CriteriaSelection {
  * names the bottom-tier card that takes it, `menu` the group whose menu toggle takes it after a failed delete, and
  * `empty` the "no associations" message.
  *
- * `expand` on a `group` request has two meanings: whether a collapsed section holding the card opens, and whether
- * selection moved to the card, in which case the card does not scroll to itself because its rule box does.
+ * `selectionMoved` on a `group` request is true when selection moved to the card, so the card does not scroll to itself
+ * because its rule box does.
  */
 export type KeyboardFocusRequest =
-  | { kind: 'group'; groupId: number; expand: boolean; }
+  | { kind: 'group'; groupId: number; selectionMoved: boolean; }
   | { kind: 'menu'; groupId: number; }
   | { kind: 'empty'; };
 
@@ -357,7 +357,7 @@ function keyboardRequestWithoutSelectionMove(
     null,
     accessibleCourseKeys,
   );
-  return typeof neighbor === 'number' ? { kind: 'group', groupId: neighbor, expand: false } : null;
+  return typeof neighbor === 'number' ? { kind: 'group', groupId: neighbor, selectionMoved: false } : null;
 }
 
 /** Resolves selection against the state at settle time, so a click made while the request was in flight is respected. */
@@ -388,7 +388,7 @@ function reduceGroupDeleted(
   if (target === 'keep-current') {
     const selectedGroupId = state.selection?.groupId ?? null;
     if (isDeletedGroupGone && selectedGroupId !== null) {
-      return { ...state, keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, expand: false } };
+      return { ...state, keyboardFocusRequest: { kind: 'group', groupId: selectedGroupId, selectionMoved: false } };
     }
     const keyboardFocusRequest = requestWithoutSelectionMove();
     return keyboardFocusRequest ? { ...state, keyboardFocusRequest } : state;
@@ -401,7 +401,7 @@ function reduceGroupDeleted(
   return moveSelection(
     state,
     selectionOnFirstRuleBox(target, freshIndex, systemDefaultProfile),
-    isDeletedGroupGone ? { kind: 'group', groupId: target, expand: true } : menuRequest,
+    isDeletedGroupGone ? { kind: 'group', groupId: target, selectionMoved: true } : menuRequest,
   );
 }
 
@@ -896,7 +896,7 @@ export const CompetencyAssociationsProvider = ({
       dispatch({
         type: 'placeholderGroupDiscarded',
         selection: selectionOnFirstRuleBox(lastGroup.id, groupsIndex, systemDefaultProfile),
-        keyboardFocusRequest: { kind: 'group', groupId: lastGroup.id, expand: true },
+        keyboardFocusRequest: { kind: 'group', groupId: lastGroup.id, selectionMoved: true },
       });
     } else {
       dispatch({ type: 'placeholderGroupDiscarded', selection: null, keyboardFocusRequest: null });

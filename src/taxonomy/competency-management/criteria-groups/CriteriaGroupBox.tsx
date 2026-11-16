@@ -86,9 +86,8 @@ const CriteriaGroupBox = (
     ? keyboardFocusRequest
     : null;
   const takesKeyboardFocus = groupRequest !== null;
-  // A moved selection scrolls its own rule box into view. `expand: false` marks an unchanged one, which nothing else
-  // scrolls, so the focus has to.
-  const selectionMoved = groupRequest?.expand === true;
+  // A moved selection scrolls its own rule box into view. An unchanged one has nothing else to scroll, so the focus does.
+  const selectionMoved = groupRequest?.selectionMoved ?? false;
 
   useEffect(() => {
     if (takesKeyboardFocus && selectButtonRef.current) {
