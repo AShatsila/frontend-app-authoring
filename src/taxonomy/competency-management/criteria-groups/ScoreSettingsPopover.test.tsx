@@ -70,11 +70,15 @@ describe('<ScoreSettingsPopover />', () => {
     const user = userEvent.setup();
     renderPopover({ rulePayload: { ...gte70, op: 'eq' } });
 
-    await user.click(screen.getByRole('button', { name: 'Comparison, equal to' }));
+    const toggle = screen.getByRole('button', { name: 'Comparison, equal to' });
+    expect(toggle).toHaveTextContent('=');
+    await user.click(toggle);
 
     expect(screen.getByRole('button', { name: '>= or higher' })).toBeEnabled();
     expect(screen.getByRole('button', { name: '<= or lower' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: '= equal to' })).toBeDisabled();
+    const current = screen.getByRole('button', { name: '= equal to' });
+    expect(current).toBeDisabled();
+    expect(current).toHaveClass('active');
   });
 
   it('commits the typed percent on Enter and requests close', async () => {
@@ -338,20 +342,5 @@ describe('<ScoreSettingsPopover />', () => {
     const input = screen.getByRole('textbox') as HTMLInputElement;
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
-  });
-
-  it('shows "=" for an eq rule and offers only ">=" and "<=" as enabled items', async () => {
-    const user = userEvent.setup();
-    renderPopover({ rulePayload: { ...gte70, op: 'eq' } });
-
-    const toggle = screen.getByRole('button', { name: 'Comparison, equal to' });
-    expect(toggle).toHaveTextContent('=');
-    await user.click(toggle);
-
-    expect(screen.getByRole('button', { name: '>= or higher' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: '<= or lower' })).toBeEnabled();
-    const current = screen.getByRole('button', { name: '= equal to' });
-    expect(current).toBeDisabled();
-    expect(current).toHaveClass('active');
   });
 });

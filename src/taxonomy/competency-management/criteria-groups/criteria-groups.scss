@@ -251,7 +251,7 @@
     padding: .75rem 1rem 1rem;
     background-color: var(--pgn-color-white);
     border-radius: var(--pgn-size-border-radius-base);
-    // The invalid variant keeps Paragon's own feedback color.
+    // Darkens the default hint only; the invalid variant keeps Paragon's feedback color.
     --pgn-color-text-muted: var(--pgn-color-gray-700);
   }
 

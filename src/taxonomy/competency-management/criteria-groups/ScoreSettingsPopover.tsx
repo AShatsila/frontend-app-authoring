@@ -121,7 +121,8 @@ const ScoreSettingsPopover = forwardRef<ScoreSettingsPopoverHandle, ScoreSetting
 
   const handleInputEnter = async (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
-      // A committed score can move focus to the score settings button mid-keypress, and Enter would then click that button.
+      // A committed score can move focus to the score settings button mid-keypress, and Enter would then click
+      // that button.
       event.preventDefault();
       if (await commit()) {
         onRequestClose();

@@ -269,6 +269,30 @@ describe('competency associations over the real provider', () => {
     await waitFor(() => expect(document.activeElement).toBe(buttons.at(-1)));
   });
 
+  it('taking the suggested score keeps the dialog open, then Escape returns focus to the score settings button', async () => {
+    axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
+    axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
+    renderPanel([courseARow]);
+    await user.click(await screen.findByRole('button', { name: 'Add Rule' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Competency Completion Rule' });
+    const scoreSettingsButton = document.querySelector(
+      '.score-threshold-field__score-settings-button[aria-expanded="true"]',
+    );
+    expect(scoreSettingsButton).toBeInstanceOf(HTMLButtonElement);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Use 75% or higher' }));
+
+    const input = within(screen.getByRole('dialog')).getByRole('textbox');
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(input).toHaveValue('75');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent(/Another rule in this group already uses/);
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(document.activeElement).toBe(scoreSettingsButton));
+  });
+
   it('+ Rule on a group whose default score is free focuses the new box\'s score settings button without opening the popover', async () => {
     axiosMock.onGet(groupsUrl).reply(200, freeDefaultResponse);
     axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
@@ -355,7 +379,6 @@ describe('competency associations over the real provider', () => {
     await screen.findAllByText(/^By completing/);
     expect(screen.queryByRole('button', { name: /With a score of/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add Rule Group' }));
-    await user.keyboard('{Escape}');
 
     await user.click(groupHeaders()[1]);
 

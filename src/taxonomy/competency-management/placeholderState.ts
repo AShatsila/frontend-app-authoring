@@ -12,7 +12,10 @@ export interface CriteriaPlaceholder {
   parentRuleGroupId: number | null;
   logicOperator: CompetencyGroupLogicOperator;
   rulePayload: GradeRulePayload | null;
-  /** True from an add action until the placeholder's score is set or the focus moves. `RuleBoxList` uses it to open the score settings or focus their button once, on the box the author just added. */
+  /**
+   * True from an add action until the placeholder's score is set or the focus moves. `RuleBoxList` uses it to open
+   * the score settings or focus their button once, on the box the author just added.
+   */
   justAdded: boolean;
 }
 
@@ -60,7 +63,11 @@ export function reducePlaceholderAction(state: ProviderState, action: Placeholde
   }
 }
 
-/** Clears `justAdded` when an action moved the focus but kept the same placeholder object. An add action replaces the placeholder object, so only a focus move onto an existing placeholder (such as clicking an empty saved group) is cleared here. */
+/**
+ * Clears `justAdded` when an action moved the focus but kept the same placeholder object. An add action replaces
+ * the placeholder object, so only a focus move onto an existing placeholder (such as clicking an empty saved group)
+ * is cleared here.
+ */
 export function clearJustAddedOnFocusMove(previous: ProviderState, next: ProviderState): ProviderState {
   const focusMoved = next.focus !== previous.focus;
   if (!focusMoved || next.placeholder !== previous.placeholder || !next.placeholder.justAdded) {

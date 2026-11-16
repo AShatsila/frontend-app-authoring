@@ -30,7 +30,10 @@ export interface RuleBoxProps {
   focusButtonOnMount?: boolean;
 }
 
-/** One rule box: its score threshold, whose score settings button opens the box's settings popover, and its criterion chips, or a hint when it is the placeholder. */
+/**
+ * One rule box: its score threshold, whose score settings button opens the box's settings popover, and its
+ * criterion chips, or a hint when it is the placeholder.
+ */
 const RuleBox = ({
   groupId,
   ruleKey,

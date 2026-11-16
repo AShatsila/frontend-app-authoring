@@ -85,7 +85,8 @@ const ScoreThresholdField = ({
     if (!hintIsError) {
       return;
     }
-    // The popover focuses its data-autofocus element only when it opens, so a repeat refusal while it is open moves focus here.
+    // The popover focuses its data-autofocus element only when it opens, so a repeat refusal while it is open
+    // moves focus here.
     const target = panelRef.current?.querySelector<HTMLElement>('[data-autofocus]');
     if (target) {
       target.focus();
