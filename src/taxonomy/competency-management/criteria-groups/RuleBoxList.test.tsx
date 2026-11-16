@@ -177,7 +177,7 @@ describe('<RuleBoxList />', () => {
         <MockCompetencyAssociationsProvider
           value={{
             focus: { groupId: 10, ruleKey: null },
-            placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null, opensScoreSettings: true },
+            placeholder: { parentRuleGroupId: null, logicOperator: 'OR', rulePayload: null, justAdded: true },
             setPlaceholderRulePayload,
           }}
         >
@@ -208,7 +208,7 @@ describe('<RuleBoxList />', () => {
                 parentRuleGroupId: null,
                 logicOperator: 'OR',
                 rulePayload,
-                opensScoreSettings: rulePayload === null,
+                justAdded: rulePayload === null,
               },
               placeholderDuplicateRejected: false,
               setPlaceholderRulePayload: setRulePayload,
@@ -267,14 +267,14 @@ describe('<RuleBoxList />', () => {
 
     it('moves focus back to the link on each further rejection', async () => {
       const { rerender, ui } = renderRejected(1);
-      const link = () => screen.getByRole('button', { name: 'Use 75% or higher' });
-      await waitFor(() => expect(link()).toHaveFocus());
+      const scoreSuggestionLink = () => screen.getByRole('button', { name: 'Use 75% or higher' });
+      await waitFor(() => expect(scoreSuggestionLink()).toHaveFocus());
       screen.getByRole('textbox').focus();
-      expect(link()).not.toHaveFocus();
+      expect(scoreSuggestionLink()).not.toHaveFocus();
 
       rerender(ui(2));
 
-      await waitFor(() => expect(link()).toHaveFocus());
+      await waitFor(() => expect(scoreSuggestionLink()).toHaveFocus());
     });
 
     it('shows the hint without a link and focuses the score input when no score is free', async () => {
@@ -365,7 +365,7 @@ describe('<RuleBoxList />', () => {
       parentRuleGroupId: null,
       logicOperator: 'OR' as const,
       rulePayload: null,
-      opensScoreSettings: true,
+      justAdded: true,
     };
 
     // A placeholder has no saved criteria, so its score lives in context until content is picked.

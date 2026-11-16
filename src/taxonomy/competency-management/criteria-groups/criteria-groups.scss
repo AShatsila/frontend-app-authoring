@@ -234,8 +234,8 @@
     color: var(--pgn-color-info-600);
   }
 
-  // The pill is a button when editable. It layers above `.rule-box__select-button` so clicks land here.
-  .score-threshold-field__toggle {
+  // The score settings button layers above `.rule-box__select-button` so clicks land here.
+  .score-threshold-field__score-settings-button {
     position: relative;
     z-index: 1;
     font: inherit;

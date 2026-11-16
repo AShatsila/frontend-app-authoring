@@ -20,12 +20,12 @@ export interface ScoreSettingsPopoverProps {
   onRequestClose: () => void;
   /** Called with the payload about to be committed. A non-empty result blocks the commit and is shown inline. */
   getInlineValidationMessage?: (candidate: GradeRulePayload) => string;
-  /** Guidance under the controls. */
-  hint?: string;
-  /** Renders `hint` as an error and marks the input invalid. */
+  /** Shown under the controls when another box in the group already uses this score. */
+  scoreTakenHint?: string;
+  /** Renders `scoreTakenHint` as an error and marks the input invalid. */
   hintIsError?: boolean;
-  /** When set, renders a "Use {score}" link under the hint. */
-  suggestion?: { rulePayload: GradeRulePayload; onApply: () => void; };
+  /** When set, renders a "Use {score}" link under the score-taken hint. */
+  scoreSuggestion?: { rulePayload: GradeRulePayload; onApply: () => void; };
   /** Which element carries `data-autofocus` for the owner's focus lock. */
   initialFocus: 'input' | 'suggestion';
   /** Filled with the commit function, so the owner can commit on a click outside. The function
@@ -54,9 +54,9 @@ const ScoreSettingsPopover = ({
   onCommit,
   onRequestClose,
   getInlineValidationMessage,
-  hint,
+  scoreTakenHint,
   hintIsError = false,
-  suggestion,
+  scoreSuggestion,
   initialFocus,
   commitRef,
 }: ScoreSettingsPopoverProps) => {
@@ -138,9 +138,9 @@ const ScoreSettingsPopover = ({
     };
   }, [commitRef]);
 
-  const handleKeyDown = async (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleInputEnter = async (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
-      // A committed score can move focus to a pill mid-keypress, and Enter would then click that pill.
+      // A committed score can move focus to the score settings button mid-keypress, and Enter would then click that button.
       event.preventDefault();
       if (await commit()) {
         onRequestClose();
@@ -149,7 +149,7 @@ const ScoreSettingsPopover = ({
   };
 
   // On the root, so Escape discards the edit from any focused element, not only the input.
-  const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+  const handleEscape = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || isMenuOpen) {
       return;
     }
@@ -162,16 +162,16 @@ const ScoreSettingsPopover = ({
     onRequestClose();
   };
 
-  // The commit-time message wins over the hint when both would show.
-  const showAsInvalid = !!validationMessage || (!!hint && hintIsError);
-  const focusSuggestion = initialFocus === 'suggestion' && !!suggestion;
+  // The commit-time message wins over the score-taken hint when both would show.
+  const showAsInvalid = !!validationMessage || (!!scoreTakenHint && hintIsError);
+  const focusScoreSuggestion = initialFocus === 'suggestion' && !!scoreSuggestion;
 
   return (
     <div
       role="dialog"
       aria-labelledby={headingId}
       className="score-settings"
-      onKeyDown={handleDialogKeyDown}
+      onKeyDown={handleEscape}
     >
       <p id={headingId} className="score-settings__heading">
         {intl.formatMessage(messages.scoreSettingsHeading)}
@@ -226,10 +226,10 @@ const ScoreSettingsPopover = ({
             isInvalid={showAsInvalid}
             readOnly={isSaving}
             aria-busy={isSaving}
-            data-autofocus={!focusSuggestion ? '' : undefined}
+            data-autofocus={!focusScoreSuggestion ? '' : undefined}
             onChange={(event) => setInputValue(event.target.value)}
             onFocus={(event) => event.currentTarget.select()}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleInputEnter}
           />
           <span aria-hidden>%</span>
         </div>
@@ -238,22 +238,22 @@ const ScoreSettingsPopover = ({
             {validationMessage}
           </Form.Control.Feedback>
         )}
-        {!validationMessage && hint && (
+        {!validationMessage && scoreTakenHint && (
           <Form.Control.Feedback type={hintIsError ? 'invalid' : 'default'} hasIcon={false}>
-            {hint}
+            {scoreTakenHint}
           </Form.Control.Feedback>
         )}
       </Form.Group>
-      {suggestion && (
+      {scoreSuggestion && (
         <Button
           variant="link"
           size="inline"
           className="score-settings__suggestion"
-          data-autofocus={focusSuggestion ? '' : undefined}
-          onClick={suggestion.onApply}
+          data-autofocus={focusScoreSuggestion ? '' : undefined}
+          onClick={scoreSuggestion.onApply}
         >
           {intl.formatMessage(messages.useSuggestedScoreLink, {
-            score: formatScoreSummary(intl, suggestion.rulePayload),
+            score: formatScoreSummary(intl, scoreSuggestion.rulePayload),
           })}
         </Button>
       )}

@@ -1,7 +1,7 @@
 import { singleGroupResponse } from './__mocks__';
 import type { ProviderState } from './CompetencyAssociationsContext';
 import {
-  clearStaleScoreSettingsOpen,
+  clearJustAddedOnFocusMove,
   initialPlaceholder,
   isPlaceholderOrphaned,
   reducePlaceholderAction,
@@ -33,7 +33,7 @@ describe('isPlaceholderOrphaned', () => {
   });
 });
 
-describe('opensScoreSettings', () => {
+describe('justAdded', () => {
   const baseState: ProviderState = {
     tagId: 1,
     generation: 0,
@@ -48,7 +48,7 @@ describe('opensScoreSettings', () => {
   const afterAdd = reducePlaceholderAction(baseState, { type: 'addPlaceholderRuleBox', groupId: 10 });
 
   it('is false in the initial placeholder', () => {
-    expect(initialPlaceholder.opensScoreSettings).toBe(false);
+    expect(initialPlaceholder.justAdded).toBe(false);
   });
 
   it.each(
@@ -57,7 +57,7 @@ describe('opensScoreSettings', () => {
       ['addPlaceholderGroup', { type: 'addPlaceholderGroup', parentRuleGroupId: 1 }],
     ] as const,
   )('is set by %s', (_label, action) => {
-    expect(reducePlaceholderAction(baseState, action).placeholder.opensScoreSettings).toBe(true);
+    expect(reducePlaceholderAction(baseState, action).placeholder.justAdded).toBe(true);
   });
 
   it('is cleared when the score is set', () => {
@@ -66,36 +66,36 @@ describe('opensScoreSettings', () => {
       rulePayload: { op: 'gte', value: 0.8, scale: 'percent' },
     });
 
-    expect(next.placeholder.opensScoreSettings).toBe(false);
+    expect(next.placeholder.justAdded).toBe(false);
   });
 
   it('survives a change of the logic operator', () => {
     const next = reducePlaceholderAction(afterAdd, { type: 'setPlaceholderLogicOperator', logicOperator: 'AND' });
 
-    expect(next.placeholder.opensScoreSettings).toBe(true);
+    expect(next.placeholder.justAdded).toBe(true);
   });
 
   it('is cleared by discardPlaceholder', () => {
     const next = reducePlaceholderAction(afterAdd, { type: 'discardPlaceholder' });
 
-    expect(next.placeholder.opensScoreSettings).toBe(false);
+    expect(next.placeholder.justAdded).toBe(false);
   });
 
-  describe('clearStaleScoreSettingsOpen', () => {
+  describe('clearJustAddedOnFocusMove', () => {
     it('clears the flag when focus moves without a new placeholder', () => {
       const moved = { ...afterAdd, focus: { groupId: 11, ruleKey: null } };
 
-      expect(clearStaleScoreSettingsOpen(afterAdd, moved).placeholder.opensScoreSettings).toBe(false);
+      expect(clearJustAddedOnFocusMove(afterAdd, moved).placeholder.justAdded).toBe(false);
     });
 
     it('keeps the flag when an add action changed the placeholder along with the focus', () => {
-      expect(clearStaleScoreSettingsOpen(baseState, afterAdd).placeholder.opensScoreSettings).toBe(true);
+      expect(clearJustAddedOnFocusMove(baseState, afterAdd).placeholder.justAdded).toBe(true);
     });
 
     it('keeps the flag when focus is unchanged', () => {
       const same = { ...afterAdd, tagId: 2 };
 
-      expect(clearStaleScoreSettingsOpen(afterAdd, same).placeholder.opensScoreSettings).toBe(true);
+      expect(clearJustAddedOnFocusMove(afterAdd, same).placeholder.justAdded).toBe(true);
     });
   });
 });

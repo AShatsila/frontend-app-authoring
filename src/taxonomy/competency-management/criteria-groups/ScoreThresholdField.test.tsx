@@ -48,7 +48,7 @@ describe('<ScoreThresholdField />', () => {
       onApply: jest.fn(),
     };
     // Found by text: the open dialog marks the rest of the page `aria-hidden`, which empties its accessible name.
-    const pill = () => screen.getByText('70% or higher').closest('button')!;
+    const scoreSettingsButton = () => screen.getByText('70% or higher').closest('button')!;
     const typeScore = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
       const input = screen.getByRole('textbox');
       await user.clear(input);
@@ -59,8 +59,8 @@ describe('<ScoreThresholdField />', () => {
     it('renders the sentence as a button that opens a dialog, closed at first', () => {
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} />);
 
-      expect(pill()).toHaveAttribute('aria-haspopup', 'dialog');
-      expect(pill()).toHaveAttribute('aria-expanded', 'false');
+      expect(scoreSettingsButton()).toHaveAttribute('aria-haspopup', 'dialog');
+      expect(scoreSettingsButton()).toHaveAttribute('aria-expanded', 'false');
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
@@ -68,10 +68,10 @@ describe('<ScoreThresholdField />', () => {
       const user = userEvent.setup();
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} />);
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
 
       expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
-      expect(pill()).toHaveAttribute('aria-expanded', 'true');
+      expect(scoreSettingsButton()).toHaveAttribute('aria-expanded', 'true');
       const input = screen.getByRole('textbox') as HTMLInputElement;
       await waitFor(() => expect(input).toHaveFocus());
       expect(input.selectionStart).toBe(0);
@@ -85,40 +85,40 @@ describe('<ScoreThresholdField />', () => {
       await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
     });
 
-    it('focuses the pill on mount, with the popover closed, when focusPillOnMount is set', async () => {
-      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} focusPillOnMount />);
+    it('focuses the score settings button on mount, with the popover closed, when focusButtonOnMount is set', async () => {
+      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} focusButtonOnMount />);
 
-      await waitFor(() => expect(pill()).toHaveFocus());
+      await waitFor(() => expect(scoreSettingsButton()).toHaveFocus());
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('commits the typed percent, as a fraction, on Enter, closes, and refocuses the pill', async () => {
+    it('commits the typed percent, as a fraction, on Enter, closes, and refocuses the score settings button', async () => {
       const user = userEvent.setup();
       const onChange = jest.fn().mockResolvedValue(undefined);
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       await typeScore(user, '85');
       await user.keyboard('{Enter}');
 
       expect(onChange).toHaveBeenCalledWith({ op: 'gte', value: 0.85, scale: 'percent' });
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-      expect(pill()).toHaveFocus();
-      expect(pill()).toHaveAttribute('aria-expanded', 'false');
+      expect(scoreSettingsButton()).toHaveFocus();
+      expect(scoreSettingsButton()).toHaveAttribute('aria-expanded', 'false');
     });
 
-    it('closes on Escape without committing, and refocuses the pill', async () => {
+    it('closes on Escape without committing, and refocuses the score settings button', async () => {
       const user = userEvent.setup();
       const onChange = jest.fn().mockResolvedValue(undefined);
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       await typeScore(user, '99');
       await user.keyboard('{Escape}');
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       expect(onChange).not.toHaveBeenCalled();
-      expect(pill()).toHaveFocus();
+      expect(scoreSettingsButton()).toHaveFocus();
     });
 
     it('discards a typed change on Escape with focus on the operator toggle', async () => {
@@ -126,7 +126,7 @@ describe('<ScoreThresholdField />', () => {
       const onChange = jest.fn().mockResolvedValue(undefined);
       render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={onChange} />);
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       await typeScore(user, '90');
       await user.tab({ shift: true });
       expect(screen.getByRole('button', { name: 'Comparison, or higher' })).toHaveFocus();
@@ -134,7 +134,7 @@ describe('<ScoreThresholdField />', () => {
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       expect(onChange).not.toHaveBeenCalled();
-      expect(pill()).toHaveTextContent('70% or higher');
+      expect(scoreSettingsButton()).toHaveTextContent('70% or higher');
     });
 
     it('stays open with the persisted value when a click outside commits a change that is rejected', async () => {
@@ -147,7 +147,7 @@ describe('<ScoreThresholdField />', () => {
         </>,
       );
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       const input = await typeScore(user, '90');
       await user.click(screen.getByText('elsewhere'));
 
@@ -166,7 +166,7 @@ describe('<ScoreThresholdField />', () => {
         </>,
       );
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       await typeScore(user, '90');
       await user.click(screen.getByText('elsewhere'));
 
@@ -184,7 +184,7 @@ describe('<ScoreThresholdField />', () => {
         </>,
       );
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       await typeScore(user, '150');
       await user.click(screen.getByText('elsewhere'));
 
@@ -203,7 +203,7 @@ describe('<ScoreThresholdField />', () => {
         </>,
       );
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       await user.click(screen.getByText('elsewhere'));
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -222,7 +222,7 @@ describe('<ScoreThresholdField />', () => {
         />,
       );
 
-      await user.click(pill());
+      await user.click(scoreSettingsButton());
       await typeScore(user, '85');
       await user.keyboard('{Enter}');
 
@@ -237,9 +237,9 @@ describe('<ScoreThresholdField />', () => {
         <ScoreThresholdField
           rulePayload={rulePayload70Percent}
           onChange={jest.fn()}
-          hint="Taken."
+          scoreTakenHint="Taken."
           hintIsError
-          suggestion={suggestion}
+          scoreSuggestion={suggestion}
         />,
       );
 
@@ -250,7 +250,14 @@ describe('<ScoreThresholdField />', () => {
     });
 
     it('focuses the input on hintIsError when there is no suggestion', async () => {
-      render(<ScoreThresholdField rulePayload={rulePayload70Percent} onChange={jest.fn()} hint="Taken." hintIsError />);
+      render(
+        <ScoreThresholdField
+          rulePayload={rulePayload70Percent}
+          onChange={jest.fn()}
+          scoreTakenHint="Taken."
+          hintIsError
+        />,
+      );
 
       await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
     });
@@ -261,10 +268,10 @@ describe('<ScoreThresholdField />', () => {
         <ScoreThresholdField
           rulePayload={rulePayload70Percent}
           onChange={jest.fn()}
-          hint="Taken."
+          scoreTakenHint="Taken."
           hintIsError={hintIsError}
           rejectionCount={rejectionCount}
-          suggestion={suggestion}
+          scoreSuggestion={suggestion}
         />
       );
       const { rerender } = render(ui(false, 0));
@@ -286,21 +293,21 @@ describe('<ScoreThresholdField />', () => {
         <ScoreThresholdField
           rulePayload={rulePayload70Percent}
           onChange={jest.fn()}
-          hint="Taken."
+          scoreTakenHint="Taken."
           hintIsError
           rejectionCount={rejectionCount}
-          suggestion={suggestion}
+          scoreSuggestion={suggestion}
         />
       );
       const { rerender } = render(ui(1));
-      const link = () => screen.getByRole('button', { name: 'Use 75% or higher' });
-      await waitFor(() => expect(link()).toHaveFocus());
+      const scoreSuggestionLink = () => screen.getByRole('button', { name: 'Use 75% or higher' });
+      await waitFor(() => expect(scoreSuggestionLink()).toHaveFocus());
 
       await user.click(screen.getByRole('textbox'));
-      expect(link()).not.toHaveFocus();
+      expect(scoreSuggestionLink()).not.toHaveFocus();
 
       rerender(ui(2));
-      await waitFor(() => expect(link()).toHaveFocus());
+      await waitFor(() => expect(scoreSuggestionLink()).toHaveFocus());
     });
 
     it('applies the suggestion when its link is clicked', async () => {
@@ -310,9 +317,9 @@ describe('<ScoreThresholdField />', () => {
         <ScoreThresholdField
           rulePayload={rulePayload70Percent}
           onChange={jest.fn()}
-          hint="Taken."
+          scoreTakenHint="Taken."
           hintIsError
-          suggestion={{ ...suggestion, onApply }}
+          scoreSuggestion={{ ...suggestion, onApply }}
         />,
       );
 

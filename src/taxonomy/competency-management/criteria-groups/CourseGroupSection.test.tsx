@@ -233,7 +233,7 @@ describe('<CourseGroupSection />', () => {
           parentRuleGroupId: courseGroup.id,
           logicOperator: 'OR',
           rulePayload: null,
-          opensScoreSettings: false,
+          justAdded: false,
         },
       });
 
@@ -247,7 +247,7 @@ describe('<CourseGroupSection />', () => {
     axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
     const { container } = renderSection({
       focus: { groupId: null, ruleKey: null },
-      placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null, opensScoreSettings: false },
+      placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null, justAdded: false },
     });
 
     await screen.findByText('Demo Course');
@@ -326,7 +326,7 @@ describe('<CourseGroupSection />', () => {
         parentRuleGroupId: courseGroup.id,
         logicOperator: 'OR' as const,
         rulePayload: null,
-        opensScoreSettings: false,
+        justAdded: false,
       },
     }],
     ['a placeholder rule box in one of its groups', { focus: { groupId: 10, ruleKey: null } }],
@@ -346,7 +346,7 @@ describe('<CourseGroupSection />', () => {
     const discardPlaceholder = jest.fn();
     renderSection({
       focus: { groupId: null, ruleKey: null },
-      placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null, opensScoreSettings: false },
+      placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null, justAdded: false },
       discardPlaceholder,
     });
 
@@ -376,7 +376,7 @@ describe('<CourseGroupSection />', () => {
         parentRuleGroupId: courseGroup.id,
         logicOperator: 'OR',
         rulePayload: null,
-        opensScoreSettings: false,
+        justAdded: false,
       },
     });
 
@@ -386,7 +386,7 @@ describe('<CourseGroupSection />', () => {
     unmount();
     const { container: other } = renderSection({
       focus: { groupId: null, ruleKey: null },
-      placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null, opensScoreSettings: false },
+      placeholder: { parentRuleGroupId: 999, logicOperator: 'OR', rulePayload: null, justAdded: false },
     });
     await screen.findByText('Demo Course');
     expect(other.querySelector('.course-group-section')).not.toHaveClass('course-group-section--focused');

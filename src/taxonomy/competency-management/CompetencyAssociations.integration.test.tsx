@@ -210,14 +210,16 @@ describe('competency associations over the real provider', () => {
     renderPanel();
     await screen.findByText('Homework 1');
     const addButtons = screen.getAllByRole('button', { name: 'Add Rule Group' });
-    const pillsBefore = screen.getAllByRole('button', { name: /With a score of/ });
+    const scoreSettingsButtonsBefore = screen.getAllByRole('button', { name: /With a score of/ });
 
     await user.click(addButtons[addButtons.length - 1]);
 
     expect(screen.getByRole('dialog', { name: 'Competency Completion Rule' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
     await closeScorePopover(user);
-    expect(screen.getAllByRole('button', { name: /With a score of/ })).toHaveLength(pillsBefore.length + 1);
+    expect(screen.getAllByRole('button', { name: /With a score of/ })).toHaveLength(
+      scoreSettingsButtonsBefore.length + 1,
+    );
   });
 
   it('collapsing a course discards its placeholder group, so expanding it again shows one group card', async () => {
@@ -270,9 +272,9 @@ describe('competency associations over the real provider', () => {
     expect(axiosMock.history.post).toHaveLength(0);
     const dialog = await screen.findByRole('dialog', { name: 'Competency Completion Rule' });
     expect(within(dialog).getByRole('textbox')).toBeInvalid();
-    const link = within(dialog).getByRole('button', { name: 'Use 75% or higher' });
-    await waitFor(() => expect(link).toHaveFocus());
-    await user.click(link);
+    const scoreSuggestionLink = within(dialog).getByRole('button', { name: 'Use 75% or higher' });
+    await waitFor(() => expect(scoreSuggestionLink).toHaveFocus());
+    await user.click(scoreSuggestionLink);
     await waitFor(() => expect(within(screen.getByRole('dialog')).getByRole('textbox')).toHaveFocus());
     expect(within(screen.getByRole('dialog')).getByRole('textbox')).toHaveValue('75');
     await closeScorePopover(user);
@@ -330,7 +332,7 @@ describe('competency associations over the real provider', () => {
   });
 
   describe('focus after a committed score', () => {
-    const scorePill = (percent: number) =>
+    const scoreSettingsButton = (percent: number) =>
       screen.getByRole('button', { name: new RegExp(`With a score of ${percent}%`) });
 
     const commitScore = async (percent: string) => {
@@ -341,7 +343,7 @@ describe('competency associations over the real provider', () => {
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     };
 
-    it('moves focus to the pill showing the new score after a saved box is edited', async () => {
+    it('moves focus to the score settings button showing the new score after a saved box is edited', async () => {
       let groupsReply = singleGroupResponse;
       axiosMock.onGet(groupsUrl).reply(() => [200, groupsReply]);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
@@ -359,10 +361,10 @@ describe('competency associations over the real provider', () => {
 
       await commitScore('85');
 
-      await waitFor(() => expect(scorePill(85)).toHaveFocus());
+      await waitFor(() => expect(scoreSettingsButton(85)).toHaveFocus());
     });
 
-    it('moves focus to the placeholder pill, with its dialog closed, after the placeholder score is committed', async () => {
+    it('moves focus to the placeholder score settings button, with its dialog closed, after the placeholder score is committed', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
       renderPanel([courseARow]);
@@ -371,12 +373,12 @@ describe('competency associations over the real provider', () => {
 
       await commitScore('80');
 
-      await waitFor(() => expect(scorePill(80)).toHaveFocus());
-      expect(scorePill(80)).toHaveAttribute('aria-expanded', 'false');
+      await waitFor(() => expect(scoreSettingsButton(80)).toHaveFocus());
+      expect(scoreSettingsButton(80)).toHaveAttribute('aria-expanded', 'false');
       expect(axiosMock.history.patch).toHaveLength(0);
     });
 
-    it('keeps focus on the same pill when a saved score is rejected and the popover is then dismissed', async () => {
+    it('keeps focus on the same score settings button when a saved score is rejected and the popover is then dismissed', async () => {
       axiosMock.onGet(groupsUrl).reply(200, singleGroupResponse);
       axiosMock.onGet(getCourseOutlineIndexApiUrl(courseA)).reply(200, outlineOf('Course A', {}));
       axiosMock.onPatch(ruleUpdateUrl).reply(500);
@@ -391,7 +393,7 @@ describe('competency associations over the real provider', () => {
 
       await closeScorePopover(user);
 
-      expect(scorePill(70)).toHaveFocus();
+      expect(scoreSettingsButton(70)).toHaveFocus();
     });
   });
 

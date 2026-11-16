@@ -131,7 +131,7 @@ describe('<CriteriaGroupBox /> editing (#794)', () => {
         <MockCompetencyAssociationsProvider
           value={{
             focus: { groupId: null, ruleKey: null },
-            placeholder: { parentRuleGroupId: 1, logicOperator: current, rulePayload: null, opensScoreSettings: false },
+            placeholder: { parentRuleGroupId: 1, logicOperator: current, rulePayload: null, justAdded: false },
             setPlaceholderLogicOperator,
             updateGroupOperator,
           }}

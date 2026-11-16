@@ -173,7 +173,7 @@ describe('<ScoreSettingsPopover />', () => {
     const suggestion = withSuggestion
       ? { rulePayload: { ...gte70, value: 0.75 }, onApply: jest.fn() }
       : undefined;
-    const { onCommit, onRequestClose } = renderPopover({ suggestion });
+    const { onCommit, onRequestClose } = renderPopover({ scoreSuggestion: suggestion });
 
     const input = await typeScore(user, '90');
     screen.getByRole('button', { name: buttonName }).focus();
@@ -282,7 +282,7 @@ describe('<ScoreSettingsPopover />', () => {
 
   it('describes the input by the validation message', async () => {
     const user = userEvent.setup();
-    renderPopover({ hint: 'Pick another.' });
+    renderPopover({ scoreTakenHint: 'Pick another.' });
 
     await typeScore(user, '150');
     await user.keyboard('{Enter}');
@@ -291,14 +291,14 @@ describe('<ScoreSettingsPopover />', () => {
   });
 
   it('describes the input by the hint', () => {
-    renderPopover({ hint: 'Pick another.' });
+    renderPopover({ scoreTakenHint: 'Pick another.' });
 
     expect(screen.getByRole('textbox')).toHaveAccessibleDescription('Pick another.');
     expect(screen.getByRole('textbox')).not.toBeInvalid();
   });
 
   it('marks the input invalid when the hint is an error', () => {
-    renderPopover({ hint: 'Pick another.', hintIsError: true });
+    renderPopover({ scoreTakenHint: 'Pick another.', hintIsError: true });
 
     expect(screen.getByRole('textbox')).toBeInvalid();
     expect(screen.getByText('Pick another.').closest('.pgn__form-text-invalid')).not.toBeNull();
@@ -306,7 +306,7 @@ describe('<ScoreSettingsPopover />', () => {
 
   it('shows only the validation message when both it and a hint apply', async () => {
     const user = userEvent.setup();
-    renderPopover({ getInlineValidationMessage: () => 'Taken.', hint: 'Pick another.' });
+    renderPopover({ getInlineValidationMessage: () => 'Taken.', scoreTakenHint: 'Pick another.' });
 
     await typeScore(user, '85');
     await user.keyboard('{Enter}');
@@ -318,7 +318,7 @@ describe('<ScoreSettingsPopover />', () => {
   it('renders the suggestion link and calls onApply when it is clicked', async () => {
     const user = userEvent.setup();
     const onApply = jest.fn();
-    renderPopover({ suggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply } });
+    renderPopover({ scoreSuggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply } });
 
     await user.click(screen.getByRole('button', { name: 'Use 80% or higher' }));
 
@@ -326,7 +326,7 @@ describe('<ScoreSettingsPopover />', () => {
   });
 
   it('puts data-autofocus on the input when initialFocus is "input"', () => {
-    renderPopover({ suggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply: jest.fn() } });
+    renderPopover({ scoreSuggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply: jest.fn() } });
 
     expect(screen.getByRole('textbox')).toHaveAttribute('data-autofocus');
     expect(screen.getByRole('button', { name: 'Use 80% or higher' })).not.toHaveAttribute('data-autofocus');
@@ -335,7 +335,7 @@ describe('<ScoreSettingsPopover />', () => {
   it('puts data-autofocus on the link when initialFocus is "suggestion"', () => {
     renderPopover({
       initialFocus: 'suggestion',
-      suggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply: jest.fn() },
+      scoreSuggestion: { rulePayload: { ...gte70, value: 0.8 }, onApply: jest.fn() },
     });
 
     expect(screen.getByRole('button', { name: 'Use 80% or higher' })).toHaveAttribute('data-autofocus');

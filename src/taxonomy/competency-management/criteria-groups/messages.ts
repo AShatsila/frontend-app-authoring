@@ -90,8 +90,8 @@ const messages = defineMessages({
   scoreThresholdInputAccessibleLabel: {
     id: 'course-authoring.competency-management.criteria-groups.score-threshold-input-accessible-label',
     defaultMessage: 'Score threshold percentage',
-    description: 'Accessible name for the editable score-threshold input, which otherwise relies on the '
-      + 'surrounding sentence ("With a score of ___% or higher") for sighted users only.',
+    description: 'Accessible name for the percentage input in the score settings popover, whose only visible '
+      + 'neighbors are the comparison menu and a "%" sign.',
   },
   duplicateScoreValidationMessage: {
     id: 'course-authoring.competency-management.criteria-groups.duplicate-score-validation-message',

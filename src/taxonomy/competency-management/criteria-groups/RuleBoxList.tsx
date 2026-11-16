@@ -13,7 +13,7 @@ const placeholderKeyOf = (rulePayload: GradeRulePayload) => `placeholder-${Math.
 /** What a box does once it mounts under `key`, after a score change remounted it. */
 interface AfterRemount {
   key: string;
-  action: 'open' | 'focusPill';
+  action: 'open' | 'focusScoreSettingsButton';
 }
 
 export interface RuleBoxListProps {
@@ -71,7 +71,7 @@ const RuleBoxList = ({
     afterRemount !== null && afterRemount.key === key && afterRemount.action === action
   );
 
-  const requestPillFocusAfterSave = (box: RuleBoxData) => (rulePayload: GradeRulePayload, save: Promise<void>) => {
+  const requestButtonFocusAfterSave = (box: RuleBoxData) => (rulePayload: GradeRulePayload, save: Promise<void>) => {
     if (!systemDefaultProfile) {
       return;
     }
@@ -79,19 +79,19 @@ const RuleBoxList = ({
       { ruleTypeOverride: box.rule.ruleType, rulePayloadOverride: rulePayload },
       systemDefaultProfile,
     );
-    setAfterRemount({ key: newKey, action: 'focusPill' });
+    setAfterRemount({ key: newKey, action: 'focusScoreSettingsButton' });
     save.catch(() => setAfterRemount(null));
   };
 
   // An untouched default that another box already uses would merge into that box on save.
   const isPlaceholderScoreTaken = canEdit && !!placeholderRule && isRuleTakenInGroup(placeholderRule, boxes);
   const suggestedScore = isPlaceholderScoreTaken ? nextUnusedScore(placeholderRule, boxes) : null;
-  const placeholderHint = isPlaceholderScoreTaken
+  const placeholderScoreTakenHint = isPlaceholderScoreTaken
     ? intl.formatMessage(messages.defaultScoreTakenHint, {
       score: formatScoreSummary(intl, placeholderRule.rulePayload),
     })
     : undefined;
-  const placeholderSuggestion = suggestedScore
+  const placeholderScoreSuggestion = suggestedScore
     ? {
       rulePayload: suggestedScore,
       onApply: () => {
@@ -113,13 +113,13 @@ const RuleBoxList = ({
           subsectionNamesByUsageKey={subsectionNamesByUsageKey}
           canEdit={canEdit}
           getInlineValidationMessage={getInlineValidationMessage(box)}
-          focusPillOnMount={isAwaited(box.key, 'focusPill')}
-          onScoreSave={requestPillFocusAfterSave(box)}
+          focusButtonOnMount={isAwaited(box.key, 'focusScoreSettingsButton')}
+          onScoreSave={requestButtonFocusAfterSave(box)}
         />
       ))}
       {showPlaceholder && (
         <RuleBox
-          // Remounts when the displayed score changes, since the field never resyncs from props.
+          // Remounts when the displayed score changes, so the popover's form starts from the new score.
           key={placeholderKey}
           groupId={groupId}
           ruleKey={null}
@@ -132,12 +132,12 @@ const RuleBoxList = ({
             rule: placeholderRule,
             criteria: [],
           })}
-          hint={placeholderHint}
-          suggestion={placeholderSuggestion}
-          autoOpen={placeholder.opensScoreSettings || isAwaited(placeholderKey, 'open')}
-          focusPillOnMount={isAwaited(placeholderKey, 'focusPill')}
+          scoreTakenHint={placeholderScoreTakenHint}
+          scoreSuggestion={placeholderScoreSuggestion}
+          autoOpen={placeholder.justAdded || isAwaited(placeholderKey, 'open')}
+          focusButtonOnMount={isAwaited(placeholderKey, 'focusScoreSettingsButton')}
           onScoreSave={(rulePayload, save) => {
-            setAfterRemount({ key: placeholderKeyOf(rulePayload), action: 'focusPill' });
+            setAfterRemount({ key: placeholderKeyOf(rulePayload), action: 'focusScoreSettingsButton' });
             save.catch(() => setAfterRemount(null));
           }}
         />

@@ -30,10 +30,10 @@ const renderRuleBox = (
   )
 );
 
-const scorePill = () => screen.getByRole('button', { name: 'With a score of 70% or higher' });
+const scoreSettingsButton = () => screen.getByRole('button', { name: 'With a score of 70% or higher' });
 
 const typeScore = async (user: ReturnType<typeof userEvent.setup>, score: string) => {
-  await user.click(scorePill());
+  await user.click(scoreSettingsButton());
   const input = screen.getByRole('textbox');
   await user.clear(input);
   await user.type(input, score);
@@ -99,11 +99,11 @@ describe('<RuleBox /> editing (#794)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('focuses the rule box when its select button is clicked, not when the score pill is', async () => {
+  it('focuses the rule box when its select button is clicked, not when the score settings button is', async () => {
     const focusRuleBox = jest.fn();
     renderRuleBox({ focusRuleBox }, { canEdit: true });
 
-    await user.click(scorePill());
+    await user.click(scoreSettingsButton());
     expect(focusRuleBox).not.toHaveBeenCalled();
     await user.keyboard('{Escape}');
 

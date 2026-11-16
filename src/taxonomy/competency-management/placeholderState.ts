@@ -12,17 +12,15 @@ export interface CriteriaPlaceholder {
   parentRuleGroupId: number | null;
   logicOperator: CompetencyGroupLogicOperator;
   rulePayload: GradeRulePayload | null;
-  /** Whether the placeholder box's score settings open by themselves when it mounts. True only right after an
-   * add action, so focusing an empty saved group shows its placeholder box with the popover closed.
-   */
-  opensScoreSettings: boolean;
+  /** True from an add action until the placeholder's score is set or the focus moves. `RuleBoxList` uses it to open the score settings or focus their button once, on the box the author just added. */
+  justAdded: boolean;
 }
 
 export const initialPlaceholder: CriteriaPlaceholder = {
   parentRuleGroupId: null,
   logicOperator: 'OR',
   rulePayload: null,
-  opensScoreSettings: false,
+  justAdded: false,
 };
 
 export type PlaceholderAction =
@@ -38,39 +36,37 @@ export function reducePlaceholderAction(state: ProviderState, action: Placeholde
       return {
         ...state,
         focus: { groupId: action.groupId, ruleKey: null },
-        placeholder: { ...state.placeholder, rulePayload: null, opensScoreSettings: true },
+        placeholder: { ...state.placeholder, rulePayload: null, justAdded: true },
         pendingCourseId: null,
       };
     case 'addPlaceholderGroup':
       return {
         ...state,
         focus: { groupId: null, ruleKey: null },
-        placeholder: { ...initialPlaceholder, parentRuleGroupId: action.parentRuleGroupId, opensScoreSettings: true },
+        placeholder: { ...initialPlaceholder, parentRuleGroupId: action.parentRuleGroupId, justAdded: true },
         pendingCourseId: null,
       };
     case 'setPlaceholderLogicOperator':
       return { ...state, placeholder: { ...state.placeholder, logicOperator: action.logicOperator } };
     case 'discardPlaceholder':
-      return { ...state, focus: null, placeholder: { ...state.placeholder, opensScoreSettings: false } };
+      return { ...state, focus: null, placeholder: { ...state.placeholder, justAdded: false } };
     case 'setPlaceholderRulePayload':
       return {
         ...state,
-        placeholder: { ...state.placeholder, rulePayload: action.rulePayload, opensScoreSettings: false },
+        placeholder: { ...state.placeholder, rulePayload: action.rulePayload, justAdded: false },
       };
     default:
       return state;
   }
 }
 
-/** Clears `opensScoreSettings` when an action moved the focus without replacing the placeholder, since the
- * placeholder box that now shows was not just added. An add action replaces the placeholder, so it keeps the flag.
- */
-export function clearStaleScoreSettingsOpen(previous: ProviderState, next: ProviderState): ProviderState {
+/** Clears `justAdded` when an action moved the focus but kept the same placeholder object. An add action replaces the placeholder object, so only a focus move onto an existing placeholder (such as clicking an empty saved group) is cleared here. */
+export function clearJustAddedOnFocusMove(previous: ProviderState, next: ProviderState): ProviderState {
   const focusMoved = next.focus !== previous.focus;
-  if (!focusMoved || next.placeholder !== previous.placeholder || !next.placeholder.opensScoreSettings) {
+  if (!focusMoved || next.placeholder !== previous.placeholder || !next.placeholder.justAdded) {
     return next;
   }
-  return { ...next, placeholder: { ...next.placeholder, opensScoreSettings: false } };
+  return { ...next, placeholder: { ...next.placeholder, justAdded: false } };
 }
 
 /** Whether the focused placeholder's real group, or its parent for a placeholder group, left the groups tree. */
