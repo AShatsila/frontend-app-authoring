@@ -2491,8 +2491,7 @@ describe('CompetencyAssociationsProvider', () => {
         kind: RemovalTargetKind.RuleBox,
         contentNames: ['Quiz 901', 'Quiz 905', 'Quiz 906'],
         otherRuleCount: 1,
-        courseName: 'Test Course',
-        isOnlyGroupInCourse: true,
+        leavesCourseWithoutAssociations: false,
       });
       expect(sentWrites()).toBe(0);
     });
@@ -2678,6 +2677,25 @@ describe('CompetencyAssociationsProvider', () => {
       rerender(providerFor(otherTagId));
 
       expect(screen.getByText(pendingRemoval('closed'))).toBeInTheDocument();
+    });
+
+    it('recomputes the last-association warning from the refetched data after a failure', async () => {
+      mockDeletes(901);
+      axiosMock.onDelete(deleteUrlOf(905)).reply(500);
+      axiosMock.onGet(groupsUrl).replyOnce(200, boxOfThreeResponse);
+      // Another author removed the 80% box meanwhile, so what is left is all the course has.
+      axiosMock.onGet(groupsUrl).reply(200, withoutCriteria(boxOfThreeResponse, [901, 903]));
+      axiosMock.onGet(profileUrl).reply(200, profileResponse);
+      axiosMock.onGet(courseAOutlineUrl).reply(200, namedOutline);
+      await renderLoaded();
+
+      await click('Delete rule box 10 70');
+      expect(summary().leavesCourseWithoutAssociations).toBe(false);
+      await click('Confirm removal');
+
+      expect(await screen.findByText(pendingRemoval('{"kind":"ruleBox","failure":"partly-removed"}')))
+        .toBeInTheDocument();
+      expect(summary().leavesCourseWithoutAssociations).toBe(true);
     });
 
     it('lets a retry send only what is left after a partial failure', async () => {
