@@ -1,10 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Stack } from '@openedx/paragon';
+import {
+  Dropdown,
+  Icon,
+  IconButton,
+  Stack,
+} from '@openedx/paragon';
+import { MoreVert } from '@openedx/paragon/icons';
 import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { CompetencyCriterion, EffectiveRule, GradeRulePayload } from '../data/types';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import CriterionChipList from './CriterionChipList';
+import { formatScoreSummary } from './formatScoreSummary';
 import ScoreThresholdField from './ScoreThresholdField';
 import messages from './messages';
 
@@ -33,6 +41,8 @@ export interface RuleBoxProps {
 /**
  * One rule box: its score threshold, whose score settings button opens the box's settings popover, and its
  * criterion chips, or a hint when it is the placeholder.
+ * In a saved group, each box has a ⋮ menu whose Remove rule item asks for confirmation before deleting a saved box,
+ * or discards the placeholder; without `canEdit` the menu is not rendered at all.
  */
 const RuleBox = ({
   groupId,
@@ -55,10 +65,14 @@ const RuleBox = ({
     setPlaceholderRulePayload,
     placeholderDuplicateRejected,
     placeholderDuplicateRejectionCount,
+    requestRemoval,
+    removePlaceholderRuleBox,
+    isDeleting,
   } = useCompetencyAssociations();
   const isSelected = selection?.groupId === groupId && selection?.ruleKey === ruleKey;
   const isPlaceholder = ruleKey === null;
   const ref = useRef<HTMLDivElement>(null);
+  const menuToggleId = useId();
 
   useEffect(() => {
     if (isSelected) {
@@ -83,6 +97,21 @@ const RuleBox = ({
     }
   };
 
+  const handleRemoveClick = () => {
+    if (groupId === null) {
+      return;
+    }
+    if (ruleKey === null) {
+      removePlaceholderRuleBox();
+    } else {
+      requestRemoval({
+        kind: RemovalTargetKind.RuleBox,
+        groupId,
+        criterionIds: criteria.map((criterion) => criterion.id),
+      });
+    }
+  };
+
   return (
     <Stack
       ref={ref}
@@ -103,17 +132,49 @@ const RuleBox = ({
                 <span className="sr-only">{intl.formatMessage(messages.selectRuleBoxButtonLabel)}</span>
               </button>
             )}
-            <ScoreThresholdField
-              rulePayload={rule.rulePayload}
-              onChange={handleScoreChange}
-              getInlineValidationMessage={getInlineValidationMessage}
-              autoOpen={autoOpen}
-              focusButtonOnMount={focusButtonOnMount}
-              scoreTakenHint={scoreTakenHint}
-              hintIsError={isDuplicateRejected}
-              rejectionCount={placeholderDuplicateRejectionCount}
-              scoreSuggestion={scoreSuggestion}
-            />
+            <div className="d-flex align-items-start">
+              <div className="flex-grow-1">
+                <ScoreThresholdField
+                  rulePayload={rule.rulePayload}
+                  onChange={handleScoreChange}
+                  getInlineValidationMessage={getInlineValidationMessage}
+                  autoOpen={autoOpen}
+                  focusButtonOnMount={focusButtonOnMount}
+                  scoreTakenHint={scoreTakenHint}
+                  hintIsError={isDuplicateRejected}
+                  rejectionCount={placeholderDuplicateRejectionCount}
+                  scoreSuggestion={scoreSuggestion}
+                />
+              </div>
+              {
+                /* `groupId` is null only inside a placeholder group, so its rule box gets no menu here; the group's own
+                  menu removes the box with the group. */
+              }
+              {groupId !== null && (
+                <Dropdown>
+                  <Dropdown.Toggle
+                    id={menuToggleId}
+                    as={IconButton}
+                    src={MoreVert}
+                    iconAs={Icon}
+                    variant="primary"
+                    className="rule-box__menu-toggle"
+                    size="inline"
+                    aria-label={isPlaceholder
+                      ? intl.formatMessage(messages.placeholderRuleBoxMoreActionsLabel)
+                      : intl.formatMessage(messages.ruleBoxMoreActionsLabel, {
+                        score: formatScoreSummary(intl, rule.rulePayload),
+                      })}
+                    disabled={isDeleting}
+                  />
+                  <Dropdown.Menu>
+                    <Dropdown.Item onClick={handleRemoveClick}>
+                      {intl.formatMessage(messages.removeRuleBoxMenuItem)}
+                    </Dropdown.Item>
+                  </Dropdown.Menu>
+                </Dropdown>
+              )}
+            </div>
           </>
         )
         : (

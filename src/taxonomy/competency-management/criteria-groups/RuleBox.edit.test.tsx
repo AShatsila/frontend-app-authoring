@@ -7,6 +7,7 @@ import {
 } from '@src/testUtils';
 import { mockScrollIntoView, MockCompetencyAssociationsProvider, criterion, gteRule } from '../__mocks__';
 import type { MockCompetencyAssociationsOverrides } from '../__mocks__';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import RuleBox from './RuleBox';
 
 const criteria = [criterion(1, 'block-a', 10)];
@@ -120,15 +121,98 @@ describe('<RuleBox /> editing (#794)', () => {
     expect(screen.queryByRole('button', { name: 'Remove the association with Subsection A' })).not.toBeInTheDocument();
   });
 
-  it('removes the chip\'s criterion without selecting the rule box when its remove button is clicked', async () => {
+  it('requests the chip\'s removal without selecting the rule box when its remove button is clicked', async () => {
     const user = userEvent.setup();
     const selectRuleBox = jest.fn();
-    const removeAssociation = jest.fn();
-    renderRuleBox({ selectRuleBox, removeAssociation }, { canEdit: true });
+    const requestRemoval = jest.fn();
+    renderRuleBox({ selectRuleBox, requestRemoval }, { canEdit: true });
 
     await user.click(screen.getByRole('button', { name: 'Remove the association with Subsection A' }));
 
-    expect(removeAssociation).toHaveBeenCalledWith(1, 'group');
+    expect(requestRemoval).toHaveBeenCalledWith({
+      kind: RemovalTargetKind.Association,
+      criterionId: 1,
+      returnFocusTo: 'group',
+    });
     expect(selectRuleBox).not.toHaveBeenCalled();
+  });
+
+  describe('rule box menu (#833)', () => {
+    const savedMenuName = 'More actions for the rule with a score of 70% or higher';
+    const placeholderMenuName = 'More actions for the new rule';
+
+    it('shows a menu button named after the box\'s score only when the author can edit', () => {
+      const { unmount } = renderRuleBox({}, { canEdit: true });
+      expect(screen.getByRole('button', { name: savedMenuName })).toBeInTheDocument();
+      unmount();
+
+      renderRuleBox({}, { canEdit: false });
+      expect(screen.queryByRole('button', { name: savedMenuName })).not.toBeInTheDocument();
+    });
+
+    it('requests its own removal, without focusing the box, when Remove rule is chosen', async () => {
+      const user = userEvent.setup();
+      const requestRemoval = jest.fn();
+      const removePlaceholderRuleBox = jest.fn();
+      const selectRuleBox = jest.fn();
+      renderRuleBox(
+        { requestRemoval, removePlaceholderRuleBox, selectRuleBox },
+        { canEdit: true, criteria: [...criteria, criterion(2, 'block-b', 10)] },
+      );
+
+      await user.click(screen.getByRole('button', { name: savedMenuName }));
+      await user.click(screen.getByRole('button', { name: 'Remove rule' }));
+
+      expect(requestRemoval).toHaveBeenCalledTimes(1);
+      expect(requestRemoval).toHaveBeenCalledWith({
+        kind: RemovalTargetKind.RuleBox,
+        groupId: 10,
+        criterionIds: [1, 2],
+      });
+      expect(removePlaceholderRuleBox).not.toHaveBeenCalled();
+      expect(selectRuleBox).not.toHaveBeenCalled();
+    });
+
+    it('lets the placeholder rule box in a saved group discard itself without requesting a removal', async () => {
+      const user = userEvent.setup();
+      const requestRemoval = jest.fn();
+      const removePlaceholderRuleBox = jest.fn();
+      renderRuleBox(
+        { requestRemoval, removePlaceholderRuleBox },
+        { canEdit: true, ruleKey: null, criteria: [] },
+      );
+
+      await user.click(screen.getByRole('button', { name: placeholderMenuName }));
+      await user.click(screen.getByRole('button', { name: 'Remove rule' }));
+
+      expect(removePlaceholderRuleBox).toHaveBeenCalledTimes(1);
+      expect(requestRemoval).not.toHaveBeenCalled();
+    });
+
+    it.each(['{Enter}', ' '])(
+      'opens from the keyboard and requests the rule\'s removal with %j',
+      async (activationKey) => {
+        const user = userEvent.setup();
+        const requestRemoval = jest.fn();
+        renderRuleBox({ requestRemoval }, { canEdit: true });
+
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'Select this rule' })).toHaveFocus();
+        await user.tab();
+        expect(screen.getByRole('button', { name: 'With a score of 70% or higher' })).toHaveFocus();
+        await user.tab();
+        expect(screen.getByRole('button', { name: savedMenuName })).toHaveFocus();
+        await user.keyboard('{Enter}');
+        await user.keyboard('{ArrowDown}');
+        expect(screen.getByRole('button', { name: 'Remove rule' })).toHaveFocus();
+        await user.keyboard(activationKey);
+
+        expect(requestRemoval).toHaveBeenCalledWith({
+          kind: RemovalTargetKind.RuleBox,
+          groupId: 10,
+          criterionIds: [1],
+        });
+      },
+    );
   });
 });

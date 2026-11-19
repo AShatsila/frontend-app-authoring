@@ -20,6 +20,7 @@ import CompetencyIcon from '@src/generic/CompetencyIcon';
 import { LoadingSpinner } from '@src/generic/Loading';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import rootMessages from '../messages';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import messages from './messages';
 
 export interface CourseOutlineSubtreeProps {
@@ -33,8 +34,8 @@ interface SubsectionRowProps {
 
 /**
  * One graded subsection: its name plus the competency pill. The applied pill shows regardless of
- * `canEditCourse`, and holds a remove button when the author can edit. Takes keyboard focus back after a remove
- * started from this row.
+ * `canEditCourse`, and holds a remove button when the author can edit. Takes keyboard focus back after a confirmed
+ * remove.
  */
 const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   const intl = useIntl();
@@ -46,7 +47,7 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
     isAssociating,
     groupsIndex,
     isDeleting,
-    removeAssociation,
+    requestRemoval,
     keyboardFocusRequest,
     consumeKeyboardFocusRequest,
     status,
@@ -64,7 +65,8 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
   useEffect(() => {
     const target = isAssociated ? removeButtonRef.current : associateButtonRef.current;
     if (takesKeyboardFocus && target) {
-      target.focus();
+      // After the dialog's own focus return, which runs in a microtask when it unmounts.
+      queueMicrotask(() => target.focus());
       consumeKeyboardFocusRequest();
     }
   }, [takesKeyboardFocus, consumeKeyboardFocusRequest, isAssociated, canAssociate]);
@@ -107,7 +109,11 @@ const SubsectionRow = ({ subsection, courseId }: SubsectionRowProps) => {
                 const criterion = [...(groupsIndex?.criteriaByGroupId.values() ?? [])].flat()
                   .find((candidate) => candidate.objectId === subsection.id);
                 if (criterion) {
-                  removeAssociation(criterion.id, 'subsection');
+                  requestRemoval({
+                    kind: RemovalTargetKind.Association,
+                    criterionId: criterion.id,
+                    returnFocusTo: 'subsection',
+                  });
                 }
               }}
             />

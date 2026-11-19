@@ -21,6 +21,7 @@ import {
 import type { MockCompetencyAssociationsOverrides } from '../__mocks__';
 import type { CourseCompetencyCriteriaGroup } from '../data/types';
 import { CompetencyAssociationsContext } from '../CompetencyAssociationsContext';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import { buildCompetencyCriteriaGroupsIndex } from '../utils';
 import CourseGroupSection from './CourseGroupSection';
 
@@ -267,7 +268,9 @@ describe('<CourseGroupSection />', () => {
     expect(names).toEqual([
       'More actions for Demo Course',
       'More actions for rule group 1 in Demo Course',
+      'More actions for the rule with a score of 70% or higher',
       'More actions for rule group 2 in Demo Course',
+      'More actions for the rule with a score of 70% or higher',
       'More actions for the new rule group in Demo Course',
     ]);
   });
@@ -427,15 +430,15 @@ describe('<CourseGroupSection />', () => {
   });
 
   describe('delete control', () => {
-    it('calls deleteGroup with the course group id when Remove from the competency is chosen', async () => {
+    it('requests the course group\'s removal when Remove from the competency is chosen', async () => {
       axiosMock.onGet(outlineApiUrl).reply(200, outlineFixture);
-      const deleteGroup = jest.fn();
-      renderSection({ deleteGroup, canEditCourse: () => true, competencyName: 'Critical Thinking' });
+      const requestRemoval = jest.fn();
+      renderSection({ requestRemoval, canEditCourse: () => true, competencyName: 'Critical Thinking' });
 
       await user.click(await screen.findByRole('button', { name: 'More actions for Demo Course' }));
       await user.click(screen.getByRole('button', { name: 'Remove from Critical Thinking' }));
 
-      expect(deleteGroup).toHaveBeenCalledWith(courseGroup.id);
+      expect(requestRemoval).toHaveBeenCalledWith({ kind: RemovalTargetKind.CourseGroup, groupId: courseGroup.id });
     });
 
     it('renders the menu button at the inline size, whatever size the card header injects', async () => {

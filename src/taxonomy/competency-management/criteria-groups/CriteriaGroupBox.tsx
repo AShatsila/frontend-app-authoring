@@ -4,12 +4,20 @@ import classNames from 'classnames';
 import { useCompetencyAssociations } from '../CompetencyAssociationsContext';
 import type { BottomTierCompetencyCriteriaGroup } from '../data/types';
 import { ruleBoxesForGroup } from '../utils';
+import { RemovalTargetKind } from '@src/taxonomy/competency-management/constants';
 import AddControl from './AddControl';
 import type { AddControlProps } from './AddControl';
 import GroupActionsMenu from './GroupActionsMenu';
 import LogicOperatorSelect from './LogicOperatorSelect';
 import RuleBoxList from './RuleBoxList';
 import messages from './messages';
+
+const isInputOrEditableElement = (element: Element | null): boolean => (
+  element instanceof HTMLInputElement
+  || element instanceof HTMLTextAreaElement
+  || element instanceof HTMLSelectElement
+  || (element instanceof HTMLElement && element.isContentEditable)
+);
 
 export interface CriteriaGroupBoxProps {
   /** `undefined` for the not-yet-saved placeholder group, which reads its any/all logic from the context. */
@@ -51,7 +59,7 @@ const CriteriaGroupBox = (
     hasPlaceholder,
     isAssociating,
     courseList,
-    deleteGroup,
+    requestRemoval,
     isDeleting,
     discardPlaceholderGroup,
     keyboardFocusRequest,
@@ -87,7 +95,11 @@ const CriteriaGroupBox = (
 
   useEffect(() => {
     if (takesKeyboardFocus && selectButtonRef.current) {
-      selectButtonRef.current.focus({ preventScroll: selectionMoved });
+      // Moving focus off a text field would interrupt the author's typing.
+      if (!isInputOrEditableElement(document.activeElement)) {
+        // After the dialog's own focus return, which runs in a microtask when it unmounts.
+        queueMicrotask(() => selectButtonRef.current?.focus({ preventScroll: selectionMoved }));
+      }
       consumeKeyboardFocusRequest();
     }
   }, [takesKeyboardFocus, selectionMoved, consumeKeyboardFocusRequest]);
@@ -174,7 +186,11 @@ const CriteriaGroupBox = (
                 : intl.formatMessage(messages.placeholderRuleGroupMoreActionsLabel, { courseName })}
               removeLabel={intl.formatMessage(messages.removeRuleGroupMenuItem)}
               disabled={isMenuDisabled}
-              onRemove={() => (group ? deleteGroup(group.id) : discardPlaceholderGroup())}
+              onRemove={() => (
+                group
+                  ? requestRemoval({ kind: RemovalTargetKind.RuleGroup, groupId: group.id })
+                  : discardPlaceholderGroup()
+              )}
             />
           </div>
         )
